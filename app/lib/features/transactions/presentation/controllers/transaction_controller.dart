@@ -13,22 +13,23 @@ class TransactionController extends ChangeNotifier {
     required double value,
     required String type,
   }) async {
+    final wallet = await _walletRepository.getMainWallet();
+
     final transaction = TransactionModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       description: description,
       value: value,
       type: type,
       date: DateTime.now(),
+      walletId: 'principal',
     );
 
     await _repository.addTransaction(transaction);
 
-    final wallet = await _walletRepository.getMainWallet();
-
     if (wallet != null) {
       double newBalance = wallet.balance;
 
-      if (type == "income") {
+      if (type == 'income') {
         newBalance += value;
       } else {
         newBalance -= value;
