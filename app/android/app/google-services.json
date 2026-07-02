@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "286653865904",
+    "project_id": "saturnduospend",
+    "storage_bucket": "saturnduospend.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:286653865904:android:df51825d4c949474a8c075",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "286653865904-8aolpvd8oqhet80tlhmgi9r1vuv0ah75.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.app",
+            "certificate_hash": "4c0881d7483f60e059b1dc3bd5db114d1496490b"
+          }
+        },
+        {
+          "client_id": "286653865904-pk358h8svcro0s1d01ba9gnfs7362kgc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9sNXleIfUMXZDp1pvLcMtgu-C10V8WYg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "286653865904-pk358h8svcro0s1d01ba9gnfs7362kgc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

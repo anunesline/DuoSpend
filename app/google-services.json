@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "443825984909",
+    "project_id": "saturn-duospend",
+    "storage_bucket": "saturn-duospend.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:443825984909:android:2dfc8c679b963e2ccd99c4",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "443825984909-u3rut73qf7bjhsmqk4n51rklhr1do1b7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAG_to9J2iHhe0hK2iMyg0MqpHqBB9Nsvs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "443825984909-u3rut73qf7bjhsmqk4n51rklhr1do1b7.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "443825984909-hsar2qi2atsn718648a3dehcteukcfp6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
