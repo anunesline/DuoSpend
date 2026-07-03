@@ -1,3 +1,4 @@
+import '../../../transactions/presentation/pages/history_page.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -86,9 +87,19 @@ class _HomePageState extends State<HomePage> {
                   balance: wallet?.balance ?? 0,
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                TransactionsPreview(
-                  transactions: controller.transactions,
-                ),
+                GestureDetector(
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const HistoryPage(),
+      ),
+    );
+  },
+  child: TransactionsPreview(
+    transactions: controller.transactions,
+  ),
+),
               ],
             ),
           ),
