@@ -1,3 +1,5 @@
+import 'transaction_item_model.dart';
+
 class TransactionModel {
   final String id;
   final String description;
@@ -7,6 +9,7 @@ class TransactionModel {
   final String walletId;
   final String category;
   final String subcategory;
+  final List<TransactionItemModel> items;
 
   TransactionModel({
     required this.id,
@@ -17,6 +20,7 @@ class TransactionModel {
     required this.walletId,
     required this.category,
     required this.subcategory,
+    this.items = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -29,10 +33,13 @@ class TransactionModel {
       'walletId': walletId,
       'category': category,
       'subcategory': subcategory,
+      'items': items.map((item) => item.toMap()).toList(),
     };
   }
 
   factory TransactionModel.fromMap(Map<String, dynamic> map) {
+    final rawItems = map['items'];
+
     return TransactionModel(
       id: map['id'] ?? '',
       description: map['description'] ?? '',
@@ -42,6 +49,12 @@ class TransactionModel {
       walletId: map['walletId'] ?? 'principal',
       category: map['category'] ?? 'Sem categoria',
       subcategory: map['subcategory'] ?? 'Sem subcategoria',
+      items: rawItems is List
+          ? rawItems
+              .whereType<Map<String, dynamic>>()
+              .map(TransactionItemModel.fromMap)
+              .toList()
+          : [],
     );
   }
 }
