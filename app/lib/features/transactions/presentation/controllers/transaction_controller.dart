@@ -12,6 +12,8 @@ class TransactionController extends ChangeNotifier {
     required String description,
     required double value,
     required String type,
+    required String category,
+    required String subcategory,
   }) async {
     final wallet = await _walletRepository.getMainWallet();
 
@@ -22,8 +24,8 @@ class TransactionController extends ChangeNotifier {
       type: type,
       date: DateTime.now(),
       walletId: 'principal',
-      category: 'Sem categoria',
-      subcategory: 'Sem subcategoria',
+      category: category,
+      subcategory: subcategory,
     );
 
     await _repository.addTransaction(transaction);
