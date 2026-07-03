@@ -15,21 +15,21 @@ class UserModel {
 
   Map<String, dynamic> toMap() {
     return {
-      "uid": uid,
-      "name": name,
-      "email": email,
-      "photoUrl": photoUrl,
-      "createdAt": createdAt.toIso8601String(),
+      'uid': uid,
+      'name': name,
+      'email': email,
+      'photoUrl': photoUrl,
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
-      uid: map["uid"] ?? "",
-      name: map["name"] ?? "",
-      email: map["email"] ?? "",
-      photoUrl: map["photoUrl"] ?? "",
-      createdAt: DateTime.parse(map["createdAt"]),
+      uid: map['uid'] ?? '',
+      name: map['name'] ?? '',
+      email: map['email'] ?? '',
+      photoUrl: map['photoUrl'] ?? '',
+      createdAt: DateTime.parse(map['createdAt']),
     );
   }
 }

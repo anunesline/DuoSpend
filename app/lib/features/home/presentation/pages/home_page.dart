@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/summary_card.dart';
@@ -51,39 +53,39 @@ class _HomePageState extends State<HomePage> {
             child: const Icon(Icons.add),
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '👋 Olá, Aline',
-                  style: TextStyle(
+                Text(
+                  '👋 Olá, ${controller.userName}',
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.sm),
                 const Text(
-                  'Bem-vinda ao DuoSpend',
+                  'Bem-vindo ao DuoSpend',
                   style: TextStyle(
-                    color: Colors.grey,
+                    color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.xl),
                 BalanceCard(
                   balance: wallet?.balance ?? 0,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.lg),
                 SummaryCard(
                   income: controller.totalIncome,
                   expense: controller.totalExpense,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.lg),
                 WalletCard(
                   walletName: wallet?.name ?? 'Carteira Principal',
                   balance: wallet?.balance ?? 0,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.lg),
                 TransactionsPreview(
                   transactions: controller.transactions,
                 ),

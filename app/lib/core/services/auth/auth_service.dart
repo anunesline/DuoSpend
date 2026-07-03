@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../../../features/home/data/models/user_model.dart';
-import '../../../features/home/data/repositories/user_repository.dart';
+import '../../../features/auth/data/models/user_model.dart';
+import '../../../features/auth/data/repositories/user_repository.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
