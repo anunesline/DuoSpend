@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
@@ -7,6 +8,25 @@ import '../../../home/data/repositories/wallet_repository.dart';
 class TransactionController extends ChangeNotifier {
   final TransactionRepository _repository = TransactionRepository();
   final WalletRepository _walletRepository = WalletRepository();
+
+  final List<TransactionItemModel> _items = [];
+
+  List<TransactionItemModel> get items => List.unmodifiable(_items);
+
+  void addItem(TransactionItemModel item) {
+    _items.add(item);
+    notifyListeners();
+  }
+
+  void removeItem(TransactionItemModel item) {
+    _items.removeWhere((currentItem) => currentItem.id == item.id);
+    notifyListeners();
+  }
+
+  void clearItems() {
+    _items.clear();
+    notifyListeners();
+  }
 
   Future<void> saveTransaction({
     required String description,
@@ -16,9 +36,10 @@ class TransactionController extends ChangeNotifier {
     required String subcategory,
   }) async {
     final wallet = await _walletRepository.getMainWallet();
+    final transactionId = DateTime.now().millisecondsSinceEpoch.toString();
 
     final transaction = TransactionModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: transactionId,
       description: description,
       value: value,
       type: type,
@@ -26,6 +47,9 @@ class TransactionController extends ChangeNotifier {
       walletId: 'principal',
       category: category,
       subcategory: subcategory,
+      items: _items
+          .map((item) => item.copyWith(transactionId: transactionId))
+          .toList(),
     );
 
     await _repository.addTransaction(transaction);
@@ -42,6 +66,7 @@ class TransactionController extends ChangeNotifier {
       await _walletRepository.updateBalance(newBalance);
     }
 
+    clearItems();
     notifyListeners();
   }
 }

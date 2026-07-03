@@ -8,6 +8,8 @@ class TransactionItemModel {
   final double unitPrice;
   final double totalPrice;
   final String taxonomyId;
+  final String category;
+  final String subcategory;
   final DateTime createdAt;
 
   TransactionItemModel({
@@ -20,8 +22,29 @@ class TransactionItemModel {
     required this.unitPrice,
     required this.totalPrice,
     required this.taxonomyId,
+    required this.category,
+    required this.subcategory,
     required this.createdAt,
   });
+
+  TransactionItemModel copyWith({
+    String? transactionId,
+  }) {
+    return TransactionItemModel(
+      id: id,
+      transactionId: transactionId ?? this.transactionId,
+      name: name,
+      brand: brand,
+      quantity: quantity,
+      unit: unit,
+      unitPrice: unitPrice,
+      totalPrice: totalPrice,
+      taxonomyId: taxonomyId,
+      category: category,
+      subcategory: subcategory,
+      createdAt: createdAt,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -34,6 +57,8 @@ class TransactionItemModel {
       'unitPrice': unitPrice,
       'totalPrice': totalPrice,
       'taxonomyId': taxonomyId,
+      'category': category,
+      'subcategory': subcategory,
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -49,6 +74,8 @@ class TransactionItemModel {
       unitPrice: (map['unitPrice'] ?? 0).toDouble(),
       totalPrice: (map['totalPrice'] ?? 0).toDouble(),
       taxonomyId: map['taxonomyId'] ?? '',
+      category: map['category'] ?? 'Sem categoria',
+      subcategory: map['subcategory'] ?? 'Sem subcategoria',
       createdAt: DateTime.parse(map['createdAt']),
     );
   }
