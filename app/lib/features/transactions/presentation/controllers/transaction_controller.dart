@@ -22,6 +22,8 @@ class TransactionController extends ChangeNotifier {
       type: type,
       date: DateTime.now(),
       walletId: 'principal',
+      category: 'Sem categoria',
+      subcategory: 'Sem subcategoria',
     );
 
     await _repository.addTransaction(transaction);

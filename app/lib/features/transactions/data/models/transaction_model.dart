@@ -5,6 +5,8 @@ class TransactionModel {
   final String type; // income | expense
   final DateTime date;
   final String walletId;
+  final String category;
+  final String subcategory;
 
   TransactionModel({
     required this.id,
@@ -13,6 +15,8 @@ class TransactionModel {
     required this.type,
     required this.date,
     required this.walletId,
+    required this.category,
+    required this.subcategory,
   });
 
   Map<String, dynamic> toMap() {
@@ -23,6 +27,8 @@ class TransactionModel {
       'type': type,
       'date': date.toIso8601String(),
       'walletId': walletId,
+      'category': category,
+      'subcategory': subcategory,
     };
   }
 
@@ -33,7 +39,9 @@ class TransactionModel {
       value: (map['value'] ?? 0).toDouble(),
       type: map['type'] ?? 'expense',
       date: DateTime.parse(map['date']),
-      walletId: map['walletId'] ?? '',
+      walletId: map['walletId'] ?? 'principal',
+      category: map['category'] ?? 'Sem categoria',
+      subcategory: map['subcategory'] ?? 'Sem subcategoria',
     );
   }
 }
