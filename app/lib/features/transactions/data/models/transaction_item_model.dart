@@ -1,6 +1,8 @@
 class TransactionItemModel {
   final String id;
   final String transactionId;
+  final String? productId;
+  final String? merchantId;
   final String name;
   final String brand;
   final double quantity;
@@ -15,6 +17,8 @@ class TransactionItemModel {
   TransactionItemModel({
     required this.id,
     required this.transactionId,
+    this.productId,
+    this.merchantId,
     required this.name,
     required this.brand,
     required this.quantity,
@@ -29,10 +33,14 @@ class TransactionItemModel {
 
   TransactionItemModel copyWith({
     String? transactionId,
+    String? productId,
+    String? merchantId,
   }) {
     return TransactionItemModel(
       id: id,
       transactionId: transactionId ?? this.transactionId,
+      productId: productId ?? this.productId,
+      merchantId: merchantId ?? this.merchantId,
       name: name,
       brand: brand,
       quantity: quantity,
@@ -50,6 +58,8 @@ class TransactionItemModel {
     return {
       'id': id,
       'transactionId': transactionId,
+      'productId': productId,
+      'merchantId': merchantId,
       'name': name,
       'brand': brand,
       'quantity': quantity,
@@ -67,6 +77,8 @@ class TransactionItemModel {
     return TransactionItemModel(
       id: map['id'] ?? '',
       transactionId: map['transactionId'] ?? '',
+      productId: map['productId'],
+      merchantId: map['merchantId'],
       name: map['name'] ?? '',
       brand: map['brand'] ?? '',
       quantity: (map['quantity'] ?? 0).toDouble(),
