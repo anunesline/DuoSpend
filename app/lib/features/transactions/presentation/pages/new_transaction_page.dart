@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../shared/catalog/taxonomy/duo_taxonomy.dart';
-import '../../../../shared/catalog/taxonomy/taxonomy_item.dart';
+import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
+import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../controllers/transaction_controller.dart';
 import 'add_transaction_item_page.dart';
