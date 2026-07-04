@@ -1,6 +1,6 @@
-class TransactionItemModel {
+class PurchaseItemModel {
   final String id;
-  final String transactionId;
+  final String purchaseId;
   final String? productId;
   final String? merchantId;
 
@@ -13,19 +13,17 @@ class TransactionItemModel {
 
   final String taxonomyId;
 
-  // Classificação financeira/contextual
-  final String category;
-  final String subcategory;
+  final String financialCategory;
+  final String financialSubcategory;
 
-  // Classificação real do produto
   final String productCategoryId;
   final String productCategoryName;
 
   final DateTime createdAt;
 
-  TransactionItemModel({
+  const PurchaseItemModel({
     required this.id,
-    required this.transactionId,
+    required this.purchaseId,
     this.productId,
     this.merchantId,
     required this.name,
@@ -35,42 +33,55 @@ class TransactionItemModel {
     required this.unitPrice,
     required this.totalPrice,
     required this.taxonomyId,
-    required this.category,
-    required this.subcategory,
+    required this.financialCategory,
+    required this.financialSubcategory,
     required this.productCategoryId,
     required this.productCategoryName,
     required this.createdAt,
   });
 
-  TransactionItemModel copyWith({
-    String? transactionId,
+  PurchaseItemModel copyWith({
+    String? id,
+    String? purchaseId,
     String? productId,
     String? merchantId,
+    String? name,
+    String? brand,
+    double? quantity,
+    String? unit,
+    double? unitPrice,
+    double? totalPrice,
+    String? taxonomyId,
+    String? financialCategory,
+    String? financialSubcategory,
+    String? productCategoryId,
+    String? productCategoryName,
+    DateTime? createdAt,
   }) {
-    return TransactionItemModel(
-      id: id,
-      transactionId: transactionId ?? this.transactionId,
+    return PurchaseItemModel(
+      id: id ?? this.id,
+      purchaseId: purchaseId ?? this.purchaseId,
       productId: productId ?? this.productId,
       merchantId: merchantId ?? this.merchantId,
-      name: name,
-      brand: brand,
-      quantity: quantity,
-      unit: unit,
-      unitPrice: unitPrice,
-      totalPrice: totalPrice,
-      taxonomyId: taxonomyId,
-      category: category,
-      subcategory: subcategory,
-      productCategoryId: productCategoryId,
-      productCategoryName: productCategoryName,
-      createdAt: createdAt,
+      name: name ?? this.name,
+      brand: brand ?? this.brand,
+      quantity: quantity ?? this.quantity,
+      unit: unit ?? this.unit,
+      unitPrice: unitPrice ?? this.unitPrice,
+      totalPrice: totalPrice ?? this.totalPrice,
+      taxonomyId: taxonomyId ?? this.taxonomyId,
+      financialCategory: financialCategory ?? this.financialCategory,
+      financialSubcategory: financialSubcategory ?? this.financialSubcategory,
+      productCategoryId: productCategoryId ?? this.productCategoryId,
+      productCategoryName: productCategoryName ?? this.productCategoryName,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'transactionId': transactionId,
+      'purchaseId': purchaseId,
       'productId': productId,
       'merchantId': merchantId,
       'name': name,
@@ -80,18 +91,18 @@ class TransactionItemModel {
       'unitPrice': unitPrice,
       'totalPrice': totalPrice,
       'taxonomyId': taxonomyId,
-      'category': category,
-      'subcategory': subcategory,
+      'financialCategory': financialCategory,
+      'financialSubcategory': financialSubcategory,
       'productCategoryId': productCategoryId,
       'productCategoryName': productCategoryName,
       'createdAt': createdAt.toIso8601String(),
     };
   }
 
-  factory TransactionItemModel.fromMap(Map<String, dynamic> map) {
-    return TransactionItemModel(
+  factory PurchaseItemModel.fromMap(Map<String, dynamic> map) {
+    return PurchaseItemModel(
       id: map['id'] ?? '',
-      transactionId: map['transactionId'] ?? '',
+      purchaseId: map['purchaseId'] ?? '',
       productId: map['productId'],
       merchantId: map['merchantId'],
       name: map['name'] ?? '',
@@ -101,8 +112,9 @@ class TransactionItemModel {
       unitPrice: (map['unitPrice'] ?? 0).toDouble(),
       totalPrice: (map['totalPrice'] ?? 0).toDouble(),
       taxonomyId: map['taxonomyId'] ?? '',
-      category: map['category'] ?? 'Sem categoria',
-      subcategory: map['subcategory'] ?? 'Sem subcategoria',
+      financialCategory: map['financialCategory'] ?? 'Sem categoria',
+      financialSubcategory:
+          map['financialSubcategory'] ?? 'Sem subcategoria',
       productCategoryId: map['productCategoryId'] ?? '',
       productCategoryName: map['productCategoryName'] ?? '',
       createdAt: DateTime.parse(map['createdAt']),

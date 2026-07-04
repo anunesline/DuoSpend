@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../home/data/repositories/wallet_repository.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
-import '../../../home/data/repositories/wallet_repository.dart';
 
 class TransactionController extends ChangeNotifier {
   final TransactionRepository _repository = TransactionRepository();
@@ -28,7 +28,8 @@ class TransactionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> saveTransaction({
+  Future<String> saveTransaction({
+    String? transactionId,
     required String description,
     required double value,
     required String type,
@@ -36,10 +37,10 @@ class TransactionController extends ChangeNotifier {
     required String subcategory,
   }) async {
     final wallet = await _walletRepository.getMainWallet();
-    final transactionId = DateTime.now().millisecondsSinceEpoch.toString();
+    final id = transactionId ?? DateTime.now().millisecondsSinceEpoch.toString();
 
     final transaction = TransactionModel(
-      id: transactionId,
+      id: id,
       description: description,
       value: value,
       type: type,
@@ -47,9 +48,7 @@ class TransactionController extends ChangeNotifier {
       walletId: 'principal',
       category: category,
       subcategory: subcategory,
-      items: _items
-          .map((item) => item.copyWith(transactionId: transactionId))
-          .toList(),
+      items: _items.map((item) => item.copyWith(transactionId: id)).toList(),
     );
 
     await _repository.addTransaction(transaction);
@@ -68,5 +67,7 @@ class TransactionController extends ChangeNotifier {
 
     clearItems();
     notifyListeners();
+
+    return id;
   }
 }

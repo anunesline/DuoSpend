@@ -149,6 +149,8 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
           : taxonomyId,
       category: selectedCategory.name,
       subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
+      productCategoryId: selectedProduct?.productCategoryId ?? '',
+      productCategoryName: selectedProduct?.productCategoryName ?? '',
       createdAt: DateTime.now(),
     );
 

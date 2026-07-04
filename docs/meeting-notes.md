@@ -478,4 +478,874 @@ Resultado esperado
 
 A Home passa a ser totalmente alimentada pelos dados do Firestore, exibindo informações reais do usuário em tempo real.
 começando: 23:33
-terminando: 23:58
+parando: 23:58
+
+## ## Sprint 8 — Refatoração da Base
+
+📅 Data: 02/07/2026
+
+🎯 Objetivo
+
+Consolidar a arquitetura do DuoSpend antes da implementação das próximas funcionalidades, reduzindo dívida técnica, padronizando o projeto e preparando a base para crescimento.
+
+---
+
+História 8.1 — Auditoria Técnica
+
+Objetivo
+
+Realizar uma auditoria completa do projeto para identificar:
+
+• arquivos duplicados;
+• código morto;
+• widgets não utilizados;
+• imports desnecessários;
+• oportunidades de refatoração;
+• aderência à arquitetura Feature First.
+
+Critérios de aceite
+
+- Projeto auditado.
+- Lista de melhorias documentada.
+- Dívida técnica registrada.
+
+---
+
+História 8.2 — Padronização da Home
+
+Objetivo
+
+Remover informações fixas e tornar a Home totalmente dinâmica.
+
+Itens
+
+- Nome do usuário obtido pelo Firebase.
+- Foto do usuário.
+- Mensagens padronizadas.
+- Componentes reutilizáveis.
+
+Critérios de aceite
+
+A Home não deve conter dados hardcoded.
+
+---
+
+História 8.3 — Padronização Visual
+
+Objetivo
+
+Centralizar cores, textos e estilos.
+
+Itens
+
+- AppColors
+- AppTextStyles
+- AppStrings
+
+Critérios de aceite
+
+Nenhuma tela deverá utilizar cores fixas fora do Design System.
+
+---
+
+História 8.4 — Organização do Projeto
+
+Objetivo
+
+Consolidar a estrutura do projeto.
+
+Itens
+
+- revisão das pastas;
+- revisão dos imports;
+- remoção de arquivos desnecessários;
+- documentação da arquitetura.
+
+---
+
+História 8.5 — Documentação
+
+Objetivo
+
+Criar a documentação oficial do DuoSpend.
+
+Arquivos
+
+01 - Contexto Geral.md
+02 - Visão do Produto.md
+03 - PRD.md
+04 - Roadmap.md
+05 - Arquitetura.md
+06 - Design System.md
+07 - Regras de Negócio.md
+08 - Backend.md
+09 - Flutter.md
+10 - Changelog.md
+README - IA.md
+
+---
+
+Resultado esperado
+
+Ao final da Sprint 8 o DuoSpend deverá possuir:
+
+✅ Arquitetura consolidada
+
+✅ Projeto padronizado
+
+✅ Home organizada
+
+✅ Design System centralizado
+
+✅ Documentação oficial
+
+✅ Base preparada para as próximas funcionalidades
+
+---
+
+⏱️ Estimativa
+
+6 a 10 horas
+
+Início:
+02/07/2026
+17:09
+parei 17:30
+retornando 22:34
+
+## Sprint 8 - Status Atual
+História 8.1 — Auditoria Técnica
+✅ Controller duplicado removido
+✅ Widget duplicado removido
+✅ TransactionModel duplicado removido
+✅ UserModel movido para Auth
+✅ UserRepository movido para Auth
+✅ Arquitetura mais coerente
+História 8.2 — Home
+✅ Nome do usuário dinâmico
+✅ Primeiros elementos do Design System aplicados
+História 8.3 — Design System
+✅ AppSpacing criado
+✅ Home utilizando AppSpacing
+✅ Primeira cor centralizada (AppColors.textSecondary)
+
+conclusao: 00:51
+
+## 🧠 Sprint 9 — Knowledge Engine
+
+📅 Data: 03/07/2026
+
+🎯 Objetivo
+
+Transformar o DuoSpend em um sistema capaz de aprender com os dados do usuário, centralizando todo o conhecimento do domínio em uma camada reutilizável.
+
+História 9.1 — Knowledge Layer
+Objetivo
+
+Criar a estrutura base da camada de conhecimento.
+
+Estrutura:
+
+shared/
+   knowledge/
+      classifier/
+      products/
+      merchants/
+      taxonomy/
+      learning/
+      insights/
+
+Critérios de aceite
+
+Estrutura criada
+Organização documentada
+História 9.2 — Product Repository
+
+Objetivo
+
+Centralizar todas as operações relacionadas aos produtos.
+
+Critérios
+
+Buscar produto
+Buscar por nome
+Buscar por código de barras
+Salvar produto
+Atualizar produto
+História 9.3 — Merchant Repository
+
+Objetivo
+
+Centralizar estabelecimentos.
+
+Critérios
+
+Cadastro
+Busca
+Favoritos
+Histórico
+História 9.4 — Product Autocomplete
+
+Objetivo
+
+Enquanto o usuário digita:
+
+Hei...
+
+o Duo sugere
+
+🍺 Heineken
+
+Critérios
+
+Busca instantânea
+Sugestão
+Seleção
+História 9.5 — Suggestion Engine
+
+Objetivo
+
+Preencher automaticamente:
+
+unidade
+categoria
+subcategoria
+marca
+
+Critérios
+
+Sem IA.
+
+Somente conhecimento.
+
+História 9.6 — Learning Engine
+
+Objetivo
+
+Aprender com as correções do usuário.
+
+Exemplo
+
+Usuário altera
+
+Heineken
+
+↓
+
+Bebidas Premium
+
+O Duo passa a sugerir isso futuramente.
+
+História 9.7 — Insight Engine
+
+Objetivo
+
+Gerar conhecimento.
+
+Exemplos
+
+preço médio
+último preço
+consumo
+comparação
+tendências
+Resultado esperado
+
+Ao final da Sprint 9:
+
+✅ Base de conhecimento criada
+
+✅ Produtos reutilizáveis
+
+✅ Estabelecimentos reutilizáveis
+
+✅ Sugestões inteligentes
+
+✅ Aprendizado contínuo
+
+✅ Base preparada para IA Premium
+
+Estimativa
+
+12 a 18 horas
+comecei: 00:21
+parei: 01:50
+
+
+comecei 22:20
+terminei: 23:40
+
+## Sprint 10
+Estado atual do projeto
+
+Finalizamos a Sprint 9.
+
+Arquitetura concluída
+Flutter organizado em Features.
+Firebase configurado.
+Wallet funcionando.
+Transaction funcionando.
+Histórico funcionando.
+ProductModel criado.
+TransactionItemModel refatorado.
+ProductRepository criado.
+ProductMemory criado.
+ProductSeed criado.
+ProductSummaryCard criado.
+ProductSearchField funcionando.
+Autocomplete funcionando.
+Produto conhecido é reconhecido automaticamente.
+Preenchimento automático de:
+nome
+marca
+unidade
+categoria
+subcategoria
+Separação iniciada entre:
+Categoria Financeira
+Categoria do Produto
+Projeto compilando.
+Flutter Analyze sem erros.
+Objetivo da Sprint 10
+
+Transformar o DuoSpend de um formulário financeiro para uma experiência de compra inteligente.
+
+O usuário não registra "transações".
+
+O usuário registra "compras".
+
+Toda a UX será construída pensando nisso.
+
+Sprint 10
+10.1 — Purchase Experience
+
+Refatorar a tela Nova Compra.
+
+Fluxo esperado:
+
+Onde comprou?
+
+↓
+
+O que comprou?
+
+↓
+
+Produto reconhecido
+
+↓
+
+Quantidade
+
+↓
+
+Quanto pagou?
+
+↓
+
+Adicionar outro produto
+
+↓
+
+Resumo da compra
+
+↓
+
+Salvar compra
+10.2 — Merchant Intelligence
+
+Criar:
+
+MerchantModel
+
+Campos iniciais:
+
+id
+name
+normalizedName
+merchantType
+city
+state
+favorite
+createdAt
+updatedAt
+
+Criar:
+
+MerchantRepository
+MerchantMemory
+MerchantSeed
+MerchantSearchField
+
+Autocomplete para:
+
+Condor
+Festval
+Muffato
+Assaí
+Atacadão
+iFood
+Shell
+Droga Raia
+10.3 — Purchase Summary
+
+Criar um card fixo na parte inferior.
+
+Mostrar:
+
+Itens
+
+Total
+
+Mercado
+
+Economia futura
+
+Atualização em tempo real.
+
+10.4 — Multi Item Experience
+
+Permitir adicionar diversos produtos.
+
+Exemplo:
+
+🍺 Heineken
+
+🥩 Picanha
+
+🥤 Coca
+
+🥛 Leite
+
+Sem sair da tela.
+
+10.5 — Product Intelligence
+
+Cada item passa a armazenar:
+
+categoria do produto
+marca
+unidade
+preço médio
+último preço
+último estabelecimento
+
+Preparar para memória permanente.
+
+10.6 — Merchant Memory
+
+Ao salvar uma compra:
+
+Atualizar automaticamente:
+
+último preço
+última compra
+frequência
+estabelecimento
+10.7 — AI Foundations
+
+Preparar arquitetura para:
+
+OCR de nota fiscal
+IA classificadora
+Sugestões automáticas
+Insights financeiros
+Histórico inteligente
+
+Ainda sem IA generativa.
+
+Somente infraestrutura.
+
+10.8 — UX
+
+Remover qualquer aparência de formulário.
+
+Meta:
+
+Parecer um aplicativo moderno.
+
+Inspirar-se em:
+
+iFood
+Nubank
+Splitwise
+Todoist
+Apple Wallet
+
+Poucos campos.
+
+Muito contexto.
+
+Pouca digitação.
+
+Decisões de arquitetura
+
+Separar definitivamente:
+
+Categoria Financeira
+
+Responde:
+
+Onde o dinheiro foi gasto?
+
+Exemplos:
+
+Alimentação
+Transporte
+Saúde
+Lazer
+Casa
+Categoria do Produto
+
+Responde:
+
+O que é este produto?
+
+Exemplos:
+
+Bebidas
+Carnes
+Laticínios
+Limpeza
+Higiene
+Pets
+Merchant
+
+Responde:
+
+Onde foi comprado?
+
+Exemplos:
+
+Mercado
+Farmácia
+Restaurante
+Delivery
+Posto
+Próximo grande objetivo
+
+O DuoSpend deixará de ser apenas um controle financeiro.
+
+Ele será um assistente inteligente de compras, capaz de lembrar produtos, preços, mercados e hábitos de consumo, reduzindo a quantidade de informações que o usuário precisa digitar e oferecendo insights úteis ao longo do tempo.
+
+
+Sprint 10
+
+- Merchant Intelligence V1
+- Merchant Memory
+- PurchaseService
+- SavePurchaseUseCase
+- Nova arquitetura de compras
+- Categoria automática
+- Resumo automático
+- UX Nova Compra
+- Merchant aprende novos estabelecimentos
+comecei 23:41
+terminei 02:00
+
+## Sprint 11 — Purchase Domain & Product Memory
+
+📅 Data: 04/07/2026
+
+🕒 Início: 
+⏸️ Pausa: 
+▶️ Retorno: 
+🏁 Fim: 
+⏱️ Tempo efetivo: 
+
+---
+
+## 🎯 Objetivo da Sprint
+
+Consolidar o domínio de compras do DuoSpend e iniciar a memória inteligente de produtos.
+
+A Sprint 10 transformou a tela de Nova Compra em uma experiência moderna e criou a Merchant Intelligence V1.
+
+Agora a Sprint 11 vai separar melhor o conceito de Compra, fortalecer a arquitetura de domínio e começar a preparar o DuoSpend para lembrar produtos, preços, frequência e relação entre produto e estabelecimento.
+
+---
+
+## 🧠 Estado atual do projeto
+
+Finalizamos a Sprint 10 com:
+
+✅ Nova Compra reformulada  
+✅ Compra sempre tratada como despesa  
+✅ MerchantSelectorCard funcionando  
+✅ MerchantModel criado  
+✅ MerchantTypes criado  
+✅ MerchantSeed criado  
+✅ MerchantRepository criado  
+✅ MerchantMemoryModel criado  
+✅ MerchantMemoryRepository criado  
+✅ PurchaseService criado  
+✅ SavePurchaseUseCase criado  
+✅ Merchant manual funcionando  
+✅ Merchant Memory funcionando  
+✅ Lojas novas reaparecendo como sugestão  
+✅ Categoria financeira detectada automaticamente  
+✅ Bottom Sheet para editar categoria  
+✅ Resumo automático da compra  
+✅ Valor total calculado pelos itens  
+✅ Flutter Analyze sem erros  
+✅ App compilando  
+
+---
+
+## Sprint 11
+
+Até agora, a persistência ainda usa `TransactionModel`, mas a experiência do usuário já é de Compra.
+
+A Sprint 11 inicia a consolidação oficial do domínio:
+
+Compra ≠ Transação
+
+A compra é o evento de consumo.
+
+A transação é o impacto financeiro gerado por esse evento.
+
+Fluxo conceitual:
+
+```text
+Purchase
+  ↓
+gera Transaction
+  ↓
+atualiza Wallet
+  ↓
+atualiza Merchant Memory
+  ↓
+atualiza Product Memory
+📌 Histórias da Sprint 11
+11.1 — Purchase Domain
+
+Criar a base do domínio de compras.
+
+Arquivos previstos:
+
+features/purchases/
+  domain/
+    models/
+      purchase_model.dart
+      purchase_summary_model.dart
+
+Objetivo:
+
+Representar uma compra como entidade própria, mesmo que a persistência continue usando TransactionModel por enquanto.
+
+Critérios de aceite:
+
+Criar PurchaseModel.
+Criar PurchaseSummaryModel.
+Manter compatibilidade com TransactionModel.
+Não quebrar histórico, wallet ou tela atual.
+11.2 — Purchase Controller
+
+Criar um controller específico para a experiência de compra.
+
+Objetivo:
+
+Reduzir dependência do TransactionController.
+
+Critérios de aceite:
+
+Criar PurchaseController.
+Mover estado temporário da compra para ele.
+Gerenciar:
+merchant selecionado;
+itens;
+valor manual;
+categoria financeira;
+subcategoria financeira;
+total calculado.
+Preparar a tela para deixar de usar TransactionController.
+11.3 — Product Memory V1
+
+Criar memória permanente de produtos.
+
+Objetivo:
+
+O DuoSpend deve começar a lembrar produtos comprados, valores, quantidade e estabelecimento.
+
+Estrutura esperada:
+
+features/products/
+  domain/
+    product_memory_model.dart
+  data/
+    product_memory_repository.dart
+
+Campos iniciais:
+
+productId
+productName
+brand
+category
+subcategory
+unit
+timesPurchased
+totalQuantity
+totalSpent
+averagePrice
+lastPrice
+lastMerchantId
+lastMerchantName
+lastPurchaseAt
+
+Critérios de aceite:
+
+Ao salvar uma compra, atualizar memória dos produtos.
+Registrar último preço.
+Registrar estabelecimento.
+Calcular preço médio.
+Incrementar frequência de compra.
+11.4 — Integração Product Memory com SavePurchaseUseCase
+
+Objetivo:
+
+O SavePurchaseUseCase deve atualizar:
+
+Transaction
+Wallet
+Merchant Memory
+Product Memory
+
+Critérios de aceite:
+
+Cada item da compra alimenta ProductMemoryRepository.
+O use case continua sendo o único ponto de orquestração da compra.
+A UI não conhece Product Memory diretamente.
+11.5 — Purchase Suggestions Foundation
+
+Objetivo:
+
+Preparar a base para sugestões futuras.
+
+Exemplo futuro:
+
+Você costuma comprar estes produtos no Condor:
+- Arroz
+- Leite
+- Café
+
+Nesta sprint, ainda não precisa exibir sugestões na tela.
+
+Critérios de aceite:
+
+Product Memory gravada corretamente.
+Dados suficientes para gerar sugestões futuras.
+Arquitetura preparada para PurchaseSuggestionService.
+11.6 — Refatoração da Nova Compra
+
+Objetivo:
+
+Deixar a NewTransactionPage mais próxima de uma futura NewPurchasePage.
+
+Critérios de aceite:
+
+Reduzir responsabilidade da tela.
+Avaliar renomeação futura.
+Manter app compilando.
+Não quebrar UX criada na Sprint 10.
+🧪 Testes da Sprint 11
+Teste 1 — Compra com merchant conhecido
+Selecionar Condor.
+Adicionar produtos.
+Salvar compra.
+Validar:
+histórico;
+saldo;
+merchant memory;
+product memory.
+Teste 2 — Compra com merchant novo
+Digitar um mercado novo.
+Salvar compra.
+Abrir nova compra.
+Validar merchant reaparecendo como sugestão.
+Validar produtos salvos na memória.
+Teste 3 — Produto recorrente
+Comprar o mesmo produto duas vezes.
+Validar:
+timesPurchased;
+averagePrice;
+lastPrice;
+lastMerchantName.
+Teste 4 — Integridade
+Rodar flutter analyze.
+Rodar flutter run.
+Confirmar que Home, Histórico, Wallet e Nova Compra continuam funcionando.
+🎯 Resultado esperado da Sprint 11
+
+Ao final da Sprint 11, o DuoSpend deverá:
+
+✅ Ter domínio de compras iniciado
+✅ Ter PurchaseModel e PurchaseSummaryModel
+✅ Ter PurchaseController planejado ou iniciado
+✅ Ter Product Memory V1 funcionando
+✅ Atualizar memória de produtos ao salvar compras
+✅ Manter Merchant Memory funcionando
+✅ Manter Wallet e Histórico funcionando
+✅ Estar preparado para sugestões inteligentes na Sprint 12
+
+⏱️ Estimativa
+
+Sprint 11 — Purchase Domain & Product Memory
+
+Estimativa: 4 a 6 horas de desenvolvimento.
+
+🧭 Próximo grande objetivo
+
+A partir da Sprint 11, o DuoSpend começa a aprender não só onde o usuário compra, mas também o que ele compra, quanto paga e com que frequência.
+
+Isso prepara o app para:
+
+lista de compras inteligente;
+sugestões por estabelecimento;
+comparação de preços;
+controle de consumo;
+OCR de nota fiscal;
+IA de recomendações futuras.
+
+começando 13:30
+parando 14:47
+voltei 14:56
+parando 15:53
+voltando 16:50
+terminei 17:40
+
+
+## Sprint 12
+Shopping Intelligence
+
+Status: Planejada
+Estimativa: 6 a 8 horas
+Objetivo: criar a base da Lista Inteligente do DuoSpend, conectando compras, produtos recorrentes e sugestões futuras.
+
+Escopo da Sprint 12
+Criar domínio Shopping
+Criar ShoppingItemModel
+Criar ShoppingListModel
+Criar ShoppingRepository
+Criar FirebaseShoppingRepository
+Criar ShoppingController
+Preparar integração com PurchaseFlow
+Criar base para Lista Inteligente
+Criar primeiros conceitos de recompra automática
+Preparar arquitetura para consumo doméstico/premium
+Decisão de Produto
+
+A Lista Inteligente será baseada em baixa digitação.
+
+O usuário não precisa registrar tudo manualmente. O DuoSpend deve aprender com o histórico de compras e sugerir itens recorrentes.
+
+Ideia Premium registrada
+
+Criar futuramente o módulo de Casa Inteligente / Consumo Doméstico, com:
+
+botão “Acabou”
+cálculo de duração de produtos
+sugestão automática de recompra
+controle simples de estoque
+previsões de consumo
+
+Regra importante: isso será opcional, não obrigatório.

@@ -1,10 +1,17 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../data/models/transaction_item_model.dart';
+import '../../domain/purchase/models/purchase_item_model.dart';
+import '../../domain/purchase/commands/create_purchase_command.dart';
+import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
+import '../widgets/purchase_items_section.dart';
+import '../widgets/transaction_basic_fields_section.dart';
+import '../widgets/transaction_save_button.dart';
 import 'add_transaction_item_page.dart';
 
 class NewTransactionPage extends StatefulWidget {
@@ -17,20 +24,38 @@ class NewTransactionPage extends StatefulWidget {
 class _NewTransactionPageState extends State<NewTransactionPage> {
   final descriptionController = TextEditingController();
   final valueController = TextEditingController();
-  final TransactionController controller = TransactionController();
+
+  final transactionController = TransactionController();
+  final purchaseController = PurchaseController();
 
   String type = 'expense';
 
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
-  TaxonomyItem? selectedSubcategory = DuoTaxonomy.items.first.children.isNotEmpty
-      ? DuoTaxonomy.items.first.children.first
-      : null;
+  TaxonomyItem? selectedSubcategory =
+      DuoTaxonomy.items.first.children.isNotEmpty
+          ? DuoTaxonomy.items.first.children.first
+          : null;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncFinancialCategory();
+  }
 
   @override
   void dispose() {
     descriptionController.dispose();
     valueController.dispose();
+    transactionController.dispose();
+    purchaseController.dispose();
     super.dispose();
+  }
+
+  void _syncFinancialCategory() {
+    purchaseController.setFinancialCategory(
+      category: selectedCategory.name,
+      subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
+    );
   }
 
   void _changeCategory(TaxonomyItem category) {
@@ -38,6 +63,22 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       selectedCategory = category;
       selectedSubcategory =
           category.children.isNotEmpty ? category.children.first : null;
+    });
+
+    _syncFinancialCategory();
+  }
+
+  void _changeSubcategory(TaxonomyItem? subcategory) {
+    setState(() {
+      selectedSubcategory = subcategory;
+    });
+
+    _syncFinancialCategory();
+  }
+
+  void _changeType(String value) {
+    setState(() {
+      type = value;
     });
   }
 
@@ -49,28 +90,65 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       ),
     );
 
-    if (item != null) {
-      controller.addItem(item);
-    }
+    if (item == null) return;
+
+    purchaseController.addTransactionItem(item);
+    transactionController.addItem(item);
+    _syncValueWithPurchaseTotal();
+  }
+
+  void _removeItem(PurchaseItemModel item) {
+    purchaseController.removeItem(item.id);
+
+    final transactionItem = purchaseController.toTransactionItem(
+      item: item,
+      transactionId: item.purchaseId,
+    );
+
+    transactionController.removeItem(transactionItem);
+    _syncValueWithPurchaseTotal();
+  }
+
+  void _syncValueWithPurchaseTotal() {
+    valueController.text =
+        purchaseController.total.toStringAsFixed(2).replaceAll('.', ',');
   }
 
   Future<void> _saveTransaction() async {
     final description = descriptionController.text.trim();
-
-    final value = double.tryParse(
-      valueController.text.replaceAll(',', '.'),
-    );
+    final value = double.tryParse(valueController.text.replaceAll(',', '.'));
 
     if (description.isEmpty || value == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Preencha todos os campos.'),
-        ),
-      );
+      _showMessage('Preencha todos os campos.');
       return;
     }
 
-    await controller.saveTransaction(
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      _showMessage('Usuário não autenticado.');
+      return;
+    }
+
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+
+    if (purchaseController.hasItems) {
+      await purchaseController.completePurchase(
+        CreatePurchaseCommand(
+          id: id,
+          userId: user.uid,
+          walletId: 'principal',
+          purchaseDate: DateTime.now(),
+        ),
+      );
+      if (purchaseController.errorMessage != null) {
+        _showMessage(purchaseController.errorMessage!);
+        return;
+      }
+    }
+
+    await transactionController.saveTransaction(
+      transactionId: id,
       description: description,
       value: value,
       type: type,
@@ -83,182 +161,52 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     }
   }
 
-  String _formatMoney(double value) {
-    return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final subcategories = selectedCategory.children;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nova Transação'),
       ),
       body: AnimatedBuilder(
-        animation: controller,
+        animation: Listenable.merge([
+          transactionController,
+          purchaseController,
+        ]),
         builder: (context, _) {
-          final items = controller.items;
-
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Descrição',
-                    border: OutlineInputBorder(),
-                  ),
+                TransactionBasicFieldsSection(
+                  descriptionController: descriptionController,
+                  valueController: valueController,
+                  type: type,
+                  selectedCategory: selectedCategory,
+                  selectedSubcategory: selectedSubcategory,
+                  onTypeChanged: _changeType,
+                  onCategoryChanged: _changeCategory,
+                  onSubcategoryChanged: _changeSubcategory,
                 ),
                 const SizedBox(height: AppSpacing.lg),
-
-                TextField(
-                  controller: valueController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Valor',
-                    border: OutlineInputBorder(),
-                  ),
+                PurchaseItemsSection(
+                  items: purchaseController.items,
+                  total: purchaseController.total,
+                  onAddItem: _openAddItemPage,
+                  onRemoveItem: _removeItem,
                 ),
-                const SizedBox(height: AppSpacing.lg),
-
-                DropdownButtonFormField<TaxonomyItem>(
-                  value: selectedCategory,
-                  decoration: const InputDecoration(
-                    labelText: 'Categoria',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: DuoTaxonomy.items.map((category) {
-                    return DropdownMenuItem(
-                      value: category,
-                      child: Text('${category.icon} ${category.name}'),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      _changeCategory(value);
-                    }
-                  },
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                DropdownButtonFormField<TaxonomyItem>(
-                  value: selectedSubcategory,
-                  decoration: const InputDecoration(
-                    labelText: 'Subcategoria',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: subcategories.map((subcategory) {
-                    return DropdownMenuItem(
-                      value: subcategory,
-                      child: Text('${subcategory.icon} ${subcategory.name}'),
-                    );
-                  }).toList(),
-                  onChanged: subcategories.isEmpty
-                      ? null
-                      : (value) {
-                          setState(() {
-                            selectedSubcategory = value;
-                          });
-                        },
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                RadioListTile<String>(
-                  title: const Text('Receita'),
-                  value: 'income',
-                  groupValue: type,
-                  onChanged: (value) {
-                    setState(() {
-                      type = value!;
-                    });
-                  },
-                ),
-
-                RadioListTile<String>(
-                  title: const Text('Despesa'),
-                  value: 'expense',
-                  groupValue: type,
-                  onChanged: (value) {
-                    setState(() {
-                      type = value!;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: AppSpacing.lg),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Itens (${items.length})',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: _openAddItemPage,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Adicionar'),
-                    ),
-                  ],
-                ),
-
-                if (items.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(AppSpacing.lg),
-                      child: Text(
-                        'Nenhum item adicionado. Use essa área para detalhar compras de mercado, farmácia, casa e outros consumos.',
-                      ),
-                    ),
-                  )
-                else
-                  Column(
-                    children: items.map((item) {
-                      return Card(
-                        child: ListTile(
-                          title: Text(item.name),
-                          subtitle: Text(
-                            '${item.quantity.toStringAsFixed(2).replaceAll('.', ',')} ${item.unit}'
-                            '${item.brand.isNotEmpty ? ' • ${item.brand}' : ''}',
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _formatMoney(item.totalPrice),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () {
-                                  controller.removeItem(item);
-                                },
-                                icon: const Icon(Icons.close),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-
                 const SizedBox(height: AppSpacing.xl),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _saveTransaction,
-                    child: const Text('Salvar'),
-                  ),
+                TransactionSaveButton(
+                  isSaving: purchaseController.isSaving,
+                  onPressed: _saveTransaction,
                 ),
               ],
             ),
