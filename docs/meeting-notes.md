@@ -1349,3 +1349,5 @@ controle simples de estoque
 previsões de consumo
 
 Regra importante: isso será opcional, não obrigatório.
+comecei: 17:30
+pausei: 18:40

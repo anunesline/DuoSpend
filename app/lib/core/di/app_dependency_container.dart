@@ -1,0 +1,3 @@
+class AppDependencyContainer {
+  const AppDependencyContainer();
+}
