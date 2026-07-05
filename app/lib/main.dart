@@ -2,30 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'app/app.dart';
+import 'core/bootstrap/app_bootstrap.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  print("1 - Widgets");
-
   try {
-    print("2 - Antes do Firebase");
-
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-
-    print("3 - Firebase OK");
-  } catch (e, s) {
-    print("ERRO FIREBASE:");
-    print(e);
-    print(s);
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } on FirebaseException catch (error) {
+    if (error.code != 'duplicate-app') {
+      rethrow;
+    }
   }
 
-  print("4 - Antes do runApp");
+  final dependencies = await AppBootstrap.initialize();
 
-  runApp(const DuoSpendApp());
-
-  print("5 - Depois do runApp");
+  runApp(
+    DuoSpendApp(
+      dependencies: dependencies,
+    ),
+  );
 }

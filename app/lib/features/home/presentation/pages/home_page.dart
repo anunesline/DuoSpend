@@ -1,17 +1,20 @@
-import '../../../transactions/presentation/pages/history_page.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../shopping/presentation/controllers/shopping_controller.dart';
+import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/transactions_preview.dart';
 import '../widgets/wallet_card.dart';
-import '../../../transactions/presentation/pages/new_transaction_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final ShoppingController shoppingController;
+
+  const HomePage({
+    super.key,
+    required this.shoppingController,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -37,6 +40,18 @@ class _HomePageState extends State<HomePage> {
     await controller.loadHome();
   }
 
+  Future<void> _testShoppingKnowledgeEngine() async {
+    await widget.shoppingController.createItemFromNameForTest('Leite integral');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Produto aprendido: leite integral'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -54,52 +69,48 @@ class _HomePageState extends State<HomePage> {
             child: const Icon(Icons.add),
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '👋 Olá, ${controller.userName}',
-                  style: const TextStyle(
+                const Text(
+                  'Olá, Aline',
+                  style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: 8),
                 const Text(
-                  'Bem-vindo ao DuoSpend',
+                  'Bem-vinda ao DuoSpend',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: Colors.grey,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xl),
+                const SizedBox(height: 24),
                 BalanceCard(
                   balance: wallet?.balance ?? 0,
                 ),
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: 20),
                 SummaryCard(
                   income: controller.totalIncome,
                   expense: controller.totalExpense,
                 ),
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: 20),
                 WalletCard(
                   walletName: wallet?.name ?? 'Carteira Principal',
                   balance: wallet?.balance ?? 0,
                 ),
-                const SizedBox(height: AppSpacing.lg),
-                GestureDetector(
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const HistoryPage(),
-      ),
-    );
-  },
-  child: TransactionsPreview(
-    transactions: controller.transactions,
-  ),
-),
+                const SizedBox(height: 20),
+                TransactionsPreview(
+                  transactions: controller.transactions,
+                ),
+                const SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: _testShoppingKnowledgeEngine,
+                  icon: const Icon(Icons.psychology_alt_outlined),
+                  label: const Text('Testar inteligência de produtos'),
+                ),
               ],
             ),
           ),

@@ -22,7 +22,7 @@ class ShoppingFlowService {
   final ArchiveShoppingItemUseCase archiveShoppingItem;
   final SearchShoppingItemsUseCase searchShoppingItems;
   final GetShoppingSuggestionsUseCase getShoppingSuggestions;
-  final ProcessProductIntelligenceUseCase? processProductIntelligence;
+  final ProcessProductIntelligenceUseCase processProductIntelligence;
 
   const ShoppingFlowService({
     required this.createShoppingItem,
@@ -35,18 +35,16 @@ class ShoppingFlowService {
     required this.archiveShoppingItem,
     required this.searchShoppingItems,
     required this.getShoppingSuggestions,
-    this.processProductIntelligence,
+    required this.processProductIntelligence,
   });
 
   Future<void> createItem(ShoppingItemModel item) async {
     final normalizedItem = await _normalizeItem(item);
-
     await createShoppingItem(normalizedItem);
   }
 
   Future<void> updateItem(ShoppingItemModel item) async {
     final normalizedItem = await _normalizeItem(item);
-
     await updateShoppingItem(normalizedItem);
   }
 
@@ -90,7 +88,6 @@ class ShoppingFlowService {
 
   Future<ShoppingItemModel> _normalizeItem(ShoppingItemModel item) async {
     final trimmedName = item.name.trim();
-
     final normalizedName = await _normalizeProductName(trimmedName);
 
     return item.copyWith(
@@ -113,11 +110,7 @@ class ShoppingFlowService {
   }
 
   Future<String> _normalizeProductName(String value) async {
-    if (processProductIntelligence == null) {
-      return value.trim().toLowerCase();
-    }
-
-    final result = await processProductIntelligence!(value);
+    final result = await processProductIntelligence(value);
 
     final identityName = result.match.identity?.canonicalName;
 

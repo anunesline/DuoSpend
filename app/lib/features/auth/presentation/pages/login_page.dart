@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/di/app_dependencies_scope.dart';
 import '../../../../core/services/auth/auth_service.dart';
 import '../../../home/presentation/pages/home_page.dart';
 
@@ -11,6 +13,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final AuthService _authService = AuthService();
+
   bool _loading = false;
 
   Future<void> _loginWithGoogle() async {
@@ -20,21 +23,26 @@ class _LoginPageState extends State<LoginPage> {
       final user = await _authService.signInWithGoogle();
 
       if (user != null && mounted) {
-  debugPrint("🔥 Usuário logado: ${user.displayName}");
+        debugPrint('Usuário logado: ${user.displayName}');
 
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const HomePage(),
-    ),
-  );
-}
-      
+        final dependencies = AppDependenciesScope.of(context);
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomePage(
+              shoppingController: dependencies.shoppingController,
+            ),
+          ),
+        );
+      }
     } catch (e) {
-      debugPrint("Erro login: $e");
+      debugPrint('Erro login: $e');
     }
 
-    setState(() => _loading = false);
+    if (mounted) {
+      setState(() => _loading = false);
+    }
   }
 
   @override
@@ -53,9 +61,7 @@ class _LoginPageState extends State<LoginPage> {
                   size: 80,
                   color: Color(0xFF4F46E5),
                 ),
-
                 const SizedBox(height: 24),
-
                 const Text(
                   'DuoSpend',
                   style: TextStyle(
@@ -63,25 +69,21 @@ class _LoginPageState extends State<LoginPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 const Text(
                   'Organize suas finanças sozinho ou em casal.',
                   textAlign: TextAlign.center,
                 ),
-
                 const SizedBox(height: 48),
-
                 SizedBox(
                   width: double.infinity,
                   height: 52,
                   child: FilledButton.icon(
-                    onPressed: _loginWithGoogle,
+                    onPressed: _loading ? null : _loginWithGoogle,
                     icon: const Icon(Icons.login),
                     label: _loading
-                        ? const Text("Entrando...")
-                        : const Text("Entrar com Google"),
+                        ? const Text('Entrando...')
+                        : const Text('Entrar com Google'),
                   ),
                 ),
               ],

@@ -10,6 +10,25 @@ class ShoppingController {
     await flow.createItem(item);
   }
 
+  Future<void> createItemFromNameForTest(String name) async {
+    final now = DateTime.now();
+    final normalizedName = name.trim().toLowerCase();
+
+    final item = ShoppingItemModel.create(
+      id: now.microsecondsSinceEpoch.toString(),
+      name: name,
+      normalizedName: normalizedName,
+      quantity: 1,
+      unit: 'un',
+      source: ShoppingItemSource.manual,
+      priority: ShoppingItemPriority.normal,
+      isShared: false,
+      now: now,
+    );
+
+    await createItem(item);
+  }
+
   Future<void> updateItem(ShoppingItemModel item) async {
     await flow.updateItem(item);
   }

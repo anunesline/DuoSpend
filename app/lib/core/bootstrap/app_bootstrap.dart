@@ -4,6 +4,6 @@ class AppBootstrap {
   const AppBootstrap._();
 
   static Future<AppDependencyContainer> initialize() async {
-    return const AppDependencyContainer();
+    return AppDependencyContainer();
   }
 }
