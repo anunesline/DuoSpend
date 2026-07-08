@@ -1,25 +1,40 @@
-import 'product_classification_result.dart';
-import 'product_matcher.dart';
+import '../../../../core/cognition/contracts/learning_engine.dart';
+import '../../../../core/cognition/contexts/knowledge_context.dart';
+import '../../../../core/cognition/payloads/purchase_knowledge_payload.dart';
+
 import 'product_memory.dart';
 
-class ProductLearningEngine {
+class ProductLearningEngine implements LearningEngine<ProductMemory> {
   const ProductLearningEngine();
 
-  ProductMemory learn({
-    required ProductClassificationResult classification,
-    required ProductMatchResult match,
-    required ProductMemory memory,
-  }) {
-    final packageDescription = _buildPackageDescription(classification);
+  @override
+  ProductMemory learn(
+    KnowledgeContext context,
+    ProductMemory memory,
+  ) {
+    if (context.payload is! PurchaseKnowledgePayload) {
+      return memory;
+    }
+
+    final payload = context.payload as PurchaseKnowledgePayload;
+
+    final packageDescription = _buildPackageDescription(
+      payload.packageQuantity,
+      payload.packageUnit,
+    );
 
     final updatedStatistics = memory.statistics.registerPurchase(
-      purchasedAt: DateTime.now(),
-      brandName: classification.brand,
+      purchasedAt: context.occurredAt,
+      unitPrice: payload.unitPrice,
+      totalPrice: payload.totalPrice,
+      brandName: payload.brand,
+      merchantName: payload.merchantName,
       packageDescription: packageDescription,
     );
 
     final updatedPreferences = memory.preferences.copyWith(
-      preferredBrand: classification.brand,
+      preferredBrand: payload.brand,
+      preferredMerchant: payload.merchantName,
       preferredPackage: packageDescription,
     );
 
@@ -30,13 +45,13 @@ class ProductLearningEngine {
   }
 
   String? _buildPackageDescription(
-    ProductClassificationResult classification,
+    double? quantity,
+    String? unit,
   ) {
-    if (classification.packageQuantity == null ||
-        classification.packageUnit == null) {
+    if (quantity == null || unit == null) {
       return null;
     }
 
-    return '${classification.packageQuantity}${classification.packageUnit}';
+    return '$quantity$unit';
   }
 }

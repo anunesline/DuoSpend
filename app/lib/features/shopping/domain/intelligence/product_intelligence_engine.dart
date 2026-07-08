@@ -1,3 +1,6 @@
+import '../../../../core/cognition/contexts/cognition_scope.dart';
+import '../../../../core/cognition/contexts/knowledge_context.dart';
+import '../../../../core/cognition/payloads/purchase_knowledge_payload.dart';
 import '../repositories/product_memory_repository.dart';
 import 'product_classifier.dart';
 import 'product_classification_result.dart';
@@ -28,10 +31,29 @@ class ProductIntelligenceEngine {
       memory: memory,
     );
 
+    final context = KnowledgeContext<PurchaseKnowledgePayload>(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      scope: const CognitionScope(
+        type: CognitionScopeType.system,
+        ownerId: 'system',
+      ),
+      source: KnowledgeContextSource.shoppingFlow,
+      occurredAt: DateTime.now(),
+      payload: PurchaseKnowledgePayload(
+        rawText: classification.rawText,
+        normalizedText: classification.normalizedText,
+        canonicalName: classification.canonicalName,
+        brand: classification.brand,
+        variant: classification.variant,
+        packageQuantity: classification.packageQuantity,
+        packageUnit: classification.packageUnit,
+        confidence: classification.confidence,
+      ),
+    );
+
     final updatedMemory = learningEngine.learn(
-      classification: classification,
-      match: match,
-      memory: memory,
+      context,
+      memory,
     );
 
     await repository.save(updatedMemory);

@@ -1,5 +1,9 @@
 import 'cognition_scope.dart';
 
+abstract class KnowledgePayload {
+  const KnowledgePayload();
+}
+
 enum KnowledgeContextSource {
   manualPurchase,
   shoppingFlow,
@@ -11,43 +15,42 @@ enum KnowledgeContextSource {
   systemInference,
 }
 
-class KnowledgeContext {
+class KnowledgeContext<TPayload extends KnowledgePayload> {
   final String id;
   final CognitionScope scope;
   final KnowledgeContextSource source;
   final DateTime occurredAt;
 
-  final Map<String, dynamic> data;
-  final Map<String, dynamic> metadata;
+  final TPayload payload;
+
+  final Map<String, Object?> metadata;
 
   const KnowledgeContext({
     required this.id,
     required this.scope,
     required this.source,
     required this.occurredAt,
-    this.data = const {},
+    required this.payload,
     this.metadata = const {},
   });
 
-  KnowledgeContext copyWith({
+  KnowledgeContext<TPayload> copyWith({
     String? id,
     CognitionScope? scope,
     KnowledgeContextSource? source,
     DateTime? occurredAt,
-    Map<String, dynamic>? data,
-    Map<String, dynamic>? metadata,
+    TPayload? payload,
+    Map<String, Object?>? metadata,
   }) {
-    return KnowledgeContext(
+    return KnowledgeContext<TPayload>(
       id: id ?? this.id,
       scope: scope ?? this.scope,
       source: source ?? this.source,
       occurredAt: occurredAt ?? this.occurredAt,
-      data: data ?? this.data,
+      payload: payload ?? this.payload,
       metadata: metadata ?? this.metadata,
     );
   }
-
-  bool get hasData => data.isNotEmpty;
 
   bool get hasMetadata => metadata.isNotEmpty;
 }
