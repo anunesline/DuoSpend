@@ -1092,6 +1092,7 @@ Finalizamos a Sprint 10 com:
 
 ---
 
+
 ## Sprint 11
 
 Até agora, a persistência ainda usa `TransactionModel`, mas a experiência do usuário já é de Compra.
@@ -1106,7 +1107,6 @@ A transação é o impacto financeiro gerado por esse evento.
 
 Fluxo conceitual:
 
-```text
 Purchase
   ↓
 gera Transaction
@@ -1351,3 +1351,401 @@ previsões de consumo
 Regra importante: isso será opcional, não obrigatório.
 comecei: 17:30
 pausei: 18:40
+
+## Sprint 13 — Product Intelligence (Motor de Conhecimento)
+
+Objetivo
+
+Iniciar o Product Intelligence, o núcleo responsável por fazer o DuoSpend entender produtos, em vez de apenas armazenar nomes.
+
+Esta Sprint marca a transição da arquitetura para um modelo orientado a conhecimento, preparando o sistema para reconhecer produtos equivalentes, aprender hábitos de compra e alimentar automaticamente todos os módulos inteligentes do aplicativo.
+
+Objetivos da Sprint
+Arquitetura
+
+Criar o novo módulo:
+
+features/
+└── product_intelligence/
+
+seguindo Clean Architecture:
+
+domain/
+data/
+presentation/
+Product Identity
+
+Criar a identidade canônica dos produtos.
+
+O DuoSpend deverá reconhecer que:
+
+Leite Tirol Integral 1L
+Leite Italac Integral 1L
+Leite Parmalat Integral
+
+representam:
+
+Produto Base:
+Leite
+
+mantendo separadamente:
+
+marca
+variação
+volume
+unidade
+categoria
+subcategoria
+Product Intelligence Service
+
+Criar o serviço responsável por responder perguntas como:
+
+Esses dois produtos representam o mesmo item?
+Qual é o produto canônico?
+Quais marcas o usuário costuma comprar?
+Existe alguma marca favorita?
+Qual categoria esse produto pertence?
+Quais variações já foram compradas?
+Esse produto costuma ser recorrente?
+Existe algum possível substituto?
+Product Identity Model
+
+Criar o modelo responsável por representar um produto independentemente da forma como ele foi digitado.
+
+Exemplo:
+
+Produto:
+Leite
+
+Marcas conhecidas:
+- Tirol
+- Italac
+- Parmalat
+
+Variações:
+- Integral
+- Desnatado
+- Zero Lactose
+
+Volumes:
+- 500 ml
+- 1 L
+- 2 L
+Shopping Suggestion
+
+Preparar a geração de sugestões inteligentes utilizando:
+
+Product Memory
+Purchase History
+Merchant Intelligence
+Product Intelligence
+Estrutura preparada para IA
+
+A arquitetura deverá permitir que, futuramente, modelos de IA apenas alimentem o Product Intelligence, sem necessidade de alterar:
+
+Controller
+Flow
+UI
+Resultado esperado
+
+Ao final da Sprint o DuoSpend começará a possuir conhecimento sobre produtos, permitindo futuramente:
+
+reconhecimento automático de produtos equivalentes;
+agrupamento de marcas;
+agrupamento de variações;
+previsão de reposição;
+sugestões inteligentes de compras;
+comparação de preços entre marcas;
+aprendizado contínuo dos hábitos da residência.
+Filosofia da Sprint
+
+O DuoSpend deixa de pensar em:
+
+Compras
+
+e passa a pensar em:
+
+Conhecimento
+
+A compra passa a ser apenas um evento.
+
+O conhecimento adquirido sobre aquele produto passa a ser permanente e reutilizado por todo o sistema.
+
+Próximos módulos beneficiados
+
+O Product Intelligence servirá como base para:
+
+Shopping Intelligence
+Merchant Intelligence
+Consumption Intelligence
+Household Intelligence
+Análises financeiras
+Alertas de economia
+Recomendações automáticas
+IA do DuoSpend
+Objetivo arquitetural
+
+Transformar o DuoSpend em um sistema capaz de aprender como a casa funciona, reduzindo ao máximo a quantidade de informações que o usuário precisa informar manualmente.
+
+Princípio do projeto: O DuoSpend deve pedir pouco e aprender muito. 🚀
+iniciando:17:30
+concluída: 18:48
+
+## Sprint 14 — Knowledge Integration
+Objetivo
+
+Integrar o Product Knowledge ao restante do DuoSpend, tornando o motor de conhecimento parte real do fluxo da aplicação.
+
+14.1 — Bootstrap da Inteligência
+
+Objetivo:
+
+Criar a camada responsável por montar o Knowledge Engine.
+
+Entregas:
+
+KnowledgeModule
+Bootstrap do ProductMemoryRepository
+Bootstrap do ProductIntelligenceEngine
+Bootstrap do ProcessProductIntelligenceUseCase
+14.2 — Dependency Injection
+
+Objetivo:
+
+Remover qualquer instanciação manual.
+
+Entregas:
+
+ShoppingFlow recebe UseCases injetados
+Knowledge recebe Repository injetado
+Preparação para GetIt/Riverpod futuramente
+14.3 — Integração com Shopping
+
+Objetivo:
+
+Toda criação de item passa pelo Knowledge Engine.
+
+Fluxo:
+
+Usuário
+
+↓
+
+ShoppingController
+
+↓
+
+ShoppingFlowService
+
+↓
+
+ProcessProductIntelligenceUseCase
+
+↓
+
+Knowledge Engine
+
+↓
+
+ShoppingRepository
+14.4 — Primeira Aprendizagem Real
+
+Objetivo:
+
+Quando um produto novo aparecer:
+
+Leite Tirol Zero Lactose
+
+o DuoSpend deverá:
+
+classificar
+procurar
+aprender
+salvar
+continuar o fluxo
+
+Tudo automaticamente.
+
+14.5 — Persistência da Memória
+
+Hoje:
+
+RAM
+
+Preparar para:
+
+Hive
+SQLite
+Firebase
+
+sem alterar o domínio.
+
+14.6 — Testes
+
+Criar testes para:
+
+ProductClassifier
+ProductMatcher
+ProductLearningEngine
+ProductIntelligenceEngine
+ProductKnowledgeLoader
+14.7 — Refatoração
+
+Revisar:
+
+nomenclaturas
+responsabilidades
+imports
+dependências
+SOLID
+Clean Architecture
+Resultado esperado
+
+Ao final da Sprint 14 teremos:
+
+Shopping
+
+↓
+
+Knowledge Engine
+
+↓
+
+Aprende sozinho
+
+↓
+
+Salva conhecimento
+
+↓
+
+Repository
+
+↓
+
+Shopping Repository
+
+Pela primeira vez o DuoSpend começará realmente a aprender com o usuário.
+
+Tempo estimado
+
+6–8 horas
+
+Risco
+
+🟢 Baixo
+
+Todo o domínio foi construído na Sprint 13.
+
+Agora é integração.
+
+iniciando 18:50
+terminando 19:39
+
+## Sprint 15 — Self Learning Engine
+
+Status: Planejada
+
+Objetivo:
+
+Transformar a Knowledge Foundation em um sistema que aprende automaticamente a cada compra realizada.
+
+Entregas
+1. Product Memory Evolution
+Persistência do ProductMemory
+Histórico de produtos aprendidos
+Histórico de marcas
+Histórico de embalagens
+Histórico de categorias
+2. Automatic Learning
+
+Após cada cadastro de produto:
+
+ShoppingFlow
+        ↓
+Knowledge Engine
+        ↓
+Learning Engine
+        ↓
+ProductMemoryRepository
+
+O aprendizado passa a ser automático.
+
+3. Frequency Engine
+
+Registrar:
+
+quantidade de compras
+última compra
+primeira compra
+frequência
+intervalo médio
+4. Brand Intelligence
+
+Exemplo:
+
+Leite Tirol
+Leite Parmalat
+Leite Aurora
+
+↓
+
+Produto:
+Leite
+
+Marcas conhecidas:
+
+• Tirol
+• Parmalat
+• Aurora
+5. Package Intelligence
+
+Aprender automaticamente:
+
+1L
+500ml
+5kg
+12 unidades
+6. Product Graph
+
+Cada produto passa a armazenar conhecimento como:
+
+Produto
+
+↓
+
+Categoria
+
+↓
+
+Marcas
+
+↓
+
+Embalagens
+
+↓
+
+Sinônimos
+
+↓
+
+Histórico
+7. Automatic Suggestions Foundation
+
+Preparar a base para:
+
+produtos frequentes
+produtos favoritos
+compras recorrentes
+previsão de compra
+Critérios de aceite
+ProductMemory evolui automaticamente.
+Frequência incrementa.
+Marca passa a ser conhecida.
+Embalagem passa a ser conhecida.
+Histórico cresce sozinho.
+Nenhuma tela precisa conhecer a Learning Engine.
+Resultado esperado
+
+Ao final da Sprint 15 o DuoSpend deixa de apenas reconhecer produtos e passa a aprender continuamente, construindo uma base de conhecimento personalizada para cada usuário.
