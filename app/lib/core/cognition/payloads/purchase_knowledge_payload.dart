@@ -14,6 +14,12 @@ class PurchaseKnowledgePayload extends KnowledgePayload {
   final String? merchantId;
   final String? merchantName;
 
+  /// Financial Scope (quem pagou)
+  final String? walletId;
+
+  /// Consumer (quem consome)
+  final String? consumerId;
+
   final double? quantity;
   final double? unitPrice;
   final double? totalPrice;
@@ -30,6 +36,8 @@ class PurchaseKnowledgePayload extends KnowledgePayload {
     this.packageUnit,
     this.merchantId,
     this.merchantName,
+    this.walletId,
+    this.consumerId,
     this.quantity,
     this.unitPrice,
     this.totalPrice,
