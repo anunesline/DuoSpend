@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/di/app_dependencies_scope.dart';
+import '../../../../core/di/app_dependency_container.dart';
 import '../../../../core/services/auth/auth_service.dart';
 import '../../../home/presentation/pages/home_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final AppDependencyContainer dependencies;
+
+  const LoginPage({
+    super.key,
+    required this.dependencies,
+  });
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -25,19 +30,18 @@ class _LoginPageState extends State<LoginPage> {
       if (user != null && mounted) {
         debugPrint('Usuário logado: ${user.displayName}');
 
-        final dependencies = AppDependenciesScope.of(context);
-
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (_) => HomePage(
-              shoppingController: dependencies.shoppingController,
+              shoppingController: widget.dependencies.shoppingController,
+              consumerController: widget.dependencies.consumerController,
             ),
           ),
         );
       }
-    } catch (e) {
-      debugPrint('Erro login: $e');
+    } catch (error) {
+      debugPrint('Erro login: $error');
     }
 
     if (mounted) {

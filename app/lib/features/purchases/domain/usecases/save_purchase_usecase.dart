@@ -23,6 +23,8 @@ class SavePurchaseUseCase implements PurchaseService {
 
   @override
   Future<void> savePurchase({
+    required String walletId,
+    String? consumerId,
     required MerchantModel merchant,
     required double totalValue,
     required String financialCategory,
@@ -30,6 +32,7 @@ class SavePurchaseUseCase implements PurchaseService {
     required List<TransactionItemModel> items,
   }) async {
     final wallet = await _walletRepository.getMainWallet();
+
     final transactionId = DateTime.now().millisecondsSinceEpoch.toString();
 
     final transaction = TransactionModel(
@@ -38,11 +41,16 @@ class SavePurchaseUseCase implements PurchaseService {
       value: totalValue,
       type: 'expense',
       date: DateTime.now(),
-      walletId: 'principal',
+      walletId: wallet?.id ?? walletId,
+      consumerId: consumerId,
       category: financialCategory,
       subcategory: financialSubcategory,
       items: items
-          .map((item) => item.copyWith(transactionId: transactionId))
+          .map(
+            (item) => item.copyWith(
+              transactionId: transactionId,
+            ),
+          )
           .toList(),
     );
 

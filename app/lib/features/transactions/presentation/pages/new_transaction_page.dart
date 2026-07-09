@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
-import '../../data/models/transaction_item_model.dart';
-import '../../domain/purchase/models/purchase_item_model.dart';
+import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
+import '../../domain/purchase/models/purchase_item_model.dart';
 import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
 import '../widgets/purchase_items_section.dart';
@@ -15,7 +15,14 @@ import '../widgets/transaction_save_button.dart';
 import 'add_transaction_item_page.dart';
 
 class NewTransactionPage extends StatefulWidget {
-  const NewTransactionPage({super.key});
+  final String walletId;
+  final ConsumerController consumerController;
+
+  const NewTransactionPage({
+    super.key,
+    required this.walletId,
+    required this.consumerController,
+  });
 
   @override
   State<NewTransactionPage> createState() => _NewTransactionPageState();
@@ -24,17 +31,14 @@ class NewTransactionPage extends StatefulWidget {
 class _NewTransactionPageState extends State<NewTransactionPage> {
   final descriptionController = TextEditingController();
   final valueController = TextEditingController();
-
   final transactionController = TransactionController();
   final purchaseController = PurchaseController();
 
   String type = 'expense';
-
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
-  TaxonomyItem? selectedSubcategory =
-      DuoTaxonomy.items.first.children.isNotEmpty
-          ? DuoTaxonomy.items.first.children.first
-          : null;
+  TaxonomyItem? selectedSubcategory = DuoTaxonomy.items.first.children.isNotEmpty
+      ? DuoTaxonomy.items.first.children.first
+      : null;
 
   @override
   void initState() {
@@ -83,7 +87,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   Future<void> _openAddItemPage() async {
-    final item = await Navigator.push<TransactionItemModel>(
+    final item = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => const AddTransactionItemPage(),
@@ -114,6 +118,20 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         purchaseController.total.toStringAsFixed(2).replaceAll('.', ',');
   }
 
+  Future<String?> _resolveConsumerId() async {
+    final selectedConsumer = widget.consumerController.selectedConsumer;
+
+    if (selectedConsumer != null) {
+      return selectedConsumer.id;
+    }
+
+    await widget.consumerController.initializeWallet(
+      walletId: widget.walletId,
+    );
+
+    return widget.consumerController.selectedConsumer?.id;
+  }
+
   Future<void> _saveTransaction() async {
     final description = descriptionController.text.trim();
     final value = double.tryParse(valueController.text.replaceAll(',', '.'));
@@ -131,16 +149,19 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     }
 
     final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final consumerId = await _resolveConsumerId();
 
     if (purchaseController.hasItems) {
       await purchaseController.completePurchase(
         CreatePurchaseCommand(
           id: id,
           userId: user.uid,
-          walletId: 'principal',
+          walletId: widget.walletId,
+          consumerId: consumerId,
           purchaseDate: DateTime.now(),
         ),
       );
+
       if (purchaseController.errorMessage != null) {
         _showMessage(purchaseController.errorMessage!);
         return;
@@ -152,6 +173,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       description: description,
       value: value,
       type: type,
+      walletId: widget.walletId,
+      consumerId: consumerId,
       category: selectedCategory.name,
       subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
     );

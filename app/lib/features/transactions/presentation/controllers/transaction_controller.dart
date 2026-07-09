@@ -28,27 +28,37 @@ class TransactionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String> saveTransaction({
-    String? transactionId,
+  Future<void> saveTransaction({
+    required String transactionId,
     required String description,
     required double value,
     required String type,
+    required String walletId,
+    String? consumerId,
     required String category,
     required String subcategory,
   }) async {
     final wallet = await _walletRepository.getMainWallet();
-    final id = transactionId ?? DateTime.now().millisecondsSinceEpoch.toString();
+
+    final resolvedWalletId = wallet?.id ?? walletId;
 
     final transaction = TransactionModel(
-      id: id,
+      id: transactionId,
       description: description,
       value: value,
       type: type,
       date: DateTime.now(),
-      walletId: 'principal',
+      walletId: resolvedWalletId,
+      consumerId: consumerId,
       category: category,
       subcategory: subcategory,
-      items: _items.map((item) => item.copyWith(transactionId: id)).toList(),
+      items: _items
+          .map(
+            (item) => item.copyWith(
+              transactionId: transactionId,
+            ),
+          )
+          .toList(),
     );
 
     await _repository.addTransaction(transaction);
@@ -67,7 +77,5 @@ class TransactionController extends ChangeNotifier {
 
     clearItems();
     notifyListeners();
-
-    return id;
   }
 }

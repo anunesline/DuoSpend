@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../controllers/home_controller.dart';
@@ -10,10 +11,12 @@ import '../widgets/wallet_card.dart';
 
 class HomePage extends StatefulWidget {
   final ShoppingController shoppingController;
+  final ConsumerController consumerController;
 
   const HomePage({
     super.key,
     required this.shoppingController,
+    required this.consumerController,
   });
 
   @override
@@ -26,18 +29,41 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    controller.loadHome();
+    _loadHomeAndConsumers();
+  }
+
+  Future<void> _loadHomeAndConsumers() async {
+    await controller.loadHome();
+
+    final wallet = controller.wallet;
+
+    if (wallet == null) {
+      return;
+    }
+
+    await widget.consumerController.initializeWallet(
+      walletId: wallet.id,
+    );
   }
 
   Future<void> _openNewTransactionPage() async {
+    final wallet = controller.wallet;
+
+    if (wallet == null) {
+      return;
+    }
+
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const NewTransactionPage(),
+        builder: (_) => NewTransactionPage(
+          walletId: wallet.id,
+          consumerController: widget.consumerController,
+        ),
       ),
     );
 
-    await controller.loadHome();
+    await _loadHomeAndConsumers();
   }
 
   Future<void> _testShoppingKnowledgeEngine() async {

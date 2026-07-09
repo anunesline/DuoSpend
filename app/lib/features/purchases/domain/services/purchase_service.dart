@@ -3,6 +3,8 @@ import '../../../transactions/data/models/transaction_item_model.dart';
 
 abstract class PurchaseService {
   Future<void> savePurchase({
+    required String walletId,
+    String? consumerId,
     required MerchantModel merchant,
     required double totalValue,
     required String financialCategory,

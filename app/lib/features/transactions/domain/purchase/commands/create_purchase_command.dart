@@ -2,12 +2,14 @@ class CreatePurchaseCommand {
   final String id;
   final String userId;
   final String walletId;
+  final String? consumerId;
   final DateTime purchaseDate;
 
   const CreatePurchaseCommand({
     required this.id,
     required this.userId,
     required this.walletId,
+    this.consumerId,
     required this.purchaseDate,
   });
 

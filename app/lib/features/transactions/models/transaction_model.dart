@@ -1,4 +1,4 @@
-import 'transaction_item_model.dart';
+import '../data/models/transaction_item_model.dart';
 
 class TransactionModel {
   final String id;
@@ -7,12 +7,7 @@ class TransactionModel {
   final String type; // income | expense
   final DateTime date;
   final String walletId;
-
-  /// Consumidor responsável pela compra.
-  /// Pode ser nulo para manter compatibilidade
-  /// com transações antigas.
   final String? consumerId;
-
   final String category;
   final String subcategory;
   final List<TransactionItemModel> items;
@@ -45,9 +40,7 @@ class TransactionModel {
     };
   }
 
-  factory TransactionModel.fromMap(
-    Map<String, dynamic> map,
-  ) {
+  factory TransactionModel.fromMap(Map<String, dynamic> map) {
     final rawItems = map['items'];
 
     return TransactionModel(
@@ -55,10 +48,7 @@ class TransactionModel {
       description: map['description'] ?? '',
       value: (map['value'] ?? 0).toDouble(),
       type: map['type'] ?? 'expense',
-      date: DateTime.tryParse(
-            map['date']?.toString() ?? '',
-          ) ??
-          DateTime.now(),
+      date: DateTime.tryParse(map['date']?.toString() ?? '') ?? DateTime.now(),
       walletId: map['walletId'] ?? 'principal',
       consumerId: map['consumerId'],
       category: map['category'] ?? 'Sem categoria',
@@ -68,33 +58,7 @@ class TransactionModel {
               .whereType<Map<String, dynamic>>()
               .map(TransactionItemModel.fromMap)
               .toList()
-          : const [],
-    );
-  }
-
-  TransactionModel copyWith({
-    String? id,
-    String? description,
-    double? value,
-    String? type,
-    DateTime? date,
-    String? walletId,
-    String? consumerId,
-    String? category,
-    String? subcategory,
-    List<TransactionItemModel>? items,
-  }) {
-    return TransactionModel(
-      id: id ?? this.id,
-      description: description ?? this.description,
-      value: value ?? this.value,
-      type: type ?? this.type,
-      date: date ?? this.date,
-      walletId: walletId ?? this.walletId,
-      consumerId: consumerId ?? this.consumerId,
-      category: category ?? this.category,
-      subcategory: subcategory ?? this.subcategory,
-      items: items ?? this.items,
+          : [],
     );
   }
 }

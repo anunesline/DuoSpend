@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/di/app_dependencies_scope.dart';
 import '../core/di/app_dependency_container.dart';
 import '../features/auth/presentation/pages/login_page.dart';
 
@@ -14,15 +13,14 @@ class DuoSpendApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppDependenciesScope(
-      dependencies: dependencies,
-      child: MaterialApp(
-        title: 'DuoSpend',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-        ),
-        home: const LoginPage(),
+    return MaterialApp(
+      title: 'DuoSpend',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+      ),
+      home: LoginPage(
+        dependencies: dependencies,
       ),
     );
   }
