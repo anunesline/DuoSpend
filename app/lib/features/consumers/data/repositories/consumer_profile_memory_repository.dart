@@ -1,13 +1,21 @@
 import '../../domain/consumer_profile_entity.dart';
 import '../../domain/repositories/consumer_profile_repository.dart';
 
-class ConsumerProfileMemoryRepository
-    implements ConsumerProfileRepository {
+class ConsumerProfileMemoryRepository implements ConsumerProfileRepository {
   final Map<String, ConsumerProfileEntity> _consumers = {};
 
   @override
   Future<List<ConsumerProfileEntity>> getAll() async {
     return _consumers.values.toList();
+  }
+
+  @override
+  Future<List<ConsumerProfileEntity>> getByWalletId(
+    String walletId,
+  ) async {
+    return _consumers.values
+        .where((consumer) => consumer.walletId == walletId)
+        .toList();
   }
 
   @override

@@ -1,13 +1,13 @@
-import '../repositories/consumer_profile_repository.dart';
+import '../services/consumer_lifecycle_service.dart';
 
 class DeleteConsumerUseCase {
-  final ConsumerProfileRepository _repository;
+  final ConsumerLifecycleService _lifecycle;
 
-  const DeleteConsumerUseCase(this._repository);
+  const DeleteConsumerUseCase(this._lifecycle);
 
   Future<void> call(
     String id,
   ) {
-    return _repository.delete(id);
+    return _lifecycle.archive(id);
   }
 }

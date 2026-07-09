@@ -1,12 +1,12 @@
 import '../consumer_profile_entity.dart';
-import '../repositories/consumer_profile_repository.dart';
+import '../services/consumer_lifecycle_service.dart';
 
 class GetConsumerByIdUseCase {
-  final ConsumerProfileRepository _repository;
+  final ConsumerLifecycleService _lifecycle;
 
-  const GetConsumerByIdUseCase(this._repository);
+  const GetConsumerByIdUseCase(this._lifecycle);
 
   Future<ConsumerProfileEntity?> call(String id) {
-    return _repository.getById(id);
+    return _lifecycle.getById(id);
   }
 }

@@ -1,5 +1,6 @@
 class ConsumerProfileModel {
   final String id;
+  final String? walletId;
   final String name;
   final String type;
   final String? icon;
@@ -10,6 +11,7 @@ class ConsumerProfileModel {
 
   ConsumerProfileModel({
     required this.id,
+    this.walletId,
     required this.name,
     required this.type,
     this.icon,
@@ -22,6 +24,7 @@ class ConsumerProfileModel {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'walletId': walletId,
       'name': name,
       'type': type,
       'icon': icon,
@@ -35,6 +38,7 @@ class ConsumerProfileModel {
   factory ConsumerProfileModel.fromMap(Map<String, dynamic> map) {
     return ConsumerProfileModel(
       id: map['id'] ?? '',
+      walletId: map['walletId'],
       name: map['name'] ?? '',
       type: map['type'] ?? 'person',
       icon: map['icon'],

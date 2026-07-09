@@ -2,6 +2,7 @@ import './consumer_type.dart';
 
 class ConsumerProfileEntity {
   final String id;
+  final String? walletId;
   final String name;
   final ConsumerType type;
   final String? icon;
@@ -12,6 +13,7 @@ class ConsumerProfileEntity {
 
   const ConsumerProfileEntity({
     required this.id,
+    this.walletId,
     required this.name,
     required this.type,
     this.icon,
@@ -23,6 +25,7 @@ class ConsumerProfileEntity {
 
   ConsumerProfileEntity copyWith({
     String? id,
+    String? walletId,
     String? name,
     ConsumerType? type,
     String? icon,
@@ -33,6 +36,7 @@ class ConsumerProfileEntity {
   }) {
     return ConsumerProfileEntity(
       id: id ?? this.id,
+      walletId: walletId ?? this.walletId,
       name: name ?? this.name,
       type: type ?? this.type,
       icon: icon ?? this.icon,

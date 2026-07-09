@@ -1,3 +1,17 @@
+import '../../features/consumers/data/repositories/firestore_consumer_profile_repository.dart';
+import '../../features/consumers/domain/repositories/consumer_profile_repository.dart';
+import '../../features/consumers/domain/services/consumer_bootstrap.dart';
+import '../../features/consumers/domain/services/consumer_flow_service.dart';
+import '../../features/consumers/domain/services/consumer_lifecycle_service.dart';
+import '../../features/consumers/domain/usecases/create_consumer_usecase.dart';
+import '../../features/consumers/domain/usecases/delete_consumer_usecase.dart';
+import '../../features/consumers/domain/usecases/get_all_consumers_usecase.dart';
+import '../../features/consumers/domain/usecases/get_consumer_by_id_usecase.dart';
+import '../../features/consumers/domain/usecases/get_consumers_by_wallet_id_usecase.dart';
+import '../../features/consumers/domain/usecases/get_default_consumer_usecase.dart';
+import '../../features/consumers/domain/usecases/save_consumer_usecase.dart';
+import '../../features/consumers/presentation/controllers/consumer_controller.dart';
+
 import '../../features/shopping/data/repositories/firestore_shopping_repository.dart';
 import '../../features/shopping/data/repositories/in_memory_product_memory_repository.dart';
 import '../../features/shopping/domain/intelligence/product_intelligence_engine.dart';
@@ -38,17 +52,34 @@ class AppDependencyContainer {
   late final ShoppingFlowService shoppingFlowService;
   late final ShoppingController shoppingController;
 
+  late final ConsumerProfileRepository consumerProfileRepository;
+  late final ConsumerBootstrap consumerBootstrap;
+  late final ConsumerLifecycleService consumerLifecycleService;
+  late final ConsumerFlowService consumerFlowService;
+
+  late final CreateConsumerUseCase createConsumerUseCase;
+  late final SaveConsumerUseCase saveConsumerUseCase;
+  late final DeleteConsumerUseCase deleteConsumerUseCase;
+  late final GetAllConsumersUseCase getAllConsumersUseCase;
+  late final GetConsumerByIdUseCase getConsumerByIdUseCase;
+  late final GetConsumersByWalletIdUseCase getConsumersByWalletIdUseCase;
+  late final GetDefaultConsumerUseCase getDefaultConsumerUseCase;
+
+  late final ConsumerController consumerController;
+
   AppDependencyContainer() {
     _registerRepositories();
     _registerProductIntelligence();
     _registerShoppingUseCases();
     _registerShoppingFlow();
+    _registerConsumers();
     _registerControllers();
   }
 
   void _registerRepositories() {
     shoppingRepository = FirestoreShoppingRepository();
     productMemoryRepository = InMemoryProductMemoryRepository();
+    consumerProfileRepository = FirestoreConsumerProfileRepository();
   }
 
   void _registerProductIntelligence() {
@@ -94,7 +125,36 @@ class AppDependencyContainer {
     );
   }
 
+  void _registerConsumers() {
+    consumerBootstrap = ConsumerBootstrap(consumerProfileRepository);
+
+    consumerLifecycleService = ConsumerLifecycleService(
+      consumerProfileRepository,
+    );
+
+    createConsumerUseCase = CreateConsumerUseCase(consumerLifecycleService);
+    saveConsumerUseCase = SaveConsumerUseCase(consumerLifecycleService);
+    deleteConsumerUseCase = DeleteConsumerUseCase(consumerLifecycleService);
+    getAllConsumersUseCase = GetAllConsumersUseCase(consumerProfileRepository);
+    getConsumerByIdUseCase = GetConsumerByIdUseCase(consumerLifecycleService);
+    getConsumersByWalletIdUseCase =
+        GetConsumersByWalletIdUseCase(consumerLifecycleService);
+    getDefaultConsumerUseCase =
+        GetDefaultConsumerUseCase(consumerLifecycleService);
+
+    consumerFlowService = ConsumerFlowService(
+      consumerBootstrap: consumerBootstrap,
+      createConsumer: createConsumerUseCase,
+      saveConsumer: saveConsumerUseCase,
+      deleteConsumer: deleteConsumerUseCase,
+      getConsumerById: getConsumerByIdUseCase,
+      getConsumersByWalletId: getConsumersByWalletIdUseCase,
+      getDefaultConsumer: getDefaultConsumerUseCase,
+    );
+  }
+
   void _registerControllers() {
     shoppingController = ShoppingController(shoppingFlowService);
+    consumerController = ConsumerController(consumerFlowService);
   }
 }

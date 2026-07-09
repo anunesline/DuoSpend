@@ -1,14 +1,14 @@
 import '../consumer_profile_entity.dart';
-import '../repositories/consumer_profile_repository.dart';
+import '../services/consumer_lifecycle_service.dart';
 
 class SaveConsumerUseCase {
-  final ConsumerProfileRepository _repository;
+  final ConsumerLifecycleService _lifecycle;
 
-  const SaveConsumerUseCase(this._repository);
+  const SaveConsumerUseCase(this._lifecycle);
 
-  Future<void> call(
+  Future<ConsumerProfileEntity> call(
     ConsumerProfileEntity consumer,
   ) {
-    return _repository.save(consumer);
+    return _lifecycle.update(consumer);
   }
 }

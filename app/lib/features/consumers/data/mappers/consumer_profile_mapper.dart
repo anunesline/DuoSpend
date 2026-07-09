@@ -10,6 +10,7 @@ class ConsumerProfileMapper {
   ) {
     return ConsumerProfileEntity(
       id: model.id,
+      walletId: model.walletId,
       name: model.name,
       type: ConsumerType.fromValue(model.type),
       icon: model.icon,
@@ -25,6 +26,7 @@ class ConsumerProfileMapper {
   ) {
     return ConsumerProfileModel(
       id: entity.id,
+      walletId: entity.walletId,
       name: entity.name,
       type: entity.type.value,
       icon: entity.icon,
