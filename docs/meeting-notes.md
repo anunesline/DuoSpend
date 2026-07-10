@@ -1749,3 +1749,644 @@ Nenhuma tela precisa conhecer a Learning Engine.
 Resultado esperado
 
 Ao final da Sprint 15 o DuoSpend deixa de apenas reconhecer produtos e passa a aprender continuamente, construindo uma base de conhecimento personalizada para cada usuário.
+
+Começando: 20:30
+pausei: 20:49
+começando: 22:45
+terminando: 23:45
+
+
+## Sprint 16 — Learning Scopes (Individual • Compartilhado • Casa • Família)
+Objetivo
+
+Evoluir a inteligência do DuoSpend para que o aprendizado deixe de ser único e passe a considerar o contexto da compra.
+
+A partir desta Sprint, a IA começa a entender que um mesmo produto pode possuir comportamentos completamente diferentes dependendo do escopo em que foi comprado.
+
+Exemplos:
+
+leite comprado para mim
+leite comprado para o casal
+leite comprado para a casa
+leite comprado para um filho
+
+Cada um passa a possuir memória própria.
+
+Problema atual
+
+Hoje toda compra alimenta praticamente a mesma memória.
+
+Isso funciona...
+
+...até que o mesmo produto seja comprado em contextos diferentes.
+
+Exemplo:
+
+Aline compra café premium para ela.
+
+Depois compra café tradicional para a casa.
+
+Se tudo virar apenas "café", a IA aprende errado.
+
+Outro exemplo:
+
+Arroz compartilhado dura 18 dias.
+
+Arroz individual dura 45 dias.
+
+São padrões completamente diferentes.
+
+Objetivo da Sprint
+
+Criar uma camada de escopos de aprendizado.
+
+Todo aprendizado deverá passar a responder:
+
+"Quem está aprendendo isso?"
+
+e não apenas
+
+"O que foi comprado?"
+
+Escopos oficiais
+Individual
+
+Memória exclusiva do usuário.
+
+Exemplo:
+
+minhas marcas favoritas
+meus horários
+minhas categorias
+meus gastos
+Compartilhado
+
+Representa o casal.
+
+Aprende:
+
+hábitos em conjunto
+compras divididas
+consumo do casal
+Casa
+
+Representa tudo que pertence ao ambiente doméstico.
+
+Exemplo:
+
+papel higiênico
+
+detergente
+
+arroz
+
+óleo
+
+energia
+
+água
+
+limpeza
+
+Família
+
+Escopo preparado para futuras versões.
+
+Exemplo:
+
+fraldas
+
+ração
+
+remédios infantis
+
+escola
+
+gastos dos filhos
+
+animais
+
+etc.
+
+O Cognition Core passa a pensar assim
+
+Antes:
+
+Compra
+
+↓
+
+Produto
+
+↓
+
+Memória
+
+Agora:
+
+Compra
+
+↓
+
+Escopo
+
+↓
+
+Produto
+
+↓
+
+Memória específica
+
+Nova filosofia
+
+Ao invés de aprender apenas:
+
+leite
+
+passa a aprender
+
+Individual:
+
+leite
+
+Compartilhado:
+
+leite
+
+Casa:
+
+leite
+
+Família:
+
+leite
+
+Cada um com histórico próprio.
+
+Benefícios
+
+A IA deixa de misturar comportamentos.
+
+Ela começa a entender que:
+
+eu compro chocolate diferente da minha esposa
+
+a casa consome arroz em outro ritmo
+
+o casal compra vinho apenas em finais de semana
+
+o cachorro possui ração própria
+
+Novos Insights
+
+Após esta Sprint poderão surgir perguntas como:
+
+"Vocês estão comprando mais produtos para a casa este mês."
+
+"Seu consumo individual de café aumentou."
+
+"A família passou a gastar mais com alimentação."
+
+"O consumo compartilhado diminuiu."
+
+Estrutura prevista
+
+Nesta Sprint será criada uma arquitetura semelhante a:
+
+Cognition Core
+
+    ↓
+
+Cognition Scope
+
+    ↓
+
+Individual Memory
+
+Shared Memory
+
+House Memory
+
+Family Memory
+
+    ↓
+
+Learning Engines
+
+    ↓
+
+Reasoning
+
+    ↓
+
+Predictions
+
+    ↓
+
+Recommendations
+Inteligência futura desbloqueada
+
+Esta Sprint prepara terreno para funcionalidades como:
+
+Insights individuais
+Insights do casal
+Comparações entre pessoas
+Hábitos da casa
+Consumo por ambiente
+IA que entende famílias
+Perfis de consumo
+Detecção de mudanças de rotina
+Recomendações específicas por escopo
+Predições independentes
+Estatísticas separadas
+Arquitetura
+
+Será a primeira Sprint onde a IA começa a separar conhecimento por contexto em vez de apenas por produto.
+
+Na prática, estamos transformando a memória em uma estrutura multidimensional.
+
+Tempo estimado
+
+6 a 8 horas
+
+Resultado esperado
+
+Ao final da Sprint 16 o DuoSpend será capaz de:
+
+separar aprendizado por contexto
+manter memórias independentes
+impedir mistura de hábitos
+alimentar o Cognition Core com múltiplas inteligências
+preparar o terreno para insights extremamente personalizados
+iniciar a verdadeira IA contextual do DuoSpend
+Registro da Sprint (Meeting)
+
+Sprint: 16 — Learning Scopes (Individual • Compartilhado • Casa • Família)
+
+Data: 07/07/2026
+
+Início: :
+
+Pausa(s):
+
+: → :
+
+Retorno(s):
+
+:
+
+Término: :
+
+Tempo bruto: ____h ____min
+
+Tempo efetivo: ____h ____min
+
+Status: 🟡 Em andamento
+
+Observações:
+
+Evolução da inteligência contextual do Cognition Core.
+Introdução da arquitetura de aprendizado por escopo (Individual, Compartilhado, Casa e Família).
+Base para futuras funcionalidades de insights personalizados, predições por contexto e memória multidimensional.
+
+começando 17:10
+terminando 18:16
+
+## Sprint 16.5 — Consolidação do módulo Consumers
+
+📅 Data: 09/07/2026
+
+👤 Participantes: Aline + ChatGPT
+
+🎯 Objetivo
+
+Consolidar completamente a arquitetura do módulo Consumers, preparando a base para a Sprint 17, onde a IA começará a aprender individualmente sobre cada consumidor.
+
+Nesta sprint não iremos evoluir a IA.
+
+A prioridade é garantir que toda a infraestrutura do domínio Consumers esteja pronta e consistente.
+
+✅ Situação encontrada
+
+Durante a auditoria arquitetural da Sprint 16 foi identificado que:
+
+Cognition Core está consistente;
+ProductLearningEngine está correto;
+ProductMemory está correta;
+LearningEngine está correto;
+Knowledge Engine está correta.
+
+O único gargalo identificado foi o ciclo de resolução da memória, e não a arquitetura da IA.
+
+Por esse motivo foi decidido não alterar o núcleo da inteligência nesta etapa.
+
+Objetivos técnicos
+1. Consolidar o domínio Consumers
+
+Finalizar toda a infraestrutura do domínio.
+
+Inclui:
+
+Repository
+Memory Repository
+Models
+Entities
+UseCases
+ciclo de persistência
+2. Criar os consumidores padrão
+
+Definir como um Wallet nasce.
+
+Exemplo:
+
+Wallet Nova
+
+↓
+
+Consumidor 1
+(Eu)
+
+Consumidor 2
+(Parceiro)
+
+ou
+
+Consumidor único
+
+Precisamos definir isso arquiteturalmente.
+
+3. Ciclo de vida do Consumer
+
+Definir:
+
+criação
+atualização
+exclusão
+recuperação
+consumidor ativo
+consumidor padrão
+4. Integração com Wallet
+
+Toda Wallet deverá conhecer seus consumidores.
+
+Preparar:
+
+Wallet
+
+↓
+
+ConsumerRepository
+
+↓
+
+ConsumerMemory
+
+↓
+
+KnowledgeContext
+
+5. Preparar o Cognition Core
+
+Sem alterar IA.
+
+Apenas garantir que:
+
+KnowledgeContext
+
+↓
+
+PurchaseKnowledgePayload
+
+↓
+
+Consumer
+
+↓
+
+Cognition Scope
+
+funcionem naturalmente.
+
+6. Eliminar acoplamentos
+
+Verificar toda a arquitetura procurando:
+
+dependências desnecessárias
+importações erradas
+responsabilidades duplicadas
+7. Preparar Sprint 17
+
+Ao terminar esta sprint devemos conseguir implementar:
+
+"Aprender hábitos do João"
+
+ou
+
+"Aprender hábitos da Aline"
+
+sem alterar arquitetura.
+
+A Sprint 17 deverá apenas implementar algoritmos.
+
+Critérios de conclusão
+
+Ao final da Sprint 16.5 teremos:
+
+✅ módulo Consumers totalmente integrado
+
+✅ Wallet preparada para múltiplos consumidores
+
+✅ ciclo de vida completo
+
+✅ bootstrap preparado
+
+✅ arquitetura limpa
+
+✅ Cognition preparado
+
+✅ nenhuma alteração na IA
+
+✅ zero débito arquitetural
+
+Resultado esperado
+
+Ao finalizar esta sprint teremos encerrado toda a infraestrutura necessária para iniciar a inteligência individual dos usuários.
+
+A partir da Sprint 17, o foco deixa de ser arquitetura e passa a ser comportamento inteligente, permitindo que o DuoSpend aprenda separadamente os hábitos de cada consumidor sem necessidade de novas refatorações estruturais.
+
+⏱️ Estimativa: 3–5 horas
+
+🎯 Meta: deixar o módulo Consumers 100% consolidado para que a Sprint 17 seja dedicada exclusivamente à evolução da inteligência do DuoSpend.
+
+começando 18:19
+terminando 19:24
+
+
+## Sprint 17 — Inteligência por Consumidor
+
+📅 Data: //2026
+
+👤 Participantes: Aline + ChatGPT
+
+🎯 Objetivo
+
+Iniciar a Inteligência por Consumidor utilizando toda a infraestrutura construída nas Sprints 15, 16 e 16.5.
+
+Nesta sprint, a IA deixará de aprender apenas sobre produtos e passará a aprender quem consome, como consome, quando consome e em qual contexto.
+
+✅ Situação atual
+
+Infraestrutura consolidada:
+
+Flutter
+Firebase
+Wallet
+Purchase Domain
+Shopping Domain
+Knowledge Engine
+Cognition Core
+Consumer Domain
+
+Fluxo disponível:
+
+Wallet
+    │
+    ▼
+Consumer
+    │
+    ▼
+Purchase
+    │
+    ▼
+KnowledgeContext
+    │
+    ▼
+Cognition Core
+
+Toda a infraestrutura necessária para aprendizado individual já está pronta.
+
+Objetivos técnicos
+1. Consumer Learning Engine
+
+Criar o mecanismo responsável por aprender hábitos individuais de consumo.
+
+A IA deverá registrar informações como:
+
+frequência de consumo;
+produtos preferidos;
+marcas favoritas;
+locais de compra;
+quantidades habituais;
+padrões de recorrência.
+2. Consumer Memory
+
+Implementar a memória específica de cada consumidor.
+
+Cada perfil deverá possuir histórico próprio de aprendizado.
+
+Exemplo:
+
+Aline
+├── Café
+├── Leite Integral
+├── Condor
+└── Compra média semanal
+
+João
+├── Coca Zero
+├── Pão Integral
+└── Mercado Muffato
+3. Aprendizado pós-compra
+
+Após cada compra concluída:
+
+Compra
+
+↓
+
+Consumer
+
+↓
+
+KnowledgePayload
+
+↓
+
+Consumer Learning
+
+↓
+
+Consumer Memory
+
+Todo aprendizado deverá continuar passando pelo Cognition Core.
+
+4. Consumer Preferences
+
+Criar estrutura para armazenar preferências individuais.
+
+Exemplos:
+
+marca favorita;
+embalagem preferida;
+quantidade habitual;
+categoria mais consumida;
+horário mais comum de compra.
+5. Consumer Statistics
+
+Criar estatísticas por consumidor.
+
+Exemplos:
+
+consumo médio mensal;
+frequência por categoria;
+intervalo médio entre compras;
+ticket médio por consumidor.
+6. Consumer Recommendations
+
+Implementar recomendações individualizadas.
+
+Exemplos:
+
+"Aline costuma comprar leite a cada 10 dias."
+"Robert provavelmente precisará de ração nesta semana."
+"Marieta está próxima de consumir toda a areia."
+7. Preparação para IA Conversacional
+
+Estruturar os dados para permitir perguntas como:
+
+"Quem costuma consumir este produto?"
+"Qual produto é exclusivo da Aline?"
+"Quais itens são compartilhados?"
+"Quem deixou de comprar algo habitual?"
+Critérios de conclusão
+
+Ao final da Sprint 17 teremos:
+
+✅ IA aprendendo separadamente por consumidor.
+
+✅ Memória individual.
+
+✅ Estatísticas individuais.
+
+✅ Preferências individuais.
+
+✅ Recomendações individuais.
+
+✅ Integração completa com o Cognition Core.
+
+✅ Zero acoplamento com interface.
+
+Resultado esperado
+
+Ao concluir esta sprint, o DuoSpend deixará de tratar compras apenas como eventos financeiros e passará a compreender o comportamento de consumo de cada pessoa da Wallet.
+
+Essa evolução permitirá que futuras funcionalidades sejam personalizadas por consumidor, como previsões de reposição, recomendações inteligentes, listas automáticas de compras e análises individuais, mantendo a filosofia do projeto:
+
+"O app deve pedir pouco e aprender muito."
+
+⏱️ Estimativa: 5–7 horas
+
+🎯 Meta: iniciar a Inteligência por Consumidor aproveitando integralmente a infraestrutura consolidada nas Sprints 15, 16 e 16.5, sem necessidade de novas refatorações arquiteturais.
+
+começando 19:25
