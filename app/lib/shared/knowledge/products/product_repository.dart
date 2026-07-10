@@ -6,20 +6,63 @@ class ProductRepository {
     return ProductMemory.findById(id);
   }
 
+  String normalize(String value) {
+    var normalized = value.trim().toLowerCase();
+
+    const replacements = <String, String>{
+      'á': 'a',
+      'à': 'a',
+      'â': 'a',
+      'ã': 'a',
+      'ä': 'a',
+      'é': 'e',
+      'è': 'e',
+      'ê': 'e',
+      'ë': 'e',
+      'í': 'i',
+      'ì': 'i',
+      'î': 'i',
+      'ï': 'i',
+      'ó': 'o',
+      'ò': 'o',
+      'ô': 'o',
+      'õ': 'o',
+      'ö': 'o',
+      'ú': 'u',
+      'ù': 'u',
+      'û': 'u',
+      'ü': 'u',
+      'ç': 'c',
+      'ñ': 'n',
+    };
+
+    replacements.forEach((character, replacement) {
+      normalized = normalized.replaceAll(character, replacement);
+    });
+
+    normalized = normalized
+        .replaceAll(RegExp(r'[^a-z0-9\s\-]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return normalized;
+  }
+
   List<ProductModel> search(String query) {
-    final value = query.trim().toLowerCase();
+    final normalizedQuery = normalize(query);
 
-    print('Buscando produto: $value');
-    print('Total memória: ${ProductMemory.all.length}');
-
-    if (value.isEmpty) {
+    if (normalizedQuery.isEmpty) {
       return ProductMemory.all;
     }
 
     return ProductMemory.all.where((product) {
-      return product.name.toLowerCase().contains(value) ||
-          product.normalizedName.toLowerCase().contains(value) ||
-          product.brand.toLowerCase().contains(value);
+      final normalizedName = normalize(product.name);
+      final normalizedStoredName = normalize(product.normalizedName);
+      final normalizedBrand = normalize(product.brand);
+
+      return normalizedName.contains(normalizedQuery) ||
+          normalizedStoredName.contains(normalizedQuery) ||
+          normalizedBrand.contains(normalizedQuery);
     }).toList();
   }
 
@@ -28,19 +71,23 @@ class ProductRepository {
   }
 
   bool exists(String name) {
-    final normalized = name.trim().toLowerCase();
+    final normalizedName = normalize(name);
 
     return ProductMemory.all.any(
-      (product) => product.normalizedName == normalized,
+      (product) =>
+          normalize(product.normalizedName) == normalizedName ||
+          normalize(product.name) == normalizedName,
     );
   }
 
   ProductModel? findByName(String name) {
-    final normalized = name.trim().toLowerCase();
+    final normalizedName = normalize(name);
 
     try {
       return ProductMemory.all.firstWhere(
-        (product) => product.normalizedName == normalized,
+        (product) =>
+            normalize(product.normalizedName) == normalizedName ||
+            normalize(product.name) == normalizedName,
       );
     } catch (_) {
       return null;

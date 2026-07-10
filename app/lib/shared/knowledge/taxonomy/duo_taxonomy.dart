@@ -15,9 +15,22 @@ class DuoTaxonomy {
             TaxonomyItem(id: 'meat', name: 'Carnes', icon: '🥩'),
             TaxonomyItem(id: 'drinks', name: 'Bebidas', icon: '🥤'),
             TaxonomyItem(id: 'dairy', name: 'Laticínios', icon: '🥛'),
+            TaxonomyItem(id: 'grains', name: 'Grãos e cereais', icon: '🌾'),
             TaxonomyItem(id: 'cleaning', name: 'Limpeza', icon: '🧼'),
             TaxonomyItem(id: 'hygiene', name: 'Higiene', icon: '🧻'),
-            TaxonomyItem(id: 'snacks', name: 'Besteiras', icon: '🍫'),
+            TaxonomyItem(id: 'produce', name: 'Hortifrúti', icon: '🥬'),
+            TaxonomyItem(
+              id: 'bakery_products',
+              name: 'Padaria e massas',
+              icon: '🍞',
+            ),
+            TaxonomyItem(id: 'frozen', name: 'Congelados', icon: '🧊'),
+            TaxonomyItem(
+              id: 'condiments',
+              name: 'Temperos e molhos',
+              icon: '🧂',
+            ),
+            TaxonomyItem(id: 'snacks', name: 'Doces e snacks', icon: '🍫'),
           ],
         ),
         TaxonomyItem(
@@ -35,7 +48,6 @@ class DuoTaxonomy {
         TaxonomyItem(id: 'bakery', name: 'Padaria', icon: '🥐'),
       ],
     ),
-
     TaxonomyItem(
       id: 'transport',
       name: 'Transporte',
@@ -47,7 +59,6 @@ class DuoTaxonomy {
         TaxonomyItem(id: 'toll', name: 'Pedágio', icon: '🛣️'),
       ],
     ),
-
     TaxonomyItem(
       id: 'pets',
       name: 'Pets',
@@ -60,7 +71,6 @@ class DuoTaxonomy {
         TaxonomyItem(id: 'grooming', name: 'Banho e tosa', icon: '🛁'),
       ],
     ),
-
     TaxonomyItem(
       id: 'home',
       name: 'Casa',
@@ -72,7 +82,6 @@ class DuoTaxonomy {
         TaxonomyItem(id: 'decor', name: 'Decoração', icon: '🖼️'),
       ],
     ),
-
     TaxonomyItem(
       id: 'bills',
       name: 'Contas',
@@ -85,7 +94,6 @@ class DuoTaxonomy {
         TaxonomyItem(id: 'subscriptions', name: 'Assinaturas', icon: '📺'),
       ],
     ),
-
     TaxonomyItem(
       id: 'income',
       name: 'Receita',
@@ -97,12 +105,7 @@ class DuoTaxonomy {
         TaxonomyItem(id: 'gift', name: 'Presente', icon: '🎁'),
       ],
     ),
-
-    TaxonomyItem(
-      id: 'other',
-      name: 'Outros',
-      icon: '✨',
-    ),
+    TaxonomyItem(id: 'other', name: 'Outros', icon: '✨'),
   ];
 
   DuoTaxonomy._();
