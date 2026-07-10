@@ -22,27 +22,27 @@ class DefaultConsumerIntelligenceEngine
   }) async {
     var currentMemory = memory;
 
-    for (final item in payload.transaction.items) {
+    for (final item in payload.purchase.items) {
       final existingHabit = analyzer.findHabit(
-        payload,
-        currentMemory.habits,
+        productName: item.name,
+        habits: currentMemory.habits,
       );
 
       if (existingHabit == null) {
         final newHabit = ConsumerHabit(
-          id: '${payload.consumerId}_${item.description}',
+          id: '${payload.consumerId}_${item.name}',
           consumerId: payload.consumerId,
           walletId: payload.walletId,
-          productName: item.description,
-          normalizedProductName: item.description,
-          category: payload.transaction.category,
-          subcategory: payload.transaction.subcategory,
-          brand: null,
+          productName: item.name,
+          normalizedProductName: item.name.trim().toLowerCase(),
+          category: item.financialCategory,
+          subcategory: item.financialSubcategory,
+          brand: item.brand,
           variant: null,
-          packageDescription: null,
+          packageDescription: '${item.quantity} ${item.unit}',
           occurrences: 1,
-          firstSeenAt: payload.transaction.date,
-          lastSeenAt: payload.transaction.date,
+          firstSeenAt: payload.purchase.purchaseDate,
+          lastSeenAt: payload.purchase.purchaseDate,
           confidence: 0.2,
           averageIntervalInDays: null,
         );
@@ -57,7 +57,7 @@ class DefaultConsumerIntelligenceEngine
 
       final updatedHabit = existingHabit.copyWith(
         occurrences: existingHabit.occurrences + 1,
-        lastSeenAt: payload.transaction.date,
+        lastSeenAt: payload.purchase.purchaseDate,
         confidence: (existingHabit.confidence + 0.1).clamp(0.0, 1.0),
       );
 

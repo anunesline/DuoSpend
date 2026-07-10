@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
+import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/balance_card.dart';
@@ -12,11 +13,13 @@ import '../widgets/wallet_card.dart';
 class HomePage extends StatefulWidget {
   final ShoppingController shoppingController;
   final ConsumerController consumerController;
+  final PurchaseController purchaseController;
 
   const HomePage({
     super.key,
     required this.shoppingController,
     required this.consumerController,
+    required this.purchaseController,
   });
 
   @override
@@ -59,6 +62,7 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => NewTransactionPage(
           walletId: wallet.id,
           consumerController: widget.consumerController,
+          purchaseController: widget.purchaseController,
         ),
       ),
     );
@@ -67,9 +71,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _testShoppingKnowledgeEngine() async {
-    await widget.shoppingController.createItemFromNameForTest('Leite integral');
+    await widget.shoppingController.createItemFromNameForTest(
+      'Leite integral',
+    );
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -134,8 +142,12 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 20),
                 OutlinedButton.icon(
                   onPressed: _testShoppingKnowledgeEngine,
-                  icon: const Icon(Icons.psychology_alt_outlined),
-                  label: const Text('Testar inteligência de produtos'),
+                  icon: const Icon(
+                    Icons.psychology_alt_outlined,
+                  ),
+                  label: const Text(
+                    'Testar inteligência de produtos',
+                  ),
                 ),
               ],
             ),

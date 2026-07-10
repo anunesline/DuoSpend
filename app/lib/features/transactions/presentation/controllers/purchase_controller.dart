@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../consumers/domain/intelligence/consumer_knowledge_payload.dart';
+import '../../../consumers/domain/usecases/process_consumer_intelligence_usecase.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../data/repositories/firebase_purchase_repository.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
@@ -17,22 +19,32 @@ class PurchaseController extends ChangeNotifier {
   final BuildPurchaseUseCase _buildPurchaseUseCase;
   final PurchaseFlowService _purchaseFlowService;
   final PurchaseItemMapper _purchaseItemMapper;
+  final ProcessConsumerIntelligenceUseCase?
+      _processConsumerIntelligenceUseCase;
 
   PurchaseController({
     BuildPurchaseUseCase? buildPurchaseUseCase,
     PurchaseFlowService? purchaseFlowService,
     PurchaseItemMapper? purchaseItemMapper,
     PurchaseRepository? purchaseRepository,
+    ProcessConsumerIntelligenceUseCase?
+        processConsumerIntelligenceUseCase,
   })  : _buildPurchaseUseCase =
             buildPurchaseUseCase ?? const BuildPurchaseUseCase(),
-        _purchaseItemMapper = purchaseItemMapper ?? const PurchaseItemMapper(),
+        _purchaseItemMapper =
+            purchaseItemMapper ?? const PurchaseItemMapper(),
+        _processConsumerIntelligenceUseCase =
+            processConsumerIntelligenceUseCase,
         _purchaseFlowService = purchaseFlowService ??
             PurchaseFlowService(
               completePurchaseUseCase: CompletePurchaseUseCase(
-                analyzePurchaseUseCase: const AnalyzePurchaseUseCase(),
-                savePurchaseUseCase: SavePurchaseToRepositoryUseCase(
+                analyzePurchaseUseCase:
+                    const AnalyzePurchaseUseCase(),
+                savePurchaseUseCase:
+                    SavePurchaseToRepositoryUseCase(
                   purchaseRepository:
-                      purchaseRepository ?? FirebasePurchaseRepository(),
+                      purchaseRepository ??
+                          FirebasePurchaseRepository(),
                 ),
               ),
             );
@@ -55,11 +67,13 @@ class PurchaseController extends ChangeNotifier {
   String get financialCategory => _financialCategory;
   String get financialSubcategory => _financialSubcategory;
 
-  List<PurchaseItemModel> get items => List.unmodifiable(_items);
+  List<PurchaseItemModel> get items =>
+      List.unmodifiable(_items);
 
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
-  PurchaseFlowResult? get lastPurchaseFlowResult => _lastPurchaseFlowResult;
+  PurchaseFlowResult? get lastPurchaseFlowResult =>
+      _lastPurchaseFlowResult;
 
   bool get hasMerchant => _merchantName.trim().isNotEmpty;
   bool get hasItems => _items.isNotEmpty;
@@ -94,18 +108,21 @@ class PurchaseController extends ChangeNotifier {
     required String category,
     required String subcategory,
   }) {
-    _financialCategory =
-        category.trim().isEmpty ? 'Sem categoria' : category.trim();
+    _financialCategory = category.trim().isEmpty
+        ? 'Sem categoria'
+        : category.trim();
 
-    _financialSubcategory =
-        subcategory.trim().isEmpty ? 'Sem subcategoria' : subcategory.trim();
+    _financialSubcategory = subcategory.trim().isEmpty
+        ? 'Sem subcategoria'
+        : subcategory.trim();
 
     _clearError();
     notifyListeners();
   }
 
   void addTransactionItem(TransactionItemModel item) {
-    final purchaseItem = _purchaseItemMapper.fromTransactionItem(item);
+    final purchaseItem =
+        _purchaseItemMapper.fromTransactionItem(item);
 
     _items.add(purchaseItem);
     _clearError();
@@ -142,7 +159,9 @@ class PurchaseController extends ChangeNotifier {
     notifyListeners();
   }
 
-  PurchaseModel buildPurchase(CreatePurchaseCommand command) {
+  PurchaseModel buildPurchase(
+    CreatePurchaseCommand command,
+  ) {
     command.validate();
 
     final purchase = _buildPurchaseUseCase(
@@ -170,12 +189,47 @@ class PurchaseController extends ChangeNotifier {
   ) async {
     return runSaving(() async {
       final purchase = buildPurchase(command);
-      final result = await _purchaseFlowService.completePurchase(purchase);
+
+      final result =
+          await _purchaseFlowService.completePurchase(
+        purchase,
+      );
+
+      await _processConsumerIntelligence(
+        command: command,
+        purchase: result.purchase,
+      );
 
       _lastPurchaseFlowResult = result;
 
       return result;
     });
+  }
+
+  Future<void> _processConsumerIntelligence({
+    required CreatePurchaseCommand command,
+    required PurchaseModel purchase,
+  }) async {
+    final consumerId = command.consumerId?.trim();
+
+    if (consumerId == null || consumerId.isEmpty) {
+      return;
+    }
+
+    final processUseCase =
+        _processConsumerIntelligenceUseCase;
+
+    if (processUseCase == null) {
+      return;
+    }
+
+    await processUseCase.execute(
+      payload: ConsumerKnowledgePayload(
+        walletId: command.walletId,
+        consumerId: consumerId,
+        purchase: purchase,
+      ),
+    );
   }
 
   TransactionItemModel toTransactionItem({
@@ -197,7 +251,9 @@ class PurchaseController extends ChangeNotifier {
     );
   }
 
-  Future<T?> runSaving<T>(Future<T> Function() action) async {
+  Future<T?> runSaving<T>(
+    Future<T> Function() action,
+  ) async {
     if (_isSaving) {
       return null;
     }

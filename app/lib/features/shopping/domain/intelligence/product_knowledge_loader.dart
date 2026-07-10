@@ -3,7 +3,6 @@ import '../entities/product_alias_entity.dart';
 import '../entities/product_identity_entity.dart';
 import '../entities/product_variant_entity.dart';
 import 'brazil_product_knowledge_pack.dart';
-import 'product_knowledge_pack_item.dart';
 import 'product_memory.dart';
 
 class ProductKnowledgeLoader {

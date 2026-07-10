@@ -2,34 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../../features/transactions/data/models/product_model.dart';
 
-class ProductSearchField extends StatefulWidget {
+class ProductSearchField extends StatelessWidget {
+  final TextEditingController controller;
   final List<ProductModel> suggestions;
   final ValueChanged<String> onSearch;
   final ValueChanged<ProductModel> onSelected;
 
   const ProductSearchField({
     super.key,
+    required this.controller,
     required this.suggestions,
     required this.onSearch,
     required this.onSelected,
   });
 
-  @override
-  State<ProductSearchField> createState() => _ProductSearchFieldState();
-}
-
-class _ProductSearchFieldState extends State<ProductSearchField> {
-  final TextEditingController controller = TextEditingController();
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
   void _selectProduct(ProductModel product) {
     controller.text = product.name;
-    widget.onSelected(product);
+    onSelected(product);
   }
 
   @override
@@ -40,30 +29,31 @@ class _ProductSearchFieldState extends State<ProductSearchField> {
         TextField(
           controller: controller,
           decoration: const InputDecoration(
-            labelText: 'O que você comprou?',
+            labelText: 'Produto',
+            hintText: 'Ex.: Leite integral',
             border: OutlineInputBorder(),
             prefixIcon: Icon(Icons.search),
           ),
-          onChanged: widget.onSearch,
+          onChanged: onSearch,
         ),
-        if (widget.suggestions.isNotEmpty)
+        if (suggestions.isNotEmpty)
           Card(
             margin: const EdgeInsets.only(top: 8),
             child: ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: widget.suggestions.length,
+              itemCount: suggestions.length,
               itemBuilder: (_, index) {
-                final product = widget.suggestions[index];
+                final product = suggestions[index];
 
                 return ListTile(
                   title: Text(product.name),
                   subtitle: Text(
-                    product.brand.isEmpty ? 'Produto salvo' : product.brand,
+                    product.brand.isEmpty
+                        ? 'Produto salvo'
+                        : product.brand,
                   ),
-                  onTap: () {
-                    _selectProduct(product);
-                  },
+                  onTap: () => _selectProduct(product),
                 );
               },
             ),

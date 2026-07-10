@@ -34,8 +34,12 @@ class _LoginPageState extends State<LoginPage> {
           context,
           MaterialPageRoute(
             builder: (_) => HomePage(
-              shoppingController: widget.dependencies.shoppingController,
-              consumerController: widget.dependencies.consumerController,
+              shoppingController:
+                  widget.dependencies.shoppingController,
+              consumerController:
+                  widget.dependencies.consumerController,
+              purchaseController:
+                  widget.dependencies.purchaseController,
             ),
           ),
         );
@@ -83,7 +87,8 @@ class _LoginPageState extends State<LoginPage> {
                   width: double.infinity,
                   height: 52,
                   child: FilledButton.icon(
-                    onPressed: _loading ? null : _loginWithGoogle,
+                    onPressed:
+                        _loading ? null : _loginWithGoogle,
                     icon: const Icon(Icons.login),
                     label: _loading
                         ? const Text('Entrando...')

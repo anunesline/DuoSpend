@@ -1,17 +1,21 @@
-import '../intelligence/consumer_memory.dart';
+import '../consumer_profile_entity.dart';
 
-abstract class ConsumerMemoryRepository {
-  Future<ConsumerMemory> load({
-    required String walletId,
-    required String consumerId,
-  });
+abstract class ConsumerProfileRepository {
+  Future<List<ConsumerProfileEntity>> getAll();
 
-  Future<void> save(
-    ConsumerMemory memory,
+  Future<List<ConsumerProfileEntity>> getByWalletId(
+    String walletId,
   );
 
-  Future<void> reset({
-    required String walletId,
-    required String consumerId,
-  });
+  Future<ConsumerProfileEntity?> getById(
+    String id,
+  );
+
+  Future<void> save(
+    ConsumerProfileEntity consumer,
+  );
+
+  Future<void> delete(
+    String id,
+  );
 }
