@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
-import '../../../../shared/knowledge/products/product_seed.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../../shared/widgets/product_search_field.dart';
@@ -12,10 +11,12 @@ import '../../data/models/transaction_item_model.dart';
 
 class AddTransactionItemPage extends StatefulWidget {
   final TransactionItemModel? initialItem;
+  final ProductRepository productRepository;
 
   const AddTransactionItemPage({
     super.key,
     this.initialItem,
+    required this.productRepository,
   });
 
   bool get isEditing => initialItem != null;
@@ -26,25 +27,22 @@ class AddTransactionItemPage extends StatefulWidget {
   }
 }
 
-class _AddTransactionItemPageState
-    extends State<AddTransactionItemPage> {
+class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  final ProductRepository productRepository = ProductRepository();
+  ProductRepository get productRepository {
+    return widget.productRepository;
+  }
 
-  final TextEditingController nameController =
-      TextEditingController();
+  final TextEditingController nameController = TextEditingController();
 
-  final TextEditingController brandController =
-      TextEditingController();
+  final TextEditingController brandController = TextEditingController();
 
-  final TextEditingController quantityController =
-      TextEditingController(
+  final TextEditingController quantityController = TextEditingController(
     text: '1',
   );
 
-  final TextEditingController unitPriceController =
-      TextEditingController();
+  final TextEditingController unitPriceController = TextEditingController();
 
   List<ProductModel> productSuggestions = [];
 
@@ -73,13 +71,12 @@ class _AddTransactionItemPageState
     'dúzia',
   ];
 
-  TaxonomyItem selectedFinancialCategory =
-      DuoTaxonomy.items.first;
+  TaxonomyItem selectedFinancialCategory = DuoTaxonomy.items.first;
 
   TaxonomyItem? selectedFinancialSubcategory =
       DuoTaxonomy.items.first.children.isNotEmpty
-          ? DuoTaxonomy.items.first.children.first
-          : null;
+      ? DuoTaxonomy.items.first.children.first
+      : null;
 
   TaxonomyItem? selectedProductCategory;
 
@@ -94,14 +91,11 @@ class _AddTransactionItemPageState
   }
 
   List<TaxonomyItem> get productCategories {
-    return selectedFinancialSubcategory?.children ??
-        const <TaxonomyItem>[];
+    return selectedFinancialSubcategory?.children ?? const <TaxonomyItem>[];
   }
 
   double get currentQuantity {
-    final quantity = _parseNumber(
-      quantityController.text,
-    );
+    final quantity = _parseNumber(quantityController.text);
 
     if (quantity == null || quantity <= 0) {
       return 0;
@@ -111,9 +105,7 @@ class _AddTransactionItemPageState
   }
 
   double get currentUnitPrice {
-    final unitPrice = _parseNumber(
-      unitPriceController.text,
-    );
+    final unitPrice = _parseNumber(unitPriceController.text);
 
     if (unitPrice == null || unitPrice <= 0) {
       return 0;
@@ -127,8 +119,7 @@ class _AddTransactionItemPageState
   }
 
   bool get hasValidSubtotal {
-    return currentQuantity > 0 &&
-        currentUnitPrice > 0;
+    return currentQuantity > 0 && currentUnitPrice > 0;
   }
 
   ProductModel? get productForSummary {
@@ -166,31 +157,21 @@ class _AddTransactionItemPageState
   void initState() {
     super.initState();
 
-    ProductSeed.load(productRepository);
-
     _setDefaultProductCategory();
     _populateInitialItem();
 
     nameController.addListener(_handleProductDataChanged);
     brandController.addListener(_handleProductDataChanged);
-    quantityController.addListener(
-      _handlePurchaseValuesChanged,
-    );
-    unitPriceController.addListener(
-      _handlePurchaseValuesChanged,
-    );
+    quantityController.addListener(_handlePurchaseValuesChanged);
+    unitPriceController.addListener(_handlePurchaseValuesChanged);
   }
 
   @override
   void dispose() {
     nameController.removeListener(_handleProductDataChanged);
     brandController.removeListener(_handleProductDataChanged);
-    quantityController.removeListener(
-      _handlePurchaseValuesChanged,
-    );
-    unitPriceController.removeListener(
-      _handlePurchaseValuesChanged,
-    );
+    quantityController.removeListener(_handlePurchaseValuesChanged);
+    unitPriceController.removeListener(_handlePurchaseValuesChanged);
 
     nameController.dispose();
     brandController.dispose();
@@ -211,8 +192,7 @@ class _AddTransactionItemPageState
 
     nameController.text = item.name;
     brandController.text = item.brand;
-    quantityController.text =
-        _formatEditableNumber(item.quantity);
+    quantityController.text = _formatEditableNumber(item.quantity);
 
     unitPriceController.text = item.unitPrice
         .toStringAsFixed(2)
@@ -224,37 +204,28 @@ class _AddTransactionItemPageState
       units.add(unit);
     }
 
-    final taxonomyPath = _findTaxonomyPath(
-      item.taxonomyId,
-    );
+    final taxonomyPath = _findTaxonomyPath(item.taxonomyId);
 
     if (taxonomyPath.isNotEmpty) {
       selectedFinancialCategory = taxonomyPath.first;
 
-      selectedFinancialSubcategory =
-          taxonomyPath.length > 1
-              ? taxonomyPath[1]
-              : null;
+      selectedFinancialSubcategory = taxonomyPath.length > 1
+          ? taxonomyPath[1]
+          : null;
 
-      selectedProductCategory =
-          taxonomyPath.length > 2
-              ? taxonomyPath[2]
-              : null;
+      selectedProductCategory = taxonomyPath.length > 2
+          ? taxonomyPath[2]
+          : null;
     } else {
       _selectTaxonomyFromItemNames(item);
     }
 
-    selectedProduct = _findExistingProduct(
-      name: item.name,
-      brand: item.brand,
-    );
+    selectedProduct = _findExistingProduct(name: item.name, brand: item.brand);
 
     _isApplyingSelectedProduct = false;
   }
 
-  void _selectTaxonomyFromItemNames(
-    TransactionItemModel item,
-  ) {
+  void _selectTaxonomyFromItemNames(TransactionItemModel item) {
     for (final category in DuoTaxonomy.items) {
       if (category.name != item.category) {
         continue;
@@ -273,24 +244,17 @@ class _AddTransactionItemPageState
 
       selectedFinancialSubcategory =
           matchingSubcategory ??
-          (category.children.isNotEmpty
-              ? category.children.first
-              : null);
+          (category.children.isNotEmpty ? category.children.first : null);
 
       final categories =
-          selectedFinancialSubcategory?.children ??
-          const <TaxonomyItem>[];
+          selectedFinancialSubcategory?.children ?? const <TaxonomyItem>[];
 
       TaxonomyItem? matchingProductCategory;
 
       for (final productCategory in categories) {
-        final matchesId =
-            productCategory.id ==
-            item.productCategoryId;
+        final matchesId = productCategory.id == item.productCategoryId;
 
-        final matchesName =
-            productCategory.name ==
-            item.productCategoryName;
+        final matchesName = productCategory.name == item.productCategoryName;
 
         if (matchesId || matchesName) {
           matchingProductCategory = productCategory;
@@ -300,9 +264,7 @@ class _AddTransactionItemPageState
 
       selectedProductCategory =
           matchingProductCategory ??
-          (categories.isNotEmpty
-              ? categories.first
-              : null);
+          (categories.isNotEmpty ? categories.first : null);
 
       return;
     }
@@ -325,9 +287,7 @@ class _AddTransactionItemPageState
   }
 
   double? _parseNumber(String value) {
-    return double.tryParse(
-      value.trim().replaceAll(',', '.'),
-    );
+    return double.tryParse(value.trim().replaceAll(',', '.'));
   }
 
   String _formatMoney(double value) {
@@ -353,8 +313,7 @@ class _AddTransactionItemPageState
       return;
     }
 
-    final currentName =
-        _normalize(nameController.text);
+    final currentName = _normalize(nameController.text);
 
     final selectedName = _normalize(product.name);
 
@@ -366,11 +325,9 @@ class _AddTransactionItemPageState
       return;
     }
 
-    final currentBrand =
-        _normalize(brandController.text);
+    final currentBrand = _normalize(brandController.text);
 
-    final selectedBrand =
-        _normalize(product.brand);
+    final selectedBrand = _normalize(product.brand);
 
     if (currentBrand != selectedBrand) {
       setState(() {});
@@ -380,10 +337,7 @@ class _AddTransactionItemPageState
   void _setDefaultProductCategory() {
     final categories = productCategories;
 
-    selectedProductCategory =
-        categories.isNotEmpty
-            ? categories.first
-            : null;
+    selectedProductCategory = categories.isNotEmpty ? categories.first : null;
   }
 
   void _searchProducts(String query) {
@@ -398,15 +352,12 @@ class _AddTransactionItemPageState
     }
 
     setState(() {
-      productSuggestions =
-          productRepository.search(normalizedQuery);
+      productSuggestions = productRepository.search(normalizedQuery);
     });
   }
 
   void _selectProduct(ProductModel product) {
-    final path = _findTaxonomyPath(
-      product.taxonomyId,
-    );
+    final path = _findTaxonomyPath(product.taxonomyId);
 
     _isApplyingSelectedProduct = true;
 
@@ -425,11 +376,9 @@ class _AddTransactionItemPageState
       if (path.isNotEmpty) {
         selectedFinancialCategory = path.first;
 
-        selectedFinancialSubcategory =
-            path.length > 1 ? path[1] : null;
+        selectedFinancialSubcategory = path.length > 1 ? path[1] : null;
 
-        selectedProductCategory =
-            path.length > 2 ? path[2] : null;
+        selectedProductCategory = path.length > 2 ? path[2] : null;
       }
 
       productSuggestions = [];
@@ -441,14 +390,9 @@ class _AddTransactionItemPageState
     FocusScope.of(context).unfocus();
   }
 
-  List<TaxonomyItem> _findTaxonomyPath(
-    String id,
-  ) {
+  List<TaxonomyItem> _findTaxonomyPath(String id) {
     for (final item in DuoTaxonomy.items) {
-      final path = _findPathRecursive(
-        item,
-        id,
-      );
+      final path = _findPathRecursive(item, id);
 
       if (path.isNotEmpty) {
         return path;
@@ -458,41 +402,29 @@ class _AddTransactionItemPageState
     return [];
   }
 
-  List<TaxonomyItem> _findPathRecursive(
-    TaxonomyItem item,
-    String id,
-  ) {
+  List<TaxonomyItem> _findPathRecursive(TaxonomyItem item, String id) {
     if (item.id == id) {
       return [item];
     }
 
     for (final child in item.children) {
-      final childPath = _findPathRecursive(
-        child,
-        id,
-      );
+      final childPath = _findPathRecursive(child, id);
 
       if (childPath.isNotEmpty) {
-        return [
-          item,
-          ...childPath,
-        ];
+        return [item, ...childPath];
       }
     }
 
     return [];
   }
 
-  void _changeFinancialCategory(
-    TaxonomyItem category,
-  ) {
+  void _changeFinancialCategory(TaxonomyItem category) {
     setState(() {
       selectedFinancialCategory = category;
 
-      selectedFinancialSubcategory =
-          category.children.isNotEmpty
-              ? category.children.first
-              : null;
+      selectedFinancialSubcategory = category.children.isNotEmpty
+          ? category.children.first
+          : null;
 
       _setDefaultProductCategory();
 
@@ -500,9 +432,7 @@ class _AddTransactionItemPageState
     });
   }
 
-  void _changeFinancialSubcategory(
-    TaxonomyItem? subcategory,
-  ) {
+  void _changeFinancialSubcategory(TaxonomyItem? subcategory) {
     setState(() {
       selectedFinancialSubcategory = subcategory;
 
@@ -512,9 +442,7 @@ class _AddTransactionItemPageState
     });
   }
 
-  void _changeProductCategory(
-    TaxonomyItem? category,
-  ) {
+  void _changeProductCategory(TaxonomyItem? category) {
     setState(() {
       selectedProductCategory = category;
       selectedProduct = null;
@@ -531,13 +459,9 @@ class _AddTransactionItemPageState
     final products = productRepository.search(name);
 
     for (final product in products) {
-      final sameName =
-          _normalize(product.normalizedName) ==
-          normalizedName;
+      final sameName = _normalize(product.normalizedName) == normalizedName;
 
-      final sameBrand =
-          _normalize(product.brand) ==
-          normalizedBrand;
+      final sameBrand = _normalize(product.brand) == normalizedBrand;
 
       if (sameName && sameBrand) {
         return product;
@@ -554,10 +478,8 @@ class _AddTransactionItemPageState
       return false;
     }
 
-    return _normalize(product.name) ==
-            _normalize(nameController.text) &&
-        _normalize(product.brand) ==
-            _normalize(brandController.text);
+    return _normalize(product.name) == _normalize(nameController.text) &&
+        _normalize(product.brand) == _normalize(brandController.text);
   }
 
   ProductModel _resolveAndSaveProduct({
@@ -572,10 +494,7 @@ class _AddTransactionItemPageState
       return selectedProduct!;
     }
 
-    final existingProduct = _findExistingProduct(
-      name: name,
-      brand: brand,
-    );
+    final existingProduct = _findExistingProduct(name: name, brand: brand);
 
     if (existingProduct != null) {
       return existingProduct;
@@ -633,15 +552,12 @@ class _AddTransactionItemPageState
       _showValidationErrors = true;
     });
 
-    final isFormValid =
-        _formKey.currentState?.validate() ?? false;
+    final isFormValid = _formKey.currentState?.validate() ?? false;
 
     if (!hasValidProductName || !isFormValid) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Confira os campos obrigatórios destacados.',
-          ),
+          content: Text('Confira os campos obrigatórios destacados.'),
         ),
       );
 
@@ -651,18 +567,14 @@ class _AddTransactionItemPageState
     final name = nameController.text.trim();
     final brand = brandController.text.trim();
 
-    final quantity =
-        _parseNumber(quantityController.text)!;
+    final quantity = _parseNumber(quantityController.text)!;
 
-    final unitPrice =
-        _parseNumber(unitPriceController.text)!;
+    final unitPrice = _parseNumber(unitPriceController.text)!;
 
     final totalPrice = quantity * unitPrice;
 
     final productCategoryId =
-        selectedProduct?.productCategoryId ??
-        selectedProductCategory?.id ??
-        '';
+        selectedProduct?.productCategoryId ?? selectedProductCategory?.id ?? '';
 
     final productCategoryName =
         selectedProduct?.productCategoryName ??
@@ -688,11 +600,8 @@ class _AddTransactionItemPageState
     final now = DateTime.now();
 
     final item = TransactionItemModel(
-      id:
-          originalItem?.id ??
-          now.microsecondsSinceEpoch.toString(),
-      transactionId:
-          originalItem?.transactionId ?? '',
+      id: originalItem?.id ?? now.microsecondsSinceEpoch.toString(),
+      transactionId: originalItem?.transactionId ?? '',
       productId: product.id,
       merchantId: originalItem?.merchantId,
       name: product.name,
@@ -703,20 +612,13 @@ class _AddTransactionItemPageState
       totalPrice: totalPrice,
       taxonomyId: product.taxonomyId,
       category: selectedFinancialCategory.name,
-      subcategory:
-          selectedFinancialSubcategory?.name ??
-          'Sem subcategoria',
-      productCategoryId:
-          product.productCategoryId,
-      productCategoryName:
-          product.productCategoryName,
+      subcategory: selectedFinancialSubcategory?.name ?? 'Sem subcategoria',
+      productCategoryId: product.productCategoryId,
+      productCategoryName: product.productCategoryName,
       createdAt: originalItem?.createdAt ?? now,
     );
 
-    Navigator.pop(
-      context,
-      item,
-    );
+    Navigator.pop(context, item);
   }
 
   @override
@@ -725,85 +627,58 @@ class _AddTransactionItemPageState
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.isEditing
-              ? 'Editar item'
-              : 'Adicionar item',
-        ),
+        title: Text(widget.isEditing ? 'Editar item' : 'Adicionar item'),
         centerTitle: true,
       ),
       body: SafeArea(
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(
-              AppSpacing.lg,
-            ),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
                   'Produto *',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(
-                  height: AppSpacing.sm,
-                ),
+                const SizedBox(height: AppSpacing.sm),
                 ProductSearchField(
                   controller: nameController,
                   suggestions: productSuggestions,
                   onSearch: _searchProducts,
                   onSelected: _selectProduct,
                 ),
-                if (_showValidationErrors &&
-                    !hasValidProductName) ...[
-                  const SizedBox(
-                    height: AppSpacing.sm,
-                  ),
+                if (_showValidationErrors && !hasValidProductName) ...[
+                  const SizedBox(height: AppSpacing.sm),
                   Text(
                     'Informe o nome do produto.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .error,
+                      color: Theme.of(context).colorScheme.error,
                     ),
                   ),
                 ],
-                const SizedBox(
-                  height: AppSpacing.sm,
-                ),
+                const SizedBox(height: AppSpacing.sm),
                 Text(
                   '* Campos obrigatórios',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
+                const SizedBox(height: AppSpacing.lg),
                 TextFormField(
                   controller: brandController,
-                  textCapitalization:
-                      TextCapitalization.words,
+                  textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(
                     labelText: 'Marca',
                     hintText: 'Ex.: Tirol',
-                    helperText:
-                        'Opcional. O DuoSpend aprenderá essa variação.',
+                    helperText: 'Opcional. O DuoSpend aprenderá essa variação.',
                     border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
+                const SizedBox(height: AppSpacing.lg),
                 if (summaryProduct != null) ...[
                   ProductSummaryCard(
                     key: ValueKey(
@@ -814,57 +689,40 @@ class _AddTransactionItemPageState
                     ),
                     product: summaryProduct,
                     category:
-                        selectedFinancialSubcategory
-                            ?.name ??
+                        selectedFinancialSubcategory?.name ??
                         selectedFinancialCategory.name,
                     subcategory:
                         selectedProductCategory?.name ??
-                        summaryProduct
-                            .productCategoryName,
+                        summaryProduct.productCategoryName,
                   ),
                 ] else ...[
                   const Text(
                     'Classificação',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(
-                    height: AppSpacing.xs,
-                  ),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     'Ajude o DuoSpend a entender este produto.',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(
-                    height: AppSpacing.md,
-                  ),
-                  DropdownButtonFormField<
-                      TaxonomyItem>(
+                  const SizedBox(height: AppSpacing.md),
+                  DropdownButtonFormField<TaxonomyItem>(
                     key: ValueKey(
                       'financial-category-'
                       '${selectedFinancialCategory.id}',
                     ),
-                    initialValue:
-                        selectedFinancialCategory,
-                    decoration:
-                        const InputDecoration(
+                    initialValue: selectedFinancialCategory,
+                    decoration: const InputDecoration(
                       labelText: 'Tipo de gasto',
-                      helperText:
-                          'Classificação financeira da compra',
+                      helperText: 'Classificação financeira da compra',
                       border: OutlineInputBorder(),
                     ),
                     items: DuoTaxonomy.items
                         .map(
-                          (category) =>
-                              DropdownMenuItem<
-                                  TaxonomyItem>(
+                          (category) => DropdownMenuItem<TaxonomyItem>(
                             value: category,
                             child: Text(
                               '${category.icon} '
@@ -875,37 +733,26 @@ class _AddTransactionItemPageState
                         .toList(),
                     onChanged: (value) {
                       if (value != null) {
-                        _changeFinancialCategory(
-                          value,
-                        );
+                        _changeFinancialCategory(value);
                       }
                     },
                   ),
-                  const SizedBox(
-                    height: AppSpacing.lg,
-                  ),
-                  DropdownButtonFormField<
-                      TaxonomyItem>(
+                  const SizedBox(height: AppSpacing.lg),
+                  DropdownButtonFormField<TaxonomyItem>(
                     key: ValueKey(
                       'financial-subcategory-'
                       '${selectedFinancialCategory.id}-'
                       '${selectedFinancialSubcategory?.id}',
                     ),
-                    initialValue:
-                        selectedFinancialSubcategory,
-                    decoration:
-                        const InputDecoration(
-                      labelText:
-                          'Contexto da compra',
-                      helperText:
-                          'Ex.: Mercado, Restaurante ou Padaria',
+                    initialValue: selectedFinancialSubcategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Contexto da compra',
+                      helperText: 'Ex.: Mercado, Restaurante ou Padaria',
                       border: OutlineInputBorder(),
                     ),
                     items: financialSubcategories
                         .map(
-                          (subcategory) =>
-                              DropdownMenuItem<
-                                  TaxonomyItem>(
+                          (subcategory) => DropdownMenuItem<TaxonomyItem>(
                             value: subcategory,
                             child: Text(
                               '${subcategory.icon} '
@@ -914,36 +761,26 @@ class _AddTransactionItemPageState
                           ),
                         )
                         .toList(),
-                    onChanged:
-                        financialSubcategories.isEmpty
-                            ? null
-                            : _changeFinancialSubcategory,
+                    onChanged: financialSubcategories.isEmpty
+                        ? null
+                        : _changeFinancialSubcategory,
                   ),
-                  const SizedBox(
-                    height: AppSpacing.lg,
-                  ),
-                  DropdownButtonFormField<
-                      TaxonomyItem>(
+                  const SizedBox(height: AppSpacing.lg),
+                  DropdownButtonFormField<TaxonomyItem>(
                     key: ValueKey(
                       'product-category-'
                       '${selectedFinancialSubcategory?.id}-'
                       '${selectedProductCategory?.id}',
                     ),
-                    initialValue:
-                        selectedProductCategory,
-                    decoration:
-                        const InputDecoration(
-                      labelText:
-                          'Categoria do produto',
-                      helperText:
-                          'Ex.: Laticínios, Bebidas ou Carnes',
+                    initialValue: selectedProductCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Categoria do produto',
+                      helperText: 'Ex.: Laticínios, Bebidas ou Carnes',
                       border: OutlineInputBorder(),
                     ),
                     items: productCategories
                         .map(
-                          (category) =>
-                              DropdownMenuItem<
-                                  TaxonomyItem>(
+                          (category) => DropdownMenuItem<TaxonomyItem>(
                             value: category,
                             child: Text(
                               '${category.icon} '
@@ -952,64 +789,42 @@ class _AddTransactionItemPageState
                           ),
                         )
                         .toList(),
-                    onChanged:
-                        productCategories.isEmpty
-                            ? null
-                            : _changeProductCategory,
+                    onChanged: productCategories.isEmpty
+                        ? null
+                        : _changeProductCategory,
                   ),
                 ],
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
+                const SizedBox(height: AppSpacing.lg),
                 Row(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: TextFormField(
-                        controller:
-                            quantityController,
-                        keyboardType:
-                            const TextInputType
-                                .numberWithOptions(
+                        controller: quantityController,
+                        keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-                        textInputAction:
-                            TextInputAction.next,
-                        validator:
-                            _validateQuantity,
-                        decoration:
-                            const InputDecoration(
-                          labelText:
-                              'Quantidade *',
+                        textInputAction: TextInputAction.next,
+                        validator: _validateQuantity,
+                        decoration: const InputDecoration(
+                          labelText: 'Quantidade *',
                           hintText: '1',
-                          border:
-                              OutlineInputBorder(),
+                          border: OutlineInputBorder(),
                         ),
                       ),
                     ),
-                    const SizedBox(
-                      width: AppSpacing.md,
-                    ),
+                    const SizedBox(width: AppSpacing.md),
                     Expanded(
-                      child:
-                          DropdownButtonFormField<
-                              String>(
-                        key: ValueKey(
-                          'unit-$unit',
-                        ),
+                      child: DropdownButtonFormField<String>(
+                        key: ValueKey('unit-$unit'),
                         initialValue: unit,
-                        decoration:
-                            const InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'Unidade *',
-                          border:
-                              OutlineInputBorder(),
+                          border: OutlineInputBorder(),
                         ),
                         items: units
                             .map(
-                              (item) =>
-                                  DropdownMenuItem<
-                                      String>(
+                              (item) => DropdownMenuItem<String>(
                                 value: item,
                                 child: Text(item),
                               ),
@@ -1028,119 +843,89 @@ class _AddTransactionItemPageState
                     ),
                   ],
                 ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
+                const SizedBox(height: AppSpacing.lg),
                 TextFormField(
                   controller: unitPriceController,
-                  keyboardType:
-                      const TextInputType
-                          .numberWithOptions(
+                  keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  textInputAction:
-                      TextInputAction.done,
+                  textInputAction: TextInputAction.done,
                   validator: _validateUnitPrice,
                   onFieldSubmitted: (_) {
                     _saveItem();
                   },
-                  decoration:
-                      const InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Preço unitário *',
                     hintText: '0,00',
-                    helperText:
-                        'Informe o preço de uma unidade.',
+                    helperText: 'Informe o preço de uma unidade.',
                     prefixText: 'R\$ ',
                     border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(
-                  height: AppSpacing.md,
-                ),
+                const SizedBox(height: AppSpacing.md),
                 AnimatedSwitcher(
-                  duration:
-                      const Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 200),
                   child: Container(
                     key: ValueKey(
                       '${currentQuantity.toStringAsFixed(3)}-'
                       '${currentUnitPrice.toStringAsFixed(2)}-'
                       '$unit',
                     ),
-                    padding: const EdgeInsets.all(
-                      AppSpacing.md,
-                    ),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest,
-                      borderRadius:
-                          BorderRadius.circular(12),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           Icons.calculate_outlined,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
-                        const SizedBox(
-                          width: AppSpacing.md,
-                        ),
+                        const SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Subtotal',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
-                              const SizedBox(
-                                height: AppSpacing.xs,
-                              ),
+                              const SizedBox(height: AppSpacing.xs),
                               Text(
                                 hasValidSubtotal
-                                    ? _formatMoney(
-                                        currentSubtotal,
-                                      )
+                                    ? _formatMoney(currentSubtotal)
                                     : 'Preencha quantidade e preço unitário.',
                                 style: TextStyle(
-                                  fontSize:
-                                      hasValidSubtotal
-                                          ? 18
-                                          : 14,
-                                  fontWeight:
-                                      hasValidSubtotal
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                  fontSize: hasValidSubtotal ? 18 : 14,
+                                  fontWeight: hasValidSubtotal
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                                   color: hasValidSubtotal
-                                      ? Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                      : Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               if (hasValidSubtotal) ...[
-                                const SizedBox(
-                                  height: AppSpacing.xs,
-                                ),
+                                const SizedBox(height: AppSpacing.xs),
                                 Text(
                                   '${_formatEditableNumber(currentQuantity)} '
                                   '$unit × '
                                   '${_formatMoney(currentUnitPrice)}',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ],
@@ -1151,22 +936,16 @@ class _AddTransactionItemPageState
                     ),
                   ),
                 ),
-                const SizedBox(
-                  height: AppSpacing.xl,
-                ),
+                const SizedBox(height: AppSpacing.xl),
                 SizedBox(
                   height: 52,
                   child: FilledButton.icon(
                     onPressed: _saveItem,
                     icon: Icon(
-                      widget.isEditing
-                          ? Icons.check_outlined
-                          : Icons.add,
+                      widget.isEditing ? Icons.check_outlined : Icons.add,
                     ),
                     label: Text(
-                      widget.isEditing
-                          ? 'Salvar alterações'
-                          : 'Adicionar item',
+                      widget.isEditing ? 'Salvar alterações' : 'Adicionar item',
                     ),
                   ),
                 ),

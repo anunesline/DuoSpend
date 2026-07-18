@@ -7,10 +7,7 @@ import '../../../home/presentation/pages/home_page.dart';
 class LoginPage extends StatefulWidget {
   final AppDependencyContainer dependencies;
 
-  const LoginPage({
-    super.key,
-    required this.dependencies,
-  });
+  const LoginPage({super.key, required this.dependencies});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -37,13 +34,9 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      debugPrint(
-        'Usuário logado: ${user.displayName}',
-      );
+      debugPrint('Usuário logado: ${user.displayName}');
 
-      await widget.dependencies.productBootstrap.initialize(
-        userId: user.uid,
-      );
+      await widget.dependencies.productBootstrap.initialize(userId: user.uid);
 
       if (!mounted) {
         return;
@@ -53,23 +46,17 @@ class _LoginPageState extends State<LoginPage> {
         context,
         MaterialPageRoute(
           builder: (_) => HomePage(
-            shoppingController:
-                widget.dependencies.shoppingController,
-            consumerController:
-                widget.dependencies.consumerController,
-            purchaseController:
-                widget.dependencies.purchaseController,
+            shoppingController: widget.dependencies.shoppingController,
+            consumerController: widget.dependencies.consumerController,
+            purchaseController: widget.dependencies.purchaseController,
+            productRepository: widget.dependencies.productRepository,
           ),
         ),
       );
     } catch (error, stackTrace) {
-      debugPrint(
-        'Erro ao realizar login e inicializar produtos: $error',
-      );
+      debugPrint('Erro ao realizar login e inicializar produtos: $error');
 
-      debugPrintStack(
-        stackTrace: stackTrace,
-      );
+      debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) {
         return;
@@ -77,9 +64,7 @@ class _LoginPageState extends State<LoginPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Não foi possível concluir o login. Tente novamente.',
-          ),
+          content: Text('Não foi possível concluir o login. Tente novamente.'),
         ),
       );
     } finally {
@@ -97,9 +82,7 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: const Color(0xFFF8F9FC),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 24,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -109,43 +92,29 @@ class _LoginPageState extends State<LoginPage> {
                   size: 80,
                   color: Color(0xFF4F46E5),
                 ),
-                const SizedBox(
-                  height: 24,
-                ),
+                const SizedBox(height: 24),
                 const Text(
                   'DuoSpend',
-                  style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(
-                  height: 8,
-                ),
+                const SizedBox(height: 8),
                 const Text(
                   'Organize suas finanças sozinho ou em casal.',
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(
-                  height: 48,
-                ),
+                const SizedBox(height: 48),
                 SizedBox(
                   width: double.infinity,
                   height: 52,
                   child: FilledButton.icon(
-                    onPressed:
-                        _loading ? null : _loginWithGoogle,
+                    onPressed: _loading ? null : _loginWithGoogle,
                     icon: _loading
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(
-                            Icons.login,
-                          ),
+                        : const Icon(Icons.login),
                     label: Text(
                       _loading
                           ? 'Carregando seus produtos...'
