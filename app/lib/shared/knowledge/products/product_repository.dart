@@ -1,7 +1,34 @@
+import 'package:flutter/foundation.dart';
+
 import '../../../features/transactions/data/models/product_model.dart';
+import 'firestore_product_data_source.dart';
 import 'product_memory.dart';
 
 class ProductRepository {
+  final FirestoreProductDataSource _dataSource;
+
+  ProductRepository({
+    FirestoreProductDataSource? dataSource,
+  }) : _dataSource = dataSource ?? FirestoreProductDataSource();
+
+  Future<void> initialize() async {
+    try {
+      final persistedProducts = await _dataSource.loadAll();
+
+      for (final product in persistedProducts) {
+        ProductMemory.remember(product);
+      }
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Erro ao carregar produtos aprendidos: $error',
+      );
+
+      debugPrintStack(
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
   ProductModel? findById(String id) {
     return ProductMemory.findById(id);
   }
@@ -36,13 +63,24 @@ class ProductRepository {
       'ñ': 'n',
     };
 
-    replacements.forEach((character, replacement) {
-      normalized = normalized.replaceAll(character, replacement);
-    });
+    replacements.forEach(
+      (character, replacement) {
+        normalized = normalized.replaceAll(
+          character,
+          replacement,
+        );
+      },
+    );
 
     normalized = normalized
-        .replaceAll(RegExp(r'[^a-z0-9\s\-]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(
+          RegExp(r'[^a-z0-9\s\-]'),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'\s+'),
+          ' ',
+        )
         .trim();
 
     return normalized;
@@ -55,19 +93,39 @@ class ProductRepository {
       return ProductMemory.all;
     }
 
-    return ProductMemory.all.where((product) {
-      final normalizedName = normalize(product.name);
-      final normalizedStoredName = normalize(product.normalizedName);
-      final normalizedBrand = normalize(product.brand);
+    return ProductMemory.all.where(
+      (product) {
+        final normalizedName = normalize(product.name);
 
-      return normalizedName.contains(normalizedQuery) ||
-          normalizedStoredName.contains(normalizedQuery) ||
-          normalizedBrand.contains(normalizedQuery);
-    }).toList();
+        final normalizedStoredName = normalize(
+          product.normalizedName,
+        );
+
+        final normalizedBrand = normalize(product.brand);
+
+        return normalizedName.contains(normalizedQuery) ||
+            normalizedStoredName.contains(normalizedQuery) ||
+            normalizedBrand.contains(normalizedQuery);
+      },
+    ).toList();
   }
 
-  void save(ProductModel product) {
+  Future<void> save(ProductModel product) async {
     ProductMemory.remember(product);
+
+    try {
+      await _dataSource.save(product);
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Erro ao persistir produto aprendido: $error',
+      );
+
+      debugPrintStack(
+        stackTrace: stackTrace,
+      );
+
+      rethrow;
+    }
   }
 
   bool exists(String name) {
@@ -75,7 +133,8 @@ class ProductRepository {
 
     return ProductMemory.all.any(
       (product) =>
-          normalize(product.normalizedName) == normalizedName ||
+          normalize(product.normalizedName) ==
+              normalizedName ||
           normalize(product.name) == normalizedName,
     );
   }
@@ -86,7 +145,8 @@ class ProductRepository {
     try {
       return ProductMemory.all.firstWhere(
         (product) =>
-            normalize(product.normalizedName) == normalizedName ||
+            normalize(product.normalizedName) ==
+                normalizedName ||
             normalize(product.name) == normalizedName,
       );
     } catch (_) {
