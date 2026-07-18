@@ -2390,3 +2390,223 @@ Essa evolução permitirá que futuras funcionalidades sejam personalizadas por 
 🎯 Meta: iniciar a Inteligência por Consumidor aproveitando integralmente a infraestrutura consolidada nas Sprints 15, 16 e 16.5, sem necessidade de novas refatorações arquiteturais.
 
 começando 19:25
+terminando 22:00
+
+### Sprint 17.5 — Consolidação da Product Intelligence
+
+📅 Data: 09/07/2026
+
+## 🎯 Objetivo
+
+Consolidar a inteligência de produtos do DuoSpend, garantindo que o aplicativo reutilize corretamente produtos existentes, aprenda automaticamente novos produtos cadastrados pelo usuário e mantenha a arquitetura limpa.
+
+---
+
+## ✅ Entregas realizadas
+
+### Product Intelligence
+
+* ProductRepository passou a aprender automaticamente novos produtos cadastrados pelo usuário.
+* Produtos já existentes passaram a ser reutilizados corretamente durante novas compras.
+* Correção da lógica de identificação de produtos ao alterar a marca.
+* Alteração de marca agora cria corretamente uma nova variação do produto, sem sobrescrever o cadastro existente.
+
+### Consumer Intelligence
+
+* Integração consolidada com o fluxo de compras.
+* Aprendizado automático preservado durante o cadastro de novos produtos.
+
+### Nova Transação
+
+* Tela simplificada.
+* Categoria financeira automática permanece oculta quando não é necessária.
+* Classificação automática passa a aparecer quando existem itens na compra.
+* Melhor organização do fluxo de cadastro.
+
+### Validação
+
+* Início da identificação visual de campos obrigatórios.
+* Fluxo de criação de produtos revisado.
+
+---
+
+## 🏗 Arquitetura
+
+Mantida integralmente:
+
+* Clean Architecture
+* SOLID
+* Separação por camadas
+* Repositórios independentes
+* Nenhuma quebra estrutural
+
+---
+
+## 🧪 Resultado
+
+* Reutilização correta de produtos existentes.
+* Criação automática de novos produtos quando necessário.
+* Cadastro de novas marcas funcionando corretamente.
+* Fluxo de inteligência mais consistente.
+* `flutter analyze` sem erros (apenas informações).
+
+---
+
+## 📌 Próxima Sprint — 17.6
+
+Foco em UX e refinamento da experiência de cadastro de compras.
+
+### Formulário
+
+* Padronizar campos obrigatórios com `*`.
+* Melhorar visual dos campos obrigatórios.
+* Revisar espaçamentos.
+* Revisar labels e textos.
+* Corrigir o `ProductSummaryCard`.
+* Atualizar o `ProductSummaryCard` quando a marca for alterada.
+* Revisar o fluxo completo de autocomplete.
+
+### Lista de itens
+
+* Tornar os cards clicáveis para edição.
+* Implementar swipe para excluir.
+* Melhorar o layout dos cards.
+* Exibir marca do produto.
+* Exibir quantidade e unidade.
+* Exibir preço unitário.
+* Exibir preço total do item.
+
+---
+
+## 💬 Filosofia do DuoSpend
+
+> **"O app deve pedir pouco e aprender muito."**
+
+começando 22
+pausando 23:00
+votando 00:30
+parando 1:22
+
+## # Sprint 17.7 — Refinamento da UX da Compra
+🎯 Objetivo
+
+Refinar a experiência de cadastro de itens na compra, tornando o fluxo mais intuitivo, consistente e preparado para a evolução da inteligência do DuoSpend.
+
+---
+
+✅ Entregas realizadas
+
+Formulário de itens
+
+* Padronização visual dos campos obrigatórios.
+* Identificação clara dos campos obrigatórios com `*`.
+* Melhor organização dos espaçamentos e hierarquia visual.
+* Revisão de labels e textos de apoio.
+* Validação visual dos campos obrigatórios.
+* Mensagens de erro mais claras para o usuário.
+
+Product Intelligence
+
+* Correção do `ProductSummaryCard`, voltando a exibir corretamente as informações do produto reconhecido.
+* Atualização dinâmica do card quando a marca é alterada.
+* Manutenção da classificação automática para produtos conhecidos.
+
+Busca inteligente
+
+* Normalização da busca para ignorar diferenças entre letras com e sem acentos.
+* Busca funcionando para palavras como:
+
+  * pão / pao
+  * açúcar / acucar
+  * sabão / sabao
+* Revisão do fluxo de autocomplete.
+
+Base de conhecimento
+
+Ampliação da taxonomia de produtos:
+
+* Grãos e cereais.
+* Limpeza.
+* Hortifrúti.
+* Padaria e massas.
+* Congelados.
+* Temperos e molhos.
+
+Ampliação das unidades disponíveis:
+
+* lata
+* garrafa
+* pacote
+* caixa
+* frasco
+* sachê
+* bandeja
+* pote
+* rolo
+* dúzia
+
+Inclusão de novos produtos na base inicial para facilitar testes e aprendizado.
+
+
+
+🧪 Testes realizados
+
+Validação com sucesso dos seguintes cenários:
+
+* reconhecimento de produtos existentes;
+* criação de novas marcas;
+* atualização do `ProductSummaryCard`;
+* categorias automáticas;
+* novas unidades;
+* autocomplete utilizando nomes normalizados.
+
+
+
+## ⚠️ Observação registrada
+
+Durante os testes no emulador foi identificado um comportamento inconsistente na digitação de caracteres compostos (ex.: `ã` e `ç`), em que palavras como "pão" podem aparecer temporariamente como "poo".
+
+Como esse comportamento pode estar relacionado ao teclado do emulador, foi decidido não realizar alterações adicionais neste momento.
+
+A correção foi registrada como a **primeira melhoria prevista para a versão 1.0**, devendo ser validada inicialmente em dispositivo físico.
+
+---
+
+ 🏗 Arquitetura
+
+Mantida integralmente:
+
+* Clean Architecture
+* SOLID
+* Componentização
+* Reutilização dos widgets existentes
+* Nenhuma quebra estrutural
+
+---
+
+## 📌 Próxima Sprint — 17.8
+
+Refatoração da lista de itens da compra.
+
+Objetivos:
+
+* cards modernos (Material 3);
+* tocar no item para editar;
+* swipe para excluir;
+* animações de inclusão e remoção;
+* exibir marca;
+* exibir categoria;
+* exibir quantidade e unidade;
+* exibir preço unitário;
+* exibir subtotal;
+* layout mais limpo e profissional.
+
+---
+
+💬 Filosofia do DuoSpend
+
+> **"O app deve pedir pouco e aprender muito."**
+
+
+
+

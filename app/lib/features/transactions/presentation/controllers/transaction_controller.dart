@@ -18,8 +18,27 @@ class TransactionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateItem({
+    required String originalItemId,
+    required TransactionItemModel updatedItem,
+  }) {
+    final index = _items.indexWhere(
+      (item) => item.id == originalItemId,
+    );
+
+    if (index == -1) {
+      return;
+    }
+
+    _items[index] = updatedItem;
+    notifyListeners();
+  }
+
   void removeItem(TransactionItemModel item) {
-    _items.removeWhere((currentItem) => currentItem.id == item.id);
+    _items.removeWhere(
+      (currentItem) => currentItem.id == item.id,
+    );
+
     notifyListeners();
   }
 
@@ -39,7 +58,6 @@ class TransactionController extends ChangeNotifier {
     required String subcategory,
   }) async {
     final wallet = await _walletRepository.getMainWallet();
-
     final resolvedWalletId = wallet?.id ?? walletId;
 
     final transaction = TransactionModel(
@@ -76,6 +94,5 @@ class TransactionController extends ChangeNotifier {
     }
 
     clearItems();
-    notifyListeners();
   }
 }

@@ -1,5 +1,3 @@
-import '../../data/models/transaction_item_model.dart';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -7,6 +5,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
+import '../../data/models/transaction_item_model.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
 import '../../domain/purchase/models/purchase_item_model.dart';
 import '../controllers/purchase_controller.dart';
@@ -29,18 +28,24 @@ class NewTransactionPage extends StatefulWidget {
   });
 
   @override
-  State<NewTransactionPage> createState() =>
-      _NewTransactionPageState();
+  State<NewTransactionPage> createState() {
+    return _NewTransactionPageState();
+  }
 }
 
-class _NewTransactionPageState
-    extends State<NewTransactionPage> {
-  final descriptionController = TextEditingController();
-  final valueController = TextEditingController();
-  final transactionController = TransactionController();
+class _NewTransactionPageState extends State<NewTransactionPage> {
+  final TextEditingController descriptionController =
+      TextEditingController();
 
-  PurchaseController get purchaseController =>
-      widget.purchaseController;
+  final TextEditingController valueController =
+      TextEditingController();
+
+  final TransactionController transactionController =
+      TransactionController();
+
+  PurchaseController get purchaseController {
+    return widget.purchaseController;
+  }
 
   String type = 'expense';
 
@@ -83,18 +88,20 @@ class _NewTransactionPageState
     TaxonomyItem? subcategory;
 
     for (final taxonomyCategory in DuoTaxonomy.items) {
-      if (taxonomyCategory.name == item.financialCategory) {
-        category = taxonomyCategory;
-
-        for (final child in taxonomyCategory.children) {
-          if (child.name == item.financialSubcategory) {
-            subcategory = child;
-            break;
-          }
-        }
-
-        break;
+      if (taxonomyCategory.name != item.financialCategory) {
+        continue;
       }
+
+      category = taxonomyCategory;
+
+      for (final child in taxonomyCategory.children) {
+        if (child.name == item.financialSubcategory) {
+          subcategory = child;
+          break;
+        }
+      }
+
+      break;
     }
 
     if (category == null) {
@@ -104,7 +111,8 @@ class _NewTransactionPageState
     setState(() {
       selectedCategory = category!;
 
-      selectedSubcategory = subcategory ??
+      selectedSubcategory =
+          subcategory ??
           (category.children.isNotEmpty
               ? category.children.first
               : null);
@@ -117,10 +125,9 @@ class _NewTransactionPageState
     setState(() {
       selectedCategory = category;
 
-      selectedSubcategory =
-          category.children.isNotEmpty
-              ? category.children.first
-              : null;
+      selectedSubcategory = category.children.isNotEmpty
+          ? category.children.first
+          : null;
     });
 
     _syncFinancialCategory();
@@ -143,37 +150,95 @@ class _NewTransactionPageState
   }
 
   Future<void> _openAddItemPage() async {
-    final item = await Navigator.push(
+    final result = await Navigator.push<TransactionItemModel>(
       context,
       MaterialPageRoute(
         builder: (_) => const AddTransactionItemPage(),
       ),
     );
 
-    if (item == null ||
-        item is! TransactionItemModel) {
+    if (result == null) {
       return;
     }
 
-    purchaseController.addTransactionItem(item);
-    transactionController.addItem(item);
+    purchaseController.addTransactionItem(result);
+    transactionController.addItem(result);
 
-    final purchaseItem =
-        purchaseController.items.last;
+    final addedPurchaseItem = purchaseController.items.last;
 
-    _syncCategoryFromPurchaseItem(purchaseItem);
+    _syncCategoryFromPurchaseItem(addedPurchaseItem);
     _syncValueWithPurchaseTotal();
   }
 
-  void _removeItem(PurchaseItemModel item) {
-    purchaseController.removeItem(item.id);
+  Future<void> _openEditItemPage(
+    PurchaseItemModel purchaseItem,
+  ) async {
+    final initialTransactionItem =
+        purchaseController.toTransactionItem(
+      item: purchaseItem,
+      transactionId: purchaseItem.purchaseId,
+    );
 
+    final updatedItem =
+        await Navigator.push<TransactionItemModel>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddTransactionItemPage(
+          initialItem: initialTransactionItem,
+        ),
+      ),
+    );
+
+    if (updatedItem == null) {
+      return;
+    }
+
+    purchaseController.updateTransactionItem(
+      originalItemId: purchaseItem.id,
+      updatedItem: updatedItem,
+    );
+
+    transactionController.updateItem(
+      originalItemId: purchaseItem.id,
+      updatedItem: updatedItem,
+    );
+
+    final updatedPurchaseItem =
+        _findPurchaseItemById(purchaseItem.id);
+
+    if (updatedPurchaseItem != null) {
+      _syncCategoryFromPurchaseItem(
+        updatedPurchaseItem,
+      );
+    }
+
+    _syncValueWithPurchaseTotal();
+
+    _showMessage(
+      '${updatedItem.name} atualizado.',
+    );
+  }
+
+  PurchaseItemModel? _findPurchaseItemById(
+    String itemId,
+  ) {
+    for (final item in purchaseController.items) {
+      if (item.id == itemId) {
+        return item;
+      }
+    }
+
+    return null;
+  }
+
+  void _removeItem(PurchaseItemModel item) {
     final transactionItem =
         purchaseController.toTransactionItem(
       item: item,
       transactionId: item.purchaseId,
     );
 
+    purchaseController.removeItem(item.id);
     transactionController.removeItem(transactionItem);
 
     _syncValueWithPurchaseTotal();
@@ -212,14 +277,20 @@ class _NewTransactionPageState
     );
 
     if (description.isEmpty || value == null) {
-      _showMessage('Preencha todos os campos.');
+      _showMessage(
+        'Preencha todos os campos.',
+      );
+
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      _showMessage('Usuário não autenticado.');
+      _showMessage(
+        'Usuário não autenticado.',
+      );
+
       return;
     }
 
@@ -245,6 +316,7 @@ class _NewTransactionPageState
         _showMessage(
           purchaseController.errorMessage!,
         );
+
         return;
       }
 
@@ -252,6 +324,7 @@ class _NewTransactionPageState
         _showMessage(
           'Não foi possível concluir a compra.',
         );
+
         return;
       }
     }
@@ -265,8 +338,7 @@ class _NewTransactionPageState
       consumerId: consumerId,
       category: selectedCategory.name,
       subcategory:
-          selectedSubcategory?.name ??
-              'Sem subcategoria',
+          selectedSubcategory?.name ?? 'Sem subcategoria',
     );
 
     if (!mounted) {
@@ -281,11 +353,16 @@ class _NewTransactionPageState
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
   }
 
   @override
@@ -301,7 +378,9 @@ class _NewTransactionPageState
         ]),
         builder: (context, _) {
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.all(
+              AppSpacing.lg,
+            ),
             child: Column(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
@@ -330,6 +409,7 @@ class _NewTransactionPageState
                   items: purchaseController.items,
                   total: purchaseController.total,
                   onAddItem: _openAddItemPage,
+                  onEditItem: _openEditItemPage,
                   onRemoveItem: _removeItem,
                 ),
                 const SizedBox(
