@@ -22,34 +22,72 @@ class _LoginPageState extends State<LoginPage> {
   bool _loading = false;
 
   Future<void> _loginWithGoogle() async {
-    setState(() => _loading = true);
+    if (_loading) {
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+    });
 
     try {
       final user = await _authService.signInWithGoogle();
 
-      if (user != null && mounted) {
-        debugPrint('Usuário logado: ${user.displayName}');
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => HomePage(
-              shoppingController:
-                  widget.dependencies.shoppingController,
-              consumerController:
-                  widget.dependencies.consumerController,
-              purchaseController:
-                  widget.dependencies.purchaseController,
-            ),
-          ),
-        );
+      if (user == null) {
+        return;
       }
-    } catch (error) {
-      debugPrint('Erro login: $error');
-    }
 
-    if (mounted) {
-      setState(() => _loading = false);
+      debugPrint(
+        'Usuário logado: ${user.displayName}',
+      );
+
+      await widget.dependencies.productBootstrap.initialize(
+        userId: user.uid,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HomePage(
+            shoppingController:
+                widget.dependencies.shoppingController,
+            consumerController:
+                widget.dependencies.consumerController,
+            purchaseController:
+                widget.dependencies.purchaseController,
+          ),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Erro ao realizar login e inicializar produtos: $error',
+      );
+
+      debugPrintStack(
+        stackTrace: stackTrace,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível concluir o login. Tente novamente.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -59,7 +97,9 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: const Color(0xFFF8F9FC),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24,
+          ),
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -69,7 +109,9 @@ class _LoginPageState extends State<LoginPage> {
                   size: 80,
                   color: Color(0xFF4F46E5),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(
+                  height: 24,
+                ),
                 const Text(
                   'DuoSpend',
                   style: TextStyle(
@@ -77,22 +119,38 @@ class _LoginPageState extends State<LoginPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(
+                  height: 8,
+                ),
                 const Text(
                   'Organize suas finanças sozinho ou em casal.',
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(
+                  height: 48,
+                ),
                 SizedBox(
                   width: double.infinity,
                   height: 52,
                   child: FilledButton.icon(
                     onPressed:
                         _loading ? null : _loginWithGoogle,
-                    icon: const Icon(Icons.login),
-                    label: _loading
-                        ? const Text('Entrando...')
-                        : const Text('Entrar com Google'),
+                    icon: _loading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.login,
+                          ),
+                    label: Text(
+                      _loading
+                          ? 'Carregando seus produtos...'
+                          : 'Entrar com Google',
+                    ),
                   ),
                 ),
               ],

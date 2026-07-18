@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
@@ -19,12 +20,14 @@ class NewTransactionPage extends StatefulWidget {
   final String walletId;
   final ConsumerController consumerController;
   final PurchaseController purchaseController;
+  final ProductRepository productRepository;
 
   const NewTransactionPage({
     super.key,
     required this.walletId,
     required this.consumerController,
     required this.purchaseController,
+    required this.productRepository,
   });
 
   @override
@@ -34,14 +37,11 @@ class NewTransactionPage extends StatefulWidget {
 }
 
 class _NewTransactionPageState extends State<NewTransactionPage> {
-  final TextEditingController descriptionController =
-      TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
 
-  final TextEditingController valueController =
-      TextEditingController();
+  final TextEditingController valueController = TextEditingController();
 
-  final TransactionController transactionController =
-      TransactionController();
+  final TransactionController transactionController = TransactionController();
 
   PurchaseController get purchaseController {
     return widget.purchaseController;
@@ -53,8 +53,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   TaxonomyItem? selectedSubcategory =
       DuoTaxonomy.items.first.children.isNotEmpty
-          ? DuoTaxonomy.items.first.children.first
-          : null;
+      ? DuoTaxonomy.items.first.children.first
+      : null;
 
   @override
   void initState() {
@@ -76,14 +76,11 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   void _syncFinancialCategory() {
     purchaseController.setFinancialCategory(
       category: selectedCategory.name,
-      subcategory:
-          selectedSubcategory?.name ?? 'Sem subcategoria',
+      subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
     );
   }
 
-  void _syncCategoryFromPurchaseItem(
-    PurchaseItemModel item,
-  ) {
+  void _syncCategoryFromPurchaseItem(PurchaseItemModel item) {
     TaxonomyItem? category;
     TaxonomyItem? subcategory;
 
@@ -113,9 +110,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
       selectedSubcategory =
           subcategory ??
-          (category.children.isNotEmpty
-              ? category.children.first
-              : null);
+          (category.children.isNotEmpty ? category.children.first : null);
     });
 
     _syncFinancialCategory();
@@ -133,9 +128,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     _syncFinancialCategory();
   }
 
-  void _changeSubcategory(
-    TaxonomyItem? subcategory,
-  ) {
+  void _changeSubcategory(TaxonomyItem? subcategory) {
     setState(() {
       selectedSubcategory = subcategory;
     });
@@ -153,7 +146,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     final result = await Navigator.push<TransactionItemModel>(
       context,
       MaterialPageRoute(
-        builder: (_) => const AddTransactionItemPage(),
+        builder: (_) =>
+            AddTransactionItemPage(productRepository: widget.productRepository),
       ),
     );
 
@@ -170,21 +164,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     _syncValueWithPurchaseTotal();
   }
 
-  Future<void> _openEditItemPage(
-    PurchaseItemModel purchaseItem,
-  ) async {
-    final initialTransactionItem =
-        purchaseController.toTransactionItem(
+  Future<void> _openEditItemPage(PurchaseItemModel purchaseItem) async {
+    final initialTransactionItem = purchaseController.toTransactionItem(
       item: purchaseItem,
       transactionId: purchaseItem.purchaseId,
     );
 
-    final updatedItem =
-        await Navigator.push<TransactionItemModel>(
+    final updatedItem = await Navigator.push<TransactionItemModel>(
       context,
       MaterialPageRoute(
         builder: (_) => AddTransactionItemPage(
           initialItem: initialTransactionItem,
+          productRepository: widget.productRepository,
         ),
       ),
     );
@@ -203,25 +194,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       updatedItem: updatedItem,
     );
 
-    final updatedPurchaseItem =
-        _findPurchaseItemById(purchaseItem.id);
+    final updatedPurchaseItem = _findPurchaseItemById(purchaseItem.id);
 
     if (updatedPurchaseItem != null) {
-      _syncCategoryFromPurchaseItem(
-        updatedPurchaseItem,
-      );
+      _syncCategoryFromPurchaseItem(updatedPurchaseItem);
     }
 
     _syncValueWithPurchaseTotal();
 
-    _showMessage(
-      '${updatedItem.name} atualizado.',
-    );
+    _showMessage('${updatedItem.name} atualizado.');
   }
 
-  PurchaseItemModel? _findPurchaseItemById(
-    String itemId,
-  ) {
+  PurchaseItemModel? _findPurchaseItemById(String itemId) {
     for (final item in purchaseController.items) {
       if (item.id == itemId) {
         return item;
@@ -232,8 +216,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   void _removeItem(PurchaseItemModel item) {
-    final transactionItem =
-        purchaseController.toTransactionItem(
+    final transactionItem = purchaseController.toTransactionItem(
       item: item,
       transactionId: item.purchaseId,
     );
@@ -251,35 +234,24 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   Future<String?> _resolveConsumerId() async {
-    final selectedConsumer =
-        widget.consumerController.selectedConsumer;
+    final selectedConsumer = widget.consumerController.selectedConsumer;
 
     if (selectedConsumer != null) {
       return selectedConsumer.id;
     }
 
-    await widget.consumerController.initializeWallet(
-      walletId: widget.walletId,
-    );
+    await widget.consumerController.initializeWallet(walletId: widget.walletId);
 
-    return widget
-        .consumerController
-        .selectedConsumer
-        ?.id;
+    return widget.consumerController.selectedConsumer?.id;
   }
 
   Future<void> _saveTransaction() async {
-    final description =
-        descriptionController.text.trim();
+    final description = descriptionController.text.trim();
 
-    final value = double.tryParse(
-      valueController.text.replaceAll(',', '.'),
-    );
+    final value = double.tryParse(valueController.text.replaceAll(',', '.'));
 
     if (description.isEmpty || value == null) {
-      _showMessage(
-        'Preencha todos os campos.',
-      );
+      _showMessage('Preencha todos os campos.');
 
       return;
     }
@@ -287,22 +259,17 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      _showMessage(
-        'Usuário não autenticado.',
-      );
+      _showMessage('Usuário não autenticado.');
 
       return;
     }
 
-    final id = DateTime.now()
-        .millisecondsSinceEpoch
-        .toString();
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
 
     final consumerId = await _resolveConsumerId();
 
     if (purchaseController.hasItems) {
-      final purchaseResult =
-          await purchaseController.completePurchase(
+      final purchaseResult = await purchaseController.completePurchase(
         CreatePurchaseCommand(
           id: id,
           userId: user.uid,
@@ -313,17 +280,13 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       );
 
       if (purchaseController.errorMessage != null) {
-        _showMessage(
-          purchaseController.errorMessage!,
-        );
+        _showMessage(purchaseController.errorMessage!);
 
         return;
       }
 
       if (purchaseResult == null) {
-        _showMessage(
-          'Não foi possível concluir a compra.',
-        );
+        _showMessage('Não foi possível concluir a compra.');
 
         return;
       }
@@ -337,8 +300,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       walletId: widget.walletId,
       consumerId: consumerId,
       category: selectedCategory.name,
-      subcategory:
-          selectedSubcategory?.name ?? 'Sem subcategoria',
+      subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
     );
 
     if (!mounted) {
@@ -358,19 +320,14 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nova Transação'),
-      ),
+      appBar: AppBar(title: const Text('Nova Transação')),
       body: AnimatedBuilder(
         animation: Listenable.merge([
           transactionController,
@@ -378,33 +335,22 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         ]),
         builder: (context, _) {
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(
-              AppSpacing.lg,
-            ),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TransactionBasicFieldsSection(
-                  descriptionController:
-                      descriptionController,
+                  descriptionController: descriptionController,
                   valueController: valueController,
                   type: type,
-                  hasPurchaseItems:
-                      purchaseController.hasItems,
-                  selectedCategory:
-                      selectedCategory,
-                  selectedSubcategory:
-                      selectedSubcategory,
+                  hasPurchaseItems: purchaseController.hasItems,
+                  selectedCategory: selectedCategory,
+                  selectedSubcategory: selectedSubcategory,
                   onTypeChanged: _changeType,
-                  onCategoryChanged:
-                      _changeCategory,
-                  onSubcategoryChanged:
-                      _changeSubcategory,
+                  onCategoryChanged: _changeCategory,
+                  onSubcategoryChanged: _changeSubcategory,
                 ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
+                const SizedBox(height: AppSpacing.lg),
                 PurchaseItemsSection(
                   items: purchaseController.items,
                   total: purchaseController.total,
@@ -412,12 +358,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                   onEditItem: _openEditItemPage,
                   onRemoveItem: _removeItem,
                 ),
-                const SizedBox(
-                  height: AppSpacing.xl,
-                ),
+                const SizedBox(height: AppSpacing.xl),
                 TransactionSaveButton(
-                  isSaving:
-                      purchaseController.isSaving,
+                  isSaving: purchaseController.isSaving,
                   onPressed: _saveTransaction,
                 ),
               ],

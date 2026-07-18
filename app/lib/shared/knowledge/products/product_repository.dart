@@ -1,33 +1,12 @@
-import 'package:flutter/foundation.dart';
-
 import '../../../features/transactions/data/models/product_model.dart';
-import 'firestore_product_data_source.dart';
 import 'product_memory.dart';
+import 'product_persistence_repository.dart';
 
 class ProductRepository {
-  final FirestoreProductDataSource _dataSource;
+  final ProductPersistenceRepository? _persistenceRepository;
 
-  ProductRepository({
-    FirestoreProductDataSource? dataSource,
-  }) : _dataSource = dataSource ?? FirestoreProductDataSource();
-
-  Future<void> initialize() async {
-    try {
-      final persistedProducts = await _dataSource.loadAll();
-
-      for (final product in persistedProducts) {
-        ProductMemory.remember(product);
-      }
-    } catch (error, stackTrace) {
-      debugPrint(
-        'Erro ao carregar produtos aprendidos: $error',
-      );
-
-      debugPrintStack(
-        stackTrace: stackTrace,
-      );
-    }
-  }
+  ProductRepository({ProductPersistenceRepository? persistenceRepository})
+    : _persistenceRepository = persistenceRepository;
 
   ProductModel? findById(String id) {
     return ProductMemory.findById(id);
@@ -63,24 +42,13 @@ class ProductRepository {
       'ñ': 'n',
     };
 
-    replacements.forEach(
-      (character, replacement) {
-        normalized = normalized.replaceAll(
-          character,
-          replacement,
-        );
-      },
-    );
+    replacements.forEach((character, replacement) {
+      normalized = normalized.replaceAll(character, replacement);
+    });
 
     normalized = normalized
-        .replaceAll(
-          RegExp(r'[^a-z0-9\s\-]'),
-          '',
-        )
-        .replaceAll(
-          RegExp(r'\s+'),
-          ' ',
-        )
+        .replaceAll(RegExp(r'[^a-z0-9\s\-]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
     return normalized;
@@ -93,39 +61,65 @@ class ProductRepository {
       return ProductMemory.all;
     }
 
-    return ProductMemory.all.where(
-      (product) {
-        final normalizedName = normalize(product.name);
+    return ProductMemory.all.where((product) {
+      final normalizedName = normalize(product.name);
+      final normalizedStoredName = normalize(product.normalizedName);
+      final normalizedBrand = normalize(product.brand);
 
-        final normalizedStoredName = normalize(
-          product.normalizedName,
-        );
-
-        final normalizedBrand = normalize(product.brand);
-
-        return normalizedName.contains(normalizedQuery) ||
-            normalizedStoredName.contains(normalizedQuery) ||
-            normalizedBrand.contains(normalizedQuery);
-      },
-    ).toList();
+      return normalizedName.contains(normalizedQuery) ||
+          normalizedStoredName.contains(normalizedQuery) ||
+          normalizedBrand.contains(normalizedQuery);
+    }).toList();
   }
 
-  Future<void> save(ProductModel product) async {
+  Future<void> initialize({required String userId}) async {
+    final persistenceRepository = _requirePersistenceRepository();
+
+    final persistedProducts = await persistenceRepository.getAll(
+      userId: userId,
+    );
+
+    for (final product in persistedProducts) {
+      ProductMemory.remember(product);
+    }
+  }
+
+  void saveSeedProduct(ProductModel product) {
+    ProductMemory.remember(product);
+  }
+
+  Future<void> saveLearnedProduct({
+    required String userId,
+    required ProductModel product,
+  }) async {
+    final persistenceRepository = _requirePersistenceRepository();
+
     ProductMemory.remember(product);
 
     try {
-      await _dataSource.save(product);
-    } catch (error, stackTrace) {
-      debugPrint(
-        'Erro ao persistir produto aprendido: $error',
-      );
-
-      debugPrintStack(
-        stackTrace: stackTrace,
-      );
-
+      await persistenceRepository.save(userId: userId, product: product);
+    } catch (_) {
       rethrow;
     }
+  }
+
+  Future<void> deleteLearnedProduct({
+    required String userId,
+    required String productId,
+  }) async {
+    final persistenceRepository = _requirePersistenceRepository();
+
+    await persistenceRepository.delete(userId: userId, productId: productId);
+
+    await _reloadMemory(userId: userId);
+  }
+
+  void clearMemory() {
+    ProductMemory.clear();
+  }
+
+  void save(ProductModel product) {
+    saveSeedProduct(product);
   }
 
   bool exists(String name) {
@@ -133,8 +127,7 @@ class ProductRepository {
 
     return ProductMemory.all.any(
       (product) =>
-          normalize(product.normalizedName) ==
-              normalizedName ||
+          normalize(product.normalizedName) == normalizedName ||
           normalize(product.name) == normalizedName,
     );
   }
@@ -145,12 +138,38 @@ class ProductRepository {
     try {
       return ProductMemory.all.firstWhere(
         (product) =>
-            normalize(product.normalizedName) ==
-                normalizedName ||
+            normalize(product.normalizedName) == normalizedName ||
             normalize(product.name) == normalizedName,
       );
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> _reloadMemory({required String userId}) async {
+    final persistenceRepository = _requirePersistenceRepository();
+
+    final persistedProducts = await persistenceRepository.getAll(
+      userId: userId,
+    );
+
+    ProductMemory.clear();
+
+    for (final product in persistedProducts) {
+      ProductMemory.remember(product);
+    }
+  }
+
+  ProductPersistenceRepository _requirePersistenceRepository() {
+    final persistenceRepository = _persistenceRepository;
+
+    if (persistenceRepository == null) {
+      throw StateError(
+        'ProductRepository precisa receber um '
+        'ProductPersistenceRepository para executar operações persistentes.',
+      );
+    }
+
+    return persistenceRepository;
   }
 }

@@ -39,11 +39,20 @@ import '../../features/shopping/domain/usecases/search_shopping_items_usecase.da
 import '../../features/shopping/domain/usecases/update_shopping_item_usecase.dart';
 import '../../features/shopping/presentation/controllers/shopping_controller.dart';
 
+import '../../features/transactions/data/repositories/firestore_product_persistence_repository.dart';
 import '../../features/transactions/presentation/controllers/purchase_controller.dart';
+
+import '../../shared/knowledge/products/product_bootstrap.dart';
+import '../../shared/knowledge/products/product_persistence_repository.dart';
+import '../../shared/knowledge/products/product_repository.dart';
 
 class AppDependencyContainer {
   late final ShoppingRepository shoppingRepository;
   late final ProductMemoryRepository productMemoryRepository;
+
+  late final ProductPersistenceRepository productPersistenceRepository;
+  late final ProductRepository productRepository;
+  late final ProductBootstrap productBootstrap;
 
   late final ProductIntelligenceEngine productIntelligenceEngine;
   late final ProcessProductIntelligenceUseCase processProductIntelligenceUseCase;
@@ -89,6 +98,7 @@ class AppDependencyContainer {
 
   AppDependencyContainer() {
     _registerRepositories();
+    _registerProductServices();
     _registerProductIntelligence();
     _registerConsumerIntelligence();
     _registerShoppingUseCases();
@@ -102,6 +112,19 @@ class AppDependencyContainer {
     productMemoryRepository = InMemoryProductMemoryRepository();
     consumerProfileRepository = FirestoreConsumerProfileRepository();
     consumerMemoryRepository = InMemoryConsumerMemoryRepository();
+  }
+
+  void _registerProductServices() {
+    productPersistenceRepository =
+        FirestoreProductPersistenceRepository();
+
+    productRepository = ProductRepository(
+      persistenceRepository: productPersistenceRepository,
+    );
+
+    productBootstrap = ProductBootstrap(
+      productRepository: productRepository,
+    );
   }
 
   void _registerProductIntelligence() {
