@@ -2395,42 +2395,41 @@ terminando 22:00
 ### Sprint 17.5 — Consolidação da Product Intelligence
 
 📅 Data: 09/07/2026
-
-## 🎯 Objetivo
+🎯 Objetivo
 
 Consolidar a inteligência de produtos do DuoSpend, garantindo que o aplicativo reutilize corretamente produtos existentes, aprenda automaticamente novos produtos cadastrados pelo usuário e mantenha a arquitetura limpa.
 
 ---
 
-## ✅ Entregas realizadas
+ ✅ Entregas realizadas
 
-### Product Intelligence
+ Product Intelligence
 
 * ProductRepository passou a aprender automaticamente novos produtos cadastrados pelo usuário.
 * Produtos já existentes passaram a ser reutilizados corretamente durante novas compras.
 * Correção da lógica de identificação de produtos ao alterar a marca.
 * Alteração de marca agora cria corretamente uma nova variação do produto, sem sobrescrever o cadastro existente.
 
-### Consumer Intelligence
+ Consumer Intelligence
 
 * Integração consolidada com o fluxo de compras.
 * Aprendizado automático preservado durante o cadastro de novos produtos.
 
-### Nova Transação
+ Nova Transação
 
 * Tela simplificada.
 * Categoria financeira automática permanece oculta quando não é necessária.
 * Classificação automática passa a aparecer quando existem itens na compra.
 * Melhor organização do fluxo de cadastro.
 
-### Validação
+Validação
 
 * Início da identificação visual de campos obrigatórios.
 * Fluxo de criação de produtos revisado.
 
 ---
 
-## 🏗 Arquitetura
+🏗 Arquitetura
 
 Mantida integralmente:
 
@@ -2442,7 +2441,7 @@ Mantida integralmente:
 
 ---
 
-## 🧪 Resultado
+🧪 Resultado
 
 * Reutilização correta de produtos existentes.
 * Criação automática de novos produtos quando necessário.
@@ -2452,11 +2451,11 @@ Mantida integralmente:
 
 ---
 
-## 📌 Próxima Sprint — 17.6
+## 📌 Sprint — 17.6
 
 Foco em UX e refinamento da experiência de cadastro de compras.
 
-### Formulário
+Formulário
 
 * Padronizar campos obrigatórios com `*`.
 * Melhorar visual dos campos obrigatórios.
@@ -2466,7 +2465,7 @@ Foco em UX e refinamento da experiência de cadastro de compras.
 * Atualizar o `ProductSummaryCard` quando a marca for alterada.
 * Revisar o fluxo completo de autocomplete.
 
-### Lista de itens
+Lista de itens
 
 * Tornar os cards clicáveis para edição.
 * Implementar swipe para excluir.
@@ -2476,9 +2475,9 @@ Foco em UX e refinamento da experiência de cadastro de compras.
 * Exibir preço unitário.
 * Exibir preço total do item.
 
----
 
-## 💬 Filosofia do DuoSpend
+
+💬 Filosofia do DuoSpend
 
 > **"O app deve pedir pouco e aprender muito."**
 
@@ -2607,6 +2606,195 @@ Objetivos:
 
 > **"O app deve pedir pouco e aprender muito."**
 
+finalizada em 1h30min
+
+## Sprint 17.8 — UX da Compra (Polimento)
+
+Objetivo
+Refinar completamente a experiência de cadastro de itens, tornando o fluxo mais rápido, intuitivo e agradável para uso no mercado.
+
+ Entregas
+
+ 1. Preço unitário
+- Substituir o campo "Valor total" por "Preço unitário".
+
+ 2. Subtotal automático
+- Calcular automaticamente:
+  quantidade × preço unitário = subtotal.
+
+ 3. Preview unificado
+- Utilizar exatamente o mesmo PurchaseItemCard da lista durante o cadastro do item.
+
+ 4. Atualização em tempo real
+- O preview deve reagir instantaneamente conforme o usuário altera:
+  - nome
+  - marca
+  - categoria
+  - quantidade
+  - unidade
+  - preço
+
+ 5. Ícones das categorias
+- Adicionar ícones Material para cada categoria.
+
+ 6. Melhorias visuais
+- Espaçamentos
+- Hierarquia tipográfica
+- Destaque para subtotal
+- Melhor organização dos campos
+
+7. Microinterações
+- Pequenas animações de transição.
+- Feedback visual ao salvar.
+- Melhor loading durante busca de produtos.
+
+ Resultado esperado
+
+Cadastrar uma compra deve parecer natural, como colocar produtos no carrinho do mercado.
+
+O usuário informa apenas:
+- produto
+- quantidade
+- preço unitário
+
+O DuoSpend calcula todo o restante automaticamente.
+
+concluido em 1h30
 
 
 
+## 📌 Sprint 18 — Shared Wallet (Fundação do modo casal)
+
+📅 Data: 18/07/2026
+🕒 Início: ______
+🕓 Fim: ______
+👤 Participantes: Aline + ChatGPT
+
+🎯 Objetivo
+
+Implementar a infraestrutura do modo compartilhado, permitindo que o DuoSpend suporte múltiplas carteiras (Individual e Compartilhada), preparando toda a arquitetura para uso por duas pessoas.
+
+✅ Escopo
+Shared Wallet
+criar modelo SharedWallet
+criar relacionamento User ↔ Wallet
+preparar Wallet para múltiplos usuários
+separar carteira Individual e Compartilhada
+Home
+permitir trocar entre carteiras
+atualizar saldo conforme carteira ativa
+atualizar listas conforme carteira ativa
+Transactions
+toda transação pertence à carteira ativa
+manter compatibilidade com compras já existentes
+Estrutura
+remover dependências fixas de uma única wallet
+preparar serviços para múltiplas carteiras
+deixar arquitetura pronta para Sprint 19
+🧪 Testes
+criar carteira individual
+criar carteira compartilhada
+alternar entre elas
+adicionar compra em cada carteira
+confirmar isolamento dos dados
+validar saldo independente
+⏱ Estimativa
+
+12 horas
+
+📦 Entrega esperada
+
+✔ DuoSpend funcionando com duas carteiras.
+
+✔ Arquitetura preparada para múltiplos usuários.
+
+✔ Base pronta para divisão de despesas.
+
+levei no máximo 3hrs
+
+## Sprint 18.2 — Wallet Context Global
+
+ Objetivo
+
+Criar um contexto global de carteira ativa para que todo o DuoSpend deixe de assumir automaticamente a carteira `principal` e passe a trabalhar com a carteira atualmente selecionada pelo usuário.
+
+Essa etapa será a base para o funcionamento real do modo compartilhado.
+
+ Escopo
+
+* Criar o `WalletContext` global.
+* Armazenar a carteira atualmente selecionada.
+* Permitir alternar entre carteira Individual e Compartilhada.
+* Preservar a carteira individual antiga como padrão.
+* Integrar o contexto ao `AppDependencyContainer`.
+* Adaptar o carregamento inicial após o login.
+* Preparar Transactions, Shopping, Consumers e Purchases para receber a carteira ativa.
+* Evitar IDs de carteira fixos como `principal`.
+* Manter compatibilidade com toda a arquitetura existente.
+* Executar `flutter analyze` ao final de cada etapa.
+
+ Resultado esperado
+
+Ao final da Sprint 18.2, o aplicativo deverá possuir uma única fonte de verdade para identificar a carteira ativa.
+
+As funcionalidades ainda poderão manter a interface atual, mas a infraestrutura estará preparada para que todas as operações sejam executadas na carteira individual ou compartilhada selecionada.
+
+ Regras técnicas
+
+* Manter Clean Architecture.
+* Enviar sempre arquivos completos.
+* Nunca enviar apenas trechos.
+* Não recriar arquivos sem verificar a implementação existente.
+* Preservar tudo que já funciona.
+* Fazer alterações incrementais.
+* Executar `flutter analyze` após cada arquivo ou etapa relevante.
+
+
+
+15min
+
+### Sprint 18.3 — Wallet Switcher
+
+## Objetivo
+
+Permitir que o usuário alterne entre a carteira individual e as carteiras compartilhadas diretamente pela Home, mantendo toda a aplicação sincronizada pelo `WalletContext`.
+
+## Escopo
+
+* Criar componente visual para seleção de carteira.
+* Exibir carteira individual e carteiras compartilhadas disponíveis.
+* Permitir troca de carteira pela Home.
+* Atualizar automaticamente:
+
+  * saldo;
+  * receitas;
+  * despesas;
+  * transações;
+  * consumidores;
+  * nome da carteira ativa.
+* Manter a carteira selecionada centralizada no `WalletContext`.
+* Evitar inicializações e recarregamentos manuais duplicados.
+* Preparar o fluxo para membros e divisão de despesas na Sprint 19.
+
+## Resultado esperado
+
+O usuário poderá alternar entre:
+
+* carteira individual;
+* carteira compartilhada.
+
+Ao selecionar uma carteira, toda a Home e os controllers relacionados deverão refletir automaticamente o novo contexto.
+
+## Estimativa
+
+2 a 3 horas.
+
+## Critérios de aceite
+
+* A carteira ativa pode ser alterada pela interface.
+* O nome e o saldo da carteira mudam corretamente.
+* As transações exibidas pertencem à carteira selecionada.
+* Os consumidores são atualizados automaticamente.
+* Não há dados misturados entre carteiras.
+* A troca não gera duplicidade de carregamento.
+* `flutter analyze` permanece sem novos erros.

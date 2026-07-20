@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/context/wallet_context.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
@@ -12,6 +13,7 @@ import '../widgets/transactions_preview.dart';
 import '../widgets/wallet_card.dart';
 
 class HomePage extends StatefulWidget {
+  final WalletContext walletContext;
   final ShoppingController shoppingController;
   final ConsumerController consumerController;
   final PurchaseController purchaseController;
@@ -19,6 +21,7 @@ class HomePage extends StatefulWidget {
 
   const HomePage({
     super.key,
+    required this.walletContext,
     required this.shoppingController,
     required this.consumerController,
     required this.purchaseController,
@@ -30,24 +33,21 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final HomeController controller = HomeController();
+  late final HomeController controller;
 
   @override
   void initState() {
     super.initState();
-    _loadHomeAndConsumers();
+
+    controller = HomeController(
+      walletContext: widget.walletContext,
+    );
+
+    _loadHome();
   }
 
-  Future<void> _loadHomeAndConsumers() async {
+  Future<void> _loadHome() async {
     await controller.loadHome();
-
-    final wallet = controller.wallet;
-
-    if (wallet == null) {
-      return;
-    }
-
-    await widget.consumerController.initializeWallet(walletId: wallet.id);
   }
 
   Future<void> _openNewTransactionPage() async {
@@ -69,19 +69,29 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    await _loadHomeAndConsumers();
+    await _loadHome();
   }
 
   Future<void> _testShoppingKnowledgeEngine() async {
-    await widget.shoppingController.createItemFromNameForTest('Leite integral');
+    await widget.shoppingController.createItemFromNameForTest(
+      'Leite integral',
+    );
 
     if (!mounted) {
       return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Produto aprendido: leite integral')),
+      const SnackBar(
+        content: Text('Produto aprendido: leite integral'),
+      ),
     );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
   }
 
   @override
@@ -92,7 +102,10 @@ class _HomePageState extends State<HomePage> {
         final wallet = controller.wallet;
 
         return Scaffold(
-          appBar: AppBar(title: const Text('DuoSpend'), centerTitle: true),
+          appBar: AppBar(
+            title: const Text('DuoSpend'),
+            centerTitle: true,
+          ),
           floatingActionButton: FloatingActionButton(
             onPressed: _openNewTransactionPage,
             child: const Icon(Icons.add),
@@ -102,17 +115,24 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Olá, Aline',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                Text(
+                  'Olá, ${controller.userName}',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'Bem-vinda ao DuoSpend',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(
+                    color: Colors.grey,
+                  ),
                 ),
                 const SizedBox(height: 24),
-                BalanceCard(balance: wallet?.balance ?? 0),
+                BalanceCard(
+                  balance: wallet?.balance ?? 0,
+                ),
                 const SizedBox(height: 20),
                 SummaryCard(
                   income: controller.totalIncome,
@@ -124,12 +144,18 @@ class _HomePageState extends State<HomePage> {
                   balance: wallet?.balance ?? 0,
                 ),
                 const SizedBox(height: 20),
-                TransactionsPreview(transactions: controller.transactions),
+                TransactionsPreview(
+                  transactions: controller.transactions,
+                ),
                 const SizedBox(height: 20),
                 OutlinedButton.icon(
                   onPressed: _testShoppingKnowledgeEngine,
-                  icon: const Icon(Icons.psychology_alt_outlined),
-                  label: const Text('Testar inteligência de produtos'),
+                  icon: const Icon(
+                    Icons.psychology_alt_outlined,
+                  ),
+                  label: const Text(
+                    'Testar inteligência de produtos',
+                  ),
                 ),
               ],
             ),

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/context/wallet_context.dart';
 import '../../../transactions/data/models/transaction_model.dart';
 import '../../../transactions/data/repositories/transaction_repository.dart';
 import '../../data/models/wallet_model.dart';
@@ -10,26 +11,35 @@ class HomeController extends ChangeNotifier {
   final FirebaseAuth _auth;
   final WalletRepository _walletRepository;
   final TransactionRepository _transactionRepository;
+  final WalletContext _walletContext;
 
   HomeController({
     FirebaseAuth? auth,
     WalletRepository? walletRepository,
     TransactionRepository? transactionRepository,
+    WalletContext? walletContext,
   }) : _auth = auth ?? FirebaseAuth.instance,
        _walletRepository = walletRepository ?? WalletRepository(),
        _transactionRepository =
-           transactionRepository ?? TransactionRepository();
+           transactionRepository ?? TransactionRepository(),
+       _walletContext = walletContext ?? WalletContext() {
+    _walletContext.addListener(_handleWalletContextChanged);
+  }
 
   User? user;
 
-  /// Carteira atualmente selecionada na Home.
+  /// Carteira atualmente selecionada.
   ///
-  /// Mantemos o nome `wallet` para preservar compatibilidade com a
-  /// interface e com os widgets que já dependem deste controller.
-  WalletModel? wallet;
+  /// O nome `wallet` é preservado para manter compatibilidade com as telas
+  /// e widgets que já consomem o HomeController.
+  ///
+  /// A fonte real deste estado agora é o WalletContext.
+  WalletModel? get wallet => _walletContext.selectedWallet;
 
   /// Todas as carteiras às quais o usuário autenticado possui acesso.
-  List<WalletModel> wallets = [];
+  ///
+  /// A fonte real desta lista agora é o WalletContext.
+  List<WalletModel> get wallets => _walletContext.wallets;
 
   /// Todas as transações carregadas do repositório.
   ///
@@ -58,7 +68,7 @@ class HomeController extends ChangeNotifier {
 
   String? get userPhotoUrl => user?.photoURL;
 
-  String? get selectedWalletId => wallet?.id;
+  String? get selectedWalletId => _walletContext.walletId;
 
   bool get hasWallets => wallets.isNotEmpty;
 
@@ -102,7 +112,7 @@ class HomeController extends ChangeNotifier {
       final mainWallet = await _walletRepository.getMainWallet();
       final loadedTransactions = await _transactionRepository.getTransactions();
 
-      wallets = _mergeWallets(
+      final mergedWallets = _mergeWallets(
         loadedWallets: loadedWallets,
         mainWallet: mainWallet,
       );
@@ -111,12 +121,16 @@ class HomeController extends ChangeNotifier {
         loadedTransactions,
       );
 
-      wallet = _resolveSelectedWallet(
+      final selectedWallet = _resolveSelectedWallet(
+        availableWallets: mergedWallets,
         currentWalletId: wallet?.id,
         mainWallet: mainWallet,
       );
 
-      _applySelectedWallet();
+      _walletContext.initialize(
+        wallets: mergedWallets,
+        selectedWallet: selectedWallet,
+      );
     } catch (error, stackTrace) {
       debugPrint('Erro ao carregar a Home: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -130,21 +144,7 @@ class HomeController extends ChangeNotifier {
   }
 
   void selectWallet(WalletModel selectedWallet) {
-    final walletExists = wallets.any(
-      (currentWallet) => currentWallet.id == selectedWallet.id,
-    );
-
-    if (!walletExists) {
-      return;
-    }
-
-    if (wallet?.id == selectedWallet.id) {
-      return;
-    }
-
-    wallet = selectedWallet;
-    _applySelectedWallet();
-    notifyListeners();
+    _walletContext.selectWallet(selectedWallet.id);
   }
 
   void selectWalletById(String walletId) {
@@ -154,12 +154,7 @@ class HomeController extends ChangeNotifier {
       return;
     }
 
-    for (final currentWallet in wallets) {
-      if (currentWallet.id == normalizedWalletId) {
-        selectWallet(currentWallet);
-        return;
-      }
-    }
+    _walletContext.selectWallet(normalizedWalletId);
   }
 
   Future<void> refreshSelectedWallet() async {
@@ -180,7 +175,7 @@ class HomeController extends ChangeNotifier {
         return;
       }
 
-      wallets = List<WalletModel>.unmodifiable(
+      final refreshedWallets = List<WalletModel>.unmodifiable(
         wallets.map((currentWallet) {
           if (currentWallet.id == refreshedWallet.id) {
             return refreshedWallet;
@@ -190,9 +185,8 @@ class HomeController extends ChangeNotifier {
         }),
       );
 
-      wallet = refreshedWallet;
-      _applySelectedWallet();
-      notifyListeners();
+      _walletContext.updateWallets(refreshedWallets);
+      _walletContext.updateSelectedWallet(refreshedWallet);
     } catch (error, stackTrace) {
       debugPrint('Erro ao atualizar a carteira selecionada: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -220,18 +214,7 @@ class HomeController extends ChangeNotifier {
         updatedAt: DateTime.now(),
       );
 
-      wallets = List<WalletModel>.unmodifiable(
-        wallets.map((currentWallet) {
-          if (currentWallet.id == updatedWallet.id) {
-            return updatedWallet;
-          }
-
-          return currentWallet;
-        }),
-      );
-
-      wallet = updatedWallet;
-      notifyListeners();
+      _walletContext.updateSelectedWallet(updatedWallet);
     } catch (error, stackTrace) {
       debugPrint('Erro ao atualizar saldo da carteira: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -270,11 +253,12 @@ class HomeController extends ChangeNotifier {
   }
 
   WalletModel? _resolveSelectedWallet({
+    required List<WalletModel> availableWallets,
     required String? currentWalletId,
     required WalletModel? mainWallet,
   }) {
     if (currentWalletId != null && currentWalletId.isNotEmpty) {
-      for (final currentWallet in wallets) {
+      for (final currentWallet in availableWallets) {
         if (currentWallet.id == currentWalletId) {
           return currentWallet;
         }
@@ -282,24 +266,29 @@ class HomeController extends ChangeNotifier {
     }
 
     if (mainWallet != null) {
-      for (final currentWallet in wallets) {
+      for (final currentWallet in availableWallets) {
         if (currentWallet.id == mainWallet.id) {
           return currentWallet;
         }
       }
     }
 
-    for (final currentWallet in wallets) {
+    for (final currentWallet in availableWallets) {
       if (currentWallet.isIndividual) {
         return currentWallet;
       }
     }
 
-    if (wallets.isEmpty) {
+    if (availableWallets.isEmpty) {
       return null;
     }
 
-    return wallets.first;
+    return availableWallets.first;
+  }
+
+  void _handleWalletContextChanged() {
+    _applySelectedWallet();
+    notifyListeners();
   }
 
   void _applySelectedWallet() {
@@ -338,11 +327,18 @@ class HomeController extends ChangeNotifier {
   }
 
   void _clearHomeData() {
-    wallet = null;
-    wallets = [];
+    user = null;
     _allTransactions = [];
     transactions = [];
     totalIncome = 0;
     totalExpense = 0;
+
+    _walletContext.clear();
+  }
+
+  @override
+  void dispose() {
+    _walletContext.removeListener(_handleWalletContextChanged);
+    super.dispose();
   }
 }

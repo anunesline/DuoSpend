@@ -1,3 +1,5 @@
+import '../context/wallet_context.dart';
+
 import '../../features/consumers/data/repositories/firestore_consumer_profile_repository.dart';
 import '../../features/consumers/data/repositories/in_memory_consumer_memory_repository.dart';
 import '../../features/consumers/domain/intelligence/consumer_habit_analyzer.dart';
@@ -47,6 +49,8 @@ import '../../shared/knowledge/products/product_persistence_repository.dart';
 import '../../shared/knowledge/products/product_repository.dart';
 
 class AppDependencyContainer {
+  late final WalletContext walletContext;
+
   late final ShoppingRepository shoppingRepository;
   late final ProductMemoryRepository productMemoryRepository;
 
@@ -55,19 +59,23 @@ class AppDependencyContainer {
   late final ProductBootstrap productBootstrap;
 
   late final ProductIntelligenceEngine productIntelligenceEngine;
-  late final ProcessProductIntelligenceUseCase processProductIntelligenceUseCase;
+  late final ProcessProductIntelligenceUseCase
+      processProductIntelligenceUseCase;
 
   late final CreateShoppingItemUseCase createShoppingItemUseCase;
   late final UpdateShoppingItemUseCase updateShoppingItemUseCase;
   late final DeleteShoppingItemUseCase deleteShoppingItemUseCase;
   late final GetAllShoppingItemsUseCase getAllShoppingItemsUseCase;
-  late final GetPendingShoppingItemsUseCase getPendingShoppingItemsUseCase;
-  late final GetPurchasedShoppingItemsUseCase getPurchasedShoppingItemsUseCase;
+  late final GetPendingShoppingItemsUseCase
+      getPendingShoppingItemsUseCase;
+  late final GetPurchasedShoppingItemsUseCase
+      getPurchasedShoppingItemsUseCase;
   late final MarkShoppingItemAsPurchasedUseCase
       markShoppingItemAsPurchasedUseCase;
   late final ArchiveShoppingItemUseCase archiveShoppingItemUseCase;
   late final SearchShoppingItemsUseCase searchShoppingItemsUseCase;
-  late final GetShoppingSuggestionsUseCase getShoppingSuggestionsUseCase;
+  late final GetShoppingSuggestionsUseCase
+      getShoppingSuggestionsUseCase;
 
   late final ShoppingFlowService shoppingFlowService;
   late final ShoppingController shoppingController;
@@ -90,13 +98,16 @@ class AppDependencyContainer {
   late final DeleteConsumerUseCase deleteConsumerUseCase;
   late final GetAllConsumersUseCase getAllConsumersUseCase;
   late final GetConsumerByIdUseCase getConsumerByIdUseCase;
-  late final GetConsumersByWalletIdUseCase getConsumersByWalletIdUseCase;
+  late final GetConsumersByWalletIdUseCase
+      getConsumersByWalletIdUseCase;
   late final GetDefaultConsumerUseCase getDefaultConsumerUseCase;
 
   late final ConsumerController consumerController;
   late final PurchaseController purchaseController;
 
   AppDependencyContainer() {
+    walletContext = WalletContext();
+
     _registerRepositories();
     _registerProductServices();
     _registerProductIntelligence();
@@ -110,8 +121,12 @@ class AppDependencyContainer {
   void _registerRepositories() {
     shoppingRepository = FirestoreShoppingRepository();
     productMemoryRepository = InMemoryProductMemoryRepository();
-    consumerProfileRepository = FirestoreConsumerProfileRepository();
-    consumerMemoryRepository = InMemoryConsumerMemoryRepository();
+
+    consumerProfileRepository =
+        FirestoreConsumerProfileRepository();
+
+    consumerMemoryRepository =
+        InMemoryConsumerMemoryRepository();
   }
 
   void _registerProductServices() {
@@ -132,7 +147,8 @@ class AppDependencyContainer {
       repository: productMemoryRepository,
     );
 
-    processProductIntelligenceUseCase = ProcessProductIntelligenceUseCase(
+    processProductIntelligenceUseCase =
+        ProcessProductIntelligenceUseCase(
       productIntelligenceEngine,
     );
   }
@@ -145,7 +161,8 @@ class AppDependencyContainer {
     consumerHabitAnalyzer = const ConsumerHabitAnalyzer();
     consumerHabitUpdater = const ConsumerHabitUpdater();
 
-    consumerIntelligenceEngine = DefaultConsumerIntelligenceEngine(
+    consumerIntelligenceEngine =
+        DefaultConsumerIntelligenceEngine(
       analyzer: consumerHabitAnalyzer,
       updater: consumerHabitUpdater,
     );
@@ -159,34 +176,54 @@ class AppDependencyContainer {
 
   void _registerShoppingUseCases() {
     createShoppingItemUseCase =
-        CreateShoppingItemUseCase(shoppingRepository);
+        CreateShoppingItemUseCase(
+      shoppingRepository,
+    );
 
     updateShoppingItemUseCase =
-        UpdateShoppingItemUseCase(shoppingRepository);
+        UpdateShoppingItemUseCase(
+      shoppingRepository,
+    );
 
     deleteShoppingItemUseCase =
-        DeleteShoppingItemUseCase(shoppingRepository);
+        DeleteShoppingItemUseCase(
+      shoppingRepository,
+    );
 
     getAllShoppingItemsUseCase =
-        GetAllShoppingItemsUseCase(shoppingRepository);
+        GetAllShoppingItemsUseCase(
+      shoppingRepository,
+    );
 
     getPendingShoppingItemsUseCase =
-        GetPendingShoppingItemsUseCase(shoppingRepository);
+        GetPendingShoppingItemsUseCase(
+      shoppingRepository,
+    );
 
     getPurchasedShoppingItemsUseCase =
-        GetPurchasedShoppingItemsUseCase(shoppingRepository);
+        GetPurchasedShoppingItemsUseCase(
+      shoppingRepository,
+    );
 
     markShoppingItemAsPurchasedUseCase =
-        MarkShoppingItemAsPurchasedUseCase(shoppingRepository);
+        MarkShoppingItemAsPurchasedUseCase(
+      shoppingRepository,
+    );
 
     archiveShoppingItemUseCase =
-        ArchiveShoppingItemUseCase(shoppingRepository);
+        ArchiveShoppingItemUseCase(
+      shoppingRepository,
+    );
 
     searchShoppingItemsUseCase =
-        SearchShoppingItemsUseCase(shoppingRepository);
+        SearchShoppingItemsUseCase(
+      shoppingRepository,
+    );
 
     getShoppingSuggestionsUseCase =
-        GetShoppingSuggestionsUseCase(shoppingRepository);
+        GetShoppingSuggestionsUseCase(
+      shoppingRepository,
+    );
   }
 
   void _registerShoppingFlow() {
@@ -196,7 +233,8 @@ class AppDependencyContainer {
       deleteShoppingItem: deleteShoppingItemUseCase,
       getAllShoppingItems: getAllShoppingItemsUseCase,
       getPendingShoppingItems: getPendingShoppingItemsUseCase,
-      getPurchasedShoppingItems: getPurchasedShoppingItemsUseCase,
+      getPurchasedShoppingItems:
+          getPurchasedShoppingItemsUseCase,
       markShoppingItemAsPurchased:
           markShoppingItemAsPurchasedUseCase,
       archiveShoppingItem: archiveShoppingItemUseCase,
@@ -251,7 +289,8 @@ class AppDependencyContainer {
       saveConsumer: saveConsumerUseCase,
       deleteConsumer: deleteConsumerUseCase,
       getConsumerById: getConsumerByIdUseCase,
-      getConsumersByWalletId: getConsumersByWalletIdUseCase,
+      getConsumersByWalletId:
+          getConsumersByWalletIdUseCase,
       getDefaultConsumer: getDefaultConsumerUseCase,
     );
   }
@@ -263,6 +302,7 @@ class AppDependencyContainer {
 
     consumerController = ConsumerController(
       consumerFlowService,
+      walletContext,
     );
 
     purchaseController = PurchaseController(
