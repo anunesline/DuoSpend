@@ -39,7 +39,7 @@ class FinancialSplitSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Divisão financeira',
+              'Divisão Financeira',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: AppSpacing.md),

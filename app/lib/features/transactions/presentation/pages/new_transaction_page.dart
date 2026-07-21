@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/context/wallet_context.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
@@ -13,6 +14,7 @@ import '../../domain/purchase/services/financial_split_service.dart';
 import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
 import '../widgets/purchase_items_section.dart';
+import '../widgets/financial_split_section.dart';
 import '../widgets/transaction_basic_fields_section.dart';
 import '../widgets/transaction_save_button.dart';
 import 'add_transaction_item_page.dart';
@@ -23,13 +25,16 @@ class NewTransactionPage extends StatefulWidget {
   final PurchaseController purchaseController;
   final ProductRepository productRepository;
 
-  const NewTransactionPage({
-    super.key,
-    required this.walletId,
-    required this.consumerController,
-    required this.purchaseController,
-    required this.productRepository,
-  });
+  final WalletContext walletContext;
+
+const NewTransactionPage({
+  super.key,
+  required this.walletContext,
+  required this.walletId,
+  required this.consumerController,
+  required this.purchaseController,
+  required this.productRepository,
+});
 
   @override
   State<NewTransactionPage> createState() {
@@ -49,6 +54,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   String type = 'expense';
+
+  bool payerIsCurrentUser = true;
 
   String purchaseFor = FinancialSplitService.purchaseForSelf;
 
@@ -145,6 +152,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     });
   }
 
+
+  void _changePayer(bool value) {
+    setState(() {
+      payerIsCurrentUser = value;
+    });
+  }
+
+  void _changePurchaseFor(String value) {
+    setState(() {
+      purchaseFor = value;
+    });
+  }
   Future<void> _openAddItemPage() async {
     final result = await Navigator.push<TransactionItemModel>(
       context,
@@ -304,7 +323,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       consumerId: consumerId,
       category: selectedCategory.name,
       subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
-      paidByMemberId: user.uid,
+      paidByMemberId: payerIsCurrentUser ? user.uid : 'partner',
       purchaseFor: purchaseFor,
       splitType: FinancialSplitService.splitTypeForPurchase(purchaseFor),
       memberShares: FinancialSplitService.calculateAutomaticShares(
@@ -360,6 +379,15 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                   onTypeChanged: _changeType,
                   onCategoryChanged: _changeCategory,
                   onSubcategoryChanged: _changeSubcategory,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                FinancialSplitSection(
+                  enabled: !purchaseController.isSaving,
+                  showPartnerOptions: true,
+                  payerIsCurrentUser: payerIsCurrentUser,
+                  purchaseFor: purchaseFor,
+                  onPayerChanged: _changePayer,
+                  onPurchaseForChanged: _changePurchaseFor,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 PurchaseItemsSection(

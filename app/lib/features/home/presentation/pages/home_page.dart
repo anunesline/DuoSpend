@@ -63,11 +63,12 @@ class _HomePageState extends State<HomePage> {
       context,
       MaterialPageRoute(
         builder: (_) => NewTransactionPage(
+          walletContext: widget.walletContext,
           walletId: wallet.id,
           consumerController: widget.consumerController,
           purchaseController: widget.purchaseController,
           productRepository: widget.productRepository,
-        ),
+),
       ),
     );
 
