@@ -56,6 +56,10 @@ class TransactionController extends ChangeNotifier {
     String? consumerId,
     required String category,
     required String subcategory,
+    required String paidByMemberId,
+    required String purchaseFor,
+    required String splitType,
+    required Map<String, double> memberShares,
   }) async {
     final wallet = await _walletRepository.getMainWallet();
     final resolvedWalletId = wallet?.id ?? walletId;
@@ -70,6 +74,10 @@ class TransactionController extends ChangeNotifier {
       consumerId: consumerId,
       category: category,
       subcategory: subcategory,
+      paidByMemberId: paidByMemberId,
+      purchaseFor: purchaseFor,
+      splitType: splitType,
+      memberShares: memberShares,
       items: _items
           .map(
             (item) => item.copyWith(

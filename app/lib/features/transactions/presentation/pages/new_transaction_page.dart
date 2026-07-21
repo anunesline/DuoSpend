@@ -13,7 +13,6 @@ import '../../domain/purchase/services/financial_split_service.dart';
 import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
 import '../widgets/purchase_items_section.dart';
-import '../widgets/financial_split_section.dart';
 import '../widgets/transaction_basic_fields_section.dart';
 import '../widgets/transaction_save_button.dart';
 import 'add_transaction_item_page.dart';
@@ -51,7 +50,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   String type = 'expense';
 
-  bool payerIsCurrentUser = true;
   String purchaseFor = FinancialSplitService.purchaseForSelf;
 
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
@@ -306,6 +304,14 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       consumerId: consumerId,
       category: selectedCategory.name,
       subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
+      paidByMemberId: user.uid,
+      purchaseFor: purchaseFor,
+      splitType: FinancialSplitService.splitTypeForPurchase(purchaseFor),
+      memberShares: FinancialSplitService.calculateAutomaticShares(
+        value: value,
+        payerMemberId: user.uid,
+        purchaseFor: purchaseFor,
+      ),
     );
 
     if (!mounted) {
