@@ -11,6 +11,7 @@ import '../widgets/balance_card.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/transactions_preview.dart';
 import '../widgets/wallet_card.dart';
+import '../widgets/wallet_view_switcher.dart';
 
 class HomePage extends StatefulWidget {
   final WalletContext walletContext;
@@ -72,6 +73,25 @@ class _HomePageState extends State<HomePage> {
     await _loadHome();
   }
 
+  void _changeWalletView(bool selectShared) {
+    final currentWallet = controller.wallet;
+
+    if (currentWallet == null) {
+      return;
+    }
+
+    if (currentWallet.isShared == selectShared) {
+      return;
+    }
+
+    for (final wallet in controller.wallets) {
+      if (wallet.isShared == selectShared) {
+        controller.selectWalletById(wallet.id);
+        return;
+      }
+    }
+  }
+
   Future<void> _testShoppingKnowledgeEngine() async {
     await widget.shoppingController.createItemFromNameForTest(
       'Leite integral',
@@ -100,6 +120,9 @@ class _HomePageState extends State<HomePage> {
       animation: controller,
       builder: (context, _) {
         final wallet = controller.wallet;
+        final hasSharedWallet = controller.wallets.any(
+          (availableWallet) => availableWallet.isShared,
+        );
 
         return Scaffold(
           appBar: AppBar(
@@ -107,11 +130,18 @@ class _HomePageState extends State<HomePage> {
             centerTitle: true,
           ),
           floatingActionButton: FloatingActionButton(
-            onPressed: _openNewTransactionPage,
+            onPressed: wallet == null
+                ? null
+                : _openNewTransactionPage,
             child: const Icon(Icons.add),
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              100,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -122,12 +152,11 @@ class _HomePageState extends State<HomePage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Bem-vinda ao DuoSpend',
-                  style: TextStyle(
-                    color: Colors.grey,
-                  ),
+                const SizedBox(height: 20),
+                WalletViewSwitcher(
+                  isSharedSelected: wallet?.isShared ?? false,
+                  sharedEnabled: hasSharedWallet,
+                  onChanged: _changeWalletView,
                 ),
                 const SizedBox(height: 24),
                 BalanceCard(
@@ -140,8 +169,9 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 20),
                 WalletCard(
-                  walletName: wallet?.name ?? 'Carteira Principal',
+                  walletName: wallet?.name ?? 'Nenhuma carteira',
                   balance: wallet?.balance ?? 0,
+                  isShared: wallet?.isShared ?? false,
                 ),
                 const SizedBox(height: 20),
                 TransactionsPreview(
