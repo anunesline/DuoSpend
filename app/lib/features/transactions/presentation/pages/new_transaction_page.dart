@@ -9,9 +9,10 @@ import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../data/models/transaction_item_model.dart';
+import '../../domain/financial_split/financial_split_rules.dart';
+import '../../domain/financial_split/financial_split_service.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
 import '../../domain/purchase/models/purchase_item_model.dart';
-import '../../domain/purchase/services/financial_split_service.dart';
 import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
 import '../widgets/financial_split_section.dart';
@@ -52,6 +53,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   final TransactionController transactionController =
       TransactionController();
 
+  final FinancialSplitService _financialSplitService =
+      const FinancialSplitService();
+
   PurchaseController get purchaseController {
     return widget.purchaseController;
   }
@@ -60,7 +64,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   bool payerIsCurrentUser = true;
 
-  String purchaseFor = FinancialSplitService.purchaseForSelf;
+  String purchaseFor = FinancialSplitRules.purchaseForSelf;
 
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
 
@@ -466,8 +470,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     );
 
     final needsPartner =
-        purchaseFor !=
-            FinancialSplitService.purchaseForSelf ||
+        FinancialSplitRules.requiresPartner(purchaseFor) ||
         !payerIsCurrentUser;
 
     if (needsPartner && partnerMemberId == null) {
@@ -517,6 +520,14 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       }
     }
 
+    final financialSplitResult =
+        _financialSplitService.calculateAutomaticSplit(
+      value: value,
+      payerMemberId: payerMemberId,
+      partnerMemberId: partnerMemberId,
+      purchaseFor: purchaseFor,
+    );
+
     await transactionController.saveTransaction(
       transactionId: id,
       description: description,
@@ -531,17 +542,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
           'Sem subcategoria',
       paidByMemberId: payerMemberId,
       purchaseFor: purchaseFor,
-      splitType:
-          FinancialSplitService.splitTypeForPurchase(
-        purchaseFor,
-      ),
-      memberShares:
-          FinancialSplitService.calculateAutomaticShares(
-        value: value,
-        payerMemberId: payerMemberId,
-        partnerMemberId: partnerMemberId,
-        purchaseFor: purchaseFor,
-      ),
+      splitType: financialSplitResult.splitType,
+      memberShares: financialSplitResult.memberShares,
     );
 
     if (!mounted) {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
-import '../../domain/purchase/services/financial_split_service.dart';
+import '../../domain/financial_split/financial_split_rules.dart';
 
 class FinancialSplitSection extends StatelessWidget {
   final bool enabled;
@@ -54,7 +54,7 @@ class FinancialSplitSection extends StatelessWidget {
               value: true,
               groupValue: payerIsCurrentUser,
               onChanged: enabled
-                  ? (value) => onPayerChanged(true)
+                  ? (_) => onPayerChanged(true)
                   : null,
               title: const Text('Eu'),
             ),
@@ -64,7 +64,7 @@ class FinancialSplitSection extends StatelessWidget {
               value: false,
               groupValue: payerIsCurrentUser,
               onChanged: enabled
-                  ? (value) => onPayerChanged(false)
+                  ? (_) => onPayerChanged(false)
                   : null,
               title: const Text('Parceiro'),
             ),
@@ -78,7 +78,7 @@ class FinancialSplitSection extends StatelessWidget {
 
             RadioListTile<String>(
               dense: true,
-              value: FinancialSplitService.purchaseForSelf,
+              value: FinancialSplitRules.purchaseForSelf,
               groupValue: purchaseFor,
               onChanged: enabled
                   ? (value) {
@@ -92,7 +92,7 @@ class FinancialSplitSection extends StatelessWidget {
 
             RadioListTile<String>(
               dense: true,
-              value: FinancialSplitService.purchaseForPartner,
+              value: FinancialSplitRules.purchaseForPartner,
               groupValue: purchaseFor,
               onChanged: enabled
                   ? (value) {
@@ -106,7 +106,7 @@ class FinancialSplitSection extends StatelessWidget {
 
             RadioListTile<String>(
               dense: true,
-              value: FinancialSplitService.purchaseForBoth,
+              value: FinancialSplitRules.purchaseForBoth,
               groupValue: purchaseFor,
               onChanged: enabled
                   ? (value) {
