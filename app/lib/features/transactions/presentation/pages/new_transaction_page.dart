@@ -9,9 +9,11 @@ import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
 import '../../domain/purchase/models/purchase_item_model.dart';
+import '../../domain/purchase/services/financial_split_service.dart';
 import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
 import '../widgets/purchase_items_section.dart';
+import '../widgets/financial_split_section.dart';
 import '../widgets/transaction_basic_fields_section.dart';
 import '../widgets/transaction_save_button.dart';
 import 'add_transaction_item_page.dart';
@@ -48,6 +50,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   String type = 'expense';
+
+  bool payerIsCurrentUser = true;
+  String purchaseFor = FinancialSplitService.purchaseForSelf;
 
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
 
