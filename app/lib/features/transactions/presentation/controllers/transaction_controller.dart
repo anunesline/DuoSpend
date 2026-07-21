@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../home/data/models/wallet_model.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
@@ -16,11 +17,9 @@ class TransactionController extends ChangeNotifier {
     WalletRepository? walletRepository,
     BalanceSettlementSynchronizer? settlementSynchronizer,
   })  : _repository = repository ?? TransactionRepository(),
-        _walletRepository =
-            walletRepository ?? WalletRepository(),
+        _walletRepository = walletRepository ?? WalletRepository(),
         _settlementSynchronizer =
-            settlementSynchronizer ??
-                BalanceSettlementSynchronizer();
+            settlementSynchronizer ?? BalanceSettlementSynchronizer();
 
   final List<TransactionItemModel> _items = [];
 
@@ -75,10 +74,30 @@ class TransactionController extends ChangeNotifier {
     required String purchaseFor,
     required String splitType,
     required Map<String, double> memberShares,
+    WalletModel? wallet,
   }) async {
-    final wallet = await _walletRepository.getMainWallet();
+    final normalizedWalletId = walletId.trim();
 
-    final resolvedWalletId = wallet?.id ?? walletId;
+    if (normalizedWalletId.isEmpty) {
+      throw Exception('Carteira da transação não informada.');
+    }
+
+    final resolvedWallet = wallet ??
+        await _walletRepository.getWalletById(
+          normalizedWalletId,
+        );
+
+    if (resolvedWallet == null) {
+      throw Exception(
+        'Não foi possível localizar a carteira da transação.',
+      );
+    }
+
+    if (resolvedWallet.id.trim() != normalizedWalletId) {
+      throw Exception(
+        'A carteira informada não corresponde ao walletId da transação.',
+      );
+    }
 
     final transaction = TransactionModel(
       id: transactionId,
@@ -86,7 +105,7 @@ class TransactionController extends ChangeNotifier {
       value: value,
       type: type,
       date: DateTime.now(),
-      walletId: resolvedWalletId,
+      walletId: resolvedWallet.id,
       consumerId: consumerId,
       category: category,
       subcategory: subcategory,
@@ -103,26 +122,46 @@ class TransactionController extends ChangeNotifier {
           .toList(),
     );
 
-    await _repository.addTransaction(transaction);
+    await _repository.addTransaction(
+      transaction,
+      wallet: resolvedWallet,
+    );
 
-    if (wallet != null) {
-      double newBalance = wallet.balance;
+    await _updateWalletBalance(
+      wallet: resolvedWallet,
+      transactionType: type,
+      transactionValue: value,
+    );
 
-      if (type == 'income') {
-        newBalance += value;
-      } else {
-        newBalance -= value;
-      }
-
-      await _walletRepository.updateBalance(
-        newBalance,
+    if (resolvedWallet.isShared) {
+      await _settlementSynchronizer.synchronize(
+        walletId: resolvedWallet.id,
       );
     }
 
-    await _settlementSynchronizer.synchronize(
-      walletId: resolvedWalletId,
-    );
-
     clearItems();
+  }
+
+  Future<void> _updateWalletBalance({
+    required WalletModel wallet,
+    required String transactionType,
+    required double transactionValue,
+  }) async {
+    var newBalance = wallet.balance;
+
+    if (transactionType == 'income') {
+      newBalance += transactionValue;
+    } else if (transactionType == 'expense') {
+      newBalance -= transactionValue;
+    } else {
+      throw Exception(
+        'Tipo de transação inválido: $transactionType.',
+      );
+    }
+
+    await _walletRepository.updateBalance(
+      newBalance,
+      walletId: wallet.id,
+    );
   }
 }

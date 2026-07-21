@@ -7,14 +7,15 @@ import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
+import '../../../home/data/models/wallet_model.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
 import '../../domain/purchase/models/purchase_item_model.dart';
 import '../../domain/purchase/services/financial_split_service.dart';
 import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
-import '../widgets/purchase_items_section.dart';
 import '../widgets/financial_split_section.dart';
+import '../widgets/purchase_items_section.dart';
 import '../widgets/transaction_basic_fields_section.dart';
 import '../widgets/transaction_save_button.dart';
 import 'add_transaction_item_page.dart';
@@ -24,7 +25,6 @@ class NewTransactionPage extends StatefulWidget {
   final ConsumerController consumerController;
   final PurchaseController purchaseController;
   final ProductRepository productRepository;
-
   final WalletContext walletContext;
 
   const NewTransactionPage({
@@ -43,29 +43,14 @@ class NewTransactionPage extends StatefulWidget {
 }
 
 class _NewTransactionPageState extends State<NewTransactionPage> {
-  String? _resolvePartnerMemberId(String currentUserId) {
-    final wallet = widget.walletContext.selectedWallet;
+  final TextEditingController descriptionController =
+      TextEditingController();
 
-    if (wallet == null || wallet.id != widget.walletId) {
-      return null;
-    }
+  final TextEditingController valueController =
+      TextEditingController();
 
-    for (final memberId in wallet.memberIds) {
-      final normalizedMemberId = memberId.trim();
-
-      if (normalizedMemberId.isNotEmpty &&
-          normalizedMemberId != currentUserId) {
-        return normalizedMemberId;
-      }
-    }
-
-    return null;
-  }
-  final TextEditingController descriptionController = TextEditingController();
-
-  final TextEditingController valueController = TextEditingController();
-
-  final TransactionController transactionController = TransactionController();
+  final TransactionController transactionController =
+      TransactionController();
 
   PurchaseController get purchaseController {
     return widget.purchaseController;
@@ -81,8 +66,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   TaxonomyItem? selectedSubcategory =
       DuoTaxonomy.items.first.children.isNotEmpty
-      ? DuoTaxonomy.items.first.children.first
-      : null;
+          ? DuoTaxonomy.items.first.children.first
+          : null;
 
   @override
   void initState() {
@@ -101,10 +86,44 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     super.dispose();
   }
 
+  WalletModel? _resolveActiveWallet() {
+    final selectedWallet = widget.walletContext.selectedWallet;
+
+    if (selectedWallet != null &&
+        selectedWallet.id == widget.walletId) {
+      return selectedWallet;
+    }
+
+    for (final wallet in widget.walletContext.wallets) {
+      if (wallet.id == widget.walletId) {
+        return wallet;
+      }
+    }
+
+    return null;
+  }
+
+  String? _resolvePartnerMemberId({
+    required WalletModel wallet,
+    required String currentUserId,
+  }) {
+    for (final memberId in wallet.memberIds) {
+      final normalizedMemberId = memberId.trim();
+
+      if (normalizedMemberId.isNotEmpty &&
+          normalizedMemberId != currentUserId) {
+        return normalizedMemberId;
+      }
+    }
+
+    return null;
+  }
+
   void _syncFinancialCategory() {
     purchaseController.setFinancialCategory(
       category: selectedCategory.name,
-      subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
+      subcategory:
+          selectedSubcategory?.name ?? 'Sem subcategoria',
     );
   }
 
@@ -116,8 +135,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         selectedCategory = DuoTaxonomy.items.first;
         selectedSubcategory =
             selectedCategory.children.isNotEmpty
-            ? selectedCategory.children.first
-            : null;
+                ? selectedCategory.children.first
+                : null;
       });
 
       _syncFinancialCategory();
@@ -125,27 +144,35 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     }
 
     final categoryCounts = <String, int>{};
-    final subcategoryCountsByCategory = <String, Map<String, int>>{};
+    final subcategoryCountsByCategory =
+        <String, Map<String, int>>{};
     final firstCategoryPosition = <String, int>{};
     final firstSubcategoryPosition = <String, int>{};
 
     for (var index = 0; index < items.length; index++) {
       final item = items[index];
       final categoryName = item.financialCategory.trim();
-      final subcategoryName = item.financialSubcategory.trim();
+      final subcategoryName =
+          item.financialSubcategory.trim();
 
       if (categoryName.isEmpty) {
         continue;
       }
 
-      categoryCounts[categoryName] = (categoryCounts[categoryName] ?? 0) + 1;
-      firstCategoryPosition.putIfAbsent(categoryName, () => index);
+      categoryCounts[categoryName] =
+          (categoryCounts[categoryName] ?? 0) + 1;
+
+      firstCategoryPosition.putIfAbsent(
+        categoryName,
+        () => index,
+      );
 
       if (subcategoryName.isEmpty) {
         continue;
       }
 
-      final subcategoryCounts = subcategoryCountsByCategory.putIfAbsent(
+      final subcategoryCounts =
+          subcategoryCountsByCategory.putIfAbsent(
         categoryName,
         () => <String, int>{},
       );
@@ -163,7 +190,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       return;
     }
 
-    final predominantCategoryName = categoryCounts.keys.reduce((current, next) {
+    final predominantCategoryName =
+        categoryCounts.keys.reduce((current, next) {
       final currentCount = categoryCounts[current] ?? 0;
       final nextCount = categoryCounts[next] ?? 0;
 
@@ -177,7 +205,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
       final currentPosition =
           firstCategoryPosition[current] ?? items.length;
-      final nextPosition = firstCategoryPosition[next] ?? items.length;
+
+      final nextPosition =
+          firstCategoryPosition[next] ?? items.length;
 
       return nextPosition < currentPosition ? next : current;
     });
@@ -197,17 +227,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     final subcategoryCounts =
         subcategoryCountsByCategory[predominantCategoryName] ??
-        const <String, int>{};
+            const <String, int>{};
 
     String? predominantSubcategoryName;
 
     if (subcategoryCounts.isNotEmpty) {
-      predominantSubcategoryName = subcategoryCounts.keys.reduce((
-        current,
-        next,
-      ) {
-        final currentCount = subcategoryCounts[current] ?? 0;
-        final nextCount = subcategoryCounts[next] ?? 0;
+      predominantSubcategoryName =
+          subcategoryCounts.keys.reduce((current, next) {
+        final currentCount =
+            subcategoryCounts[current] ?? 0;
+
+        final nextCount =
+            subcategoryCounts[next] ?? 0;
 
         if (nextCount > currentCount) {
           return next;
@@ -219,22 +250,26 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
         final currentPosition =
             firstSubcategoryPosition[
-                '$predominantCategoryName::$current'] ??
-            items.length;
+                    '$predominantCategoryName::$current'] ??
+                items.length;
 
         final nextPosition =
             firstSubcategoryPosition[
-                '$predominantCategoryName::$next'] ??
-            items.length;
+                    '$predominantCategoryName::$next'] ??
+                items.length;
 
-        return nextPosition < currentPosition ? next : current;
+        return nextPosition < currentPosition
+            ? next
+            : current;
       });
     }
 
     TaxonomyItem? predominantSubcategory;
 
-    for (final subcategory in predominantCategory.children) {
-      if (subcategory.name == predominantSubcategoryName) {
+    for (final subcategory
+        in predominantCategory.children) {
+      if (subcategory.name ==
+          predominantSubcategoryName) {
         predominantSubcategory = subcategory;
         break;
       }
@@ -245,9 +280,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
       selectedSubcategory =
           predominantSubcategory ??
-          (predominantCategory.children.isNotEmpty
-              ? predominantCategory.children.first
-              : null);
+              (predominantCategory.children.isNotEmpty
+                  ? predominantCategory.children.first
+                  : null);
     });
 
     _syncFinancialCategory();
@@ -257,15 +292,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     setState(() {
       selectedCategory = category;
 
-      selectedSubcategory = category.children.isNotEmpty
-          ? category.children.first
-          : null;
+      selectedSubcategory =
+          category.children.isNotEmpty
+              ? category.children.first
+              : null;
     });
 
     _syncFinancialCategory();
   }
 
-  void _changeSubcategory(TaxonomyItem? subcategory) {
+  void _changeSubcategory(
+    TaxonomyItem? subcategory,
+  ) {
     setState(() {
       selectedSubcategory = subcategory;
     });
@@ -279,7 +317,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     });
   }
 
-
   void _changePayer(bool value) {
     setState(() {
       payerIsCurrentUser = value;
@@ -291,12 +328,15 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       purchaseFor = value;
     });
   }
+
   Future<void> _openAddItemPage() async {
-    final result = await Navigator.push<TransactionItemModel>(
+    final result =
+        await Navigator.push<TransactionItemModel>(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            AddTransactionItemPage(productRepository: widget.productRepository),
+        builder: (_) => AddTransactionItemPage(
+          productRepository: widget.productRepository,
+        ),
       ),
     );
 
@@ -311,13 +351,17 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     _syncValueWithPurchaseTotal();
   }
 
-  Future<void> _openEditItemPage(PurchaseItemModel purchaseItem) async {
-    final initialTransactionItem = purchaseController.toTransactionItem(
+  Future<void> _openEditItemPage(
+    PurchaseItemModel purchaseItem,
+  ) async {
+    final initialTransactionItem =
+        purchaseController.toTransactionItem(
       item: purchaseItem,
       transactionId: purchaseItem.purchaseId,
     );
 
-    final updatedItem = await Navigator.push<TransactionItemModel>(
+    final updatedItem =
+        await Navigator.push<TransactionItemModel>(
       context,
       MaterialPageRoute(
         builder: (_) => AddTransactionItemPage(
@@ -348,7 +392,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   void _removeItem(PurchaseItemModel item) {
-    final transactionItem = purchaseController.toTransactionItem(
+    final transactionItem =
+        purchaseController.toTransactionItem(
       item: item,
       transactionId: item.purchaseId,
     );
@@ -366,26 +411,35 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         .replaceAll('.', ',');
   }
 
-  Future<String?> _resolveConsumerId() async {
-    final selectedConsumer = widget.consumerController.selectedConsumer;
+  Future<String?> _resolveConsumerId(
+    String walletId,
+  ) async {
+    final selectedConsumer =
+        widget.consumerController.selectedConsumer;
 
-    if (selectedConsumer != null) {
+    if (selectedConsumer != null &&
+        selectedConsumer.walletId == walletId) {
       return selectedConsumer.id;
     }
 
-    await widget.consumerController.initializeWallet(walletId: widget.walletId);
+    await widget.consumerController.initializeWallet(
+      walletId: walletId,
+    );
 
-    return widget.consumerController.selectedConsumer?.id;
+    return widget
+        .consumerController.selectedConsumer?.id;
   }
 
   Future<void> _saveTransaction() async {
-    final description = descriptionController.text.trim();
+    final description =
+        descriptionController.text.trim();
 
-    final value = double.tryParse(valueController.text.replaceAll(',', '.'));
+    final value = double.tryParse(
+      valueController.text.replaceAll(',', '.'),
+    );
 
     if (description.isEmpty || value == null) {
       _showMessage('Preencha todos os campos.');
-
       return;
     }
 
@@ -393,49 +447,71 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     if (user == null) {
       _showMessage('Usuário não autenticado.');
+      return;
+    }
+
+    final activeWallet = _resolveActiveWallet();
+
+    if (activeWallet == null) {
+      _showMessage(
+        'Não foi possível identificar a carteira selecionada.',
+      );
 
       return;
     }
-    final partnerMemberId = _resolvePartnerMemberId(user.uid);
 
-final needsPartner =
-    purchaseFor != FinancialSplitService.purchaseForSelf ||
-    !payerIsCurrentUser;
+    final partnerMemberId = _resolvePartnerMemberId(
+      wallet: activeWallet,
+      currentUserId: user.uid,
+    );
 
-if (needsPartner && partnerMemberId == null) {
-  _showMessage(
-    'Adicione o parceiro à carteira antes de dividir esta transação.',
-  );
+    final needsPartner =
+        purchaseFor !=
+            FinancialSplitService.purchaseForSelf ||
+        !payerIsCurrentUser;
 
-  return;
-}
+    if (needsPartner && partnerMemberId == null) {
+      _showMessage(
+        'Adicione o parceiro à carteira antes de dividir esta transação.',
+      );
 
-final payerMemberId =
-    payerIsCurrentUser ? user.uid : partnerMemberId!;
+      return;
+    }
 
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final payerMemberId = payerIsCurrentUser
+        ? user.uid
+        : partnerMemberId!;
 
-    final consumerId = await _resolveConsumerId();
+    final id =
+        DateTime.now().millisecondsSinceEpoch.toString();
+
+    final consumerId =
+        await _resolveConsumerId(activeWallet.id);
 
     if (purchaseController.hasItems) {
-      final purchaseResult = await purchaseController.completePurchase(
+      final purchaseResult =
+          await purchaseController.completePurchase(
         CreatePurchaseCommand(
           id: id,
           userId: user.uid,
-          walletId: widget.walletId,
+          walletId: activeWallet.id,
           consumerId: consumerId,
           purchaseDate: DateTime.now(),
         ),
       );
 
       if (purchaseController.errorMessage != null) {
-        _showMessage(purchaseController.errorMessage!);
+        _showMessage(
+          purchaseController.errorMessage!,
+        );
 
         return;
       }
 
       if (purchaseResult == null) {
-        _showMessage('Não foi possível concluir a compra.');
+        _showMessage(
+          'Não foi possível concluir a compra.',
+        );
 
         return;
       }
@@ -446,19 +522,26 @@ final payerMemberId =
       description: description,
       value: value,
       type: type,
-      walletId: widget.walletId,
+      walletId: activeWallet.id,
+      wallet: activeWallet,
       consumerId: consumerId,
       category: selectedCategory.name,
-      subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
+      subcategory:
+          selectedSubcategory?.name ??
+          'Sem subcategoria',
       paidByMemberId: payerMemberId,
       purchaseFor: purchaseFor,
-      splitType: FinancialSplitService.splitTypeForPurchase(purchaseFor),
-      memberShares: FinancialSplitService.calculateAutomaticShares(
-      value: value,
-      payerMemberId: payerMemberId,
-      partnerMemberId: partnerMemberId,
-      purchaseFor: purchaseFor,
-),
+      splitType:
+          FinancialSplitService.splitTypeForPurchase(
+        purchaseFor,
+      ),
+      memberShares:
+          FinancialSplitService.calculateAutomaticShares(
+        value: value,
+        payerMemberId: payerMemberId,
+        partnerMemberId: partnerMemberId,
+        purchaseFor: purchaseFor,
+      ),
     );
 
     if (!mounted) {
@@ -478,14 +561,24 @@ final payerMemberId =
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeWallet = _resolveActiveWallet();
+
+    final showPartnerOptions =
+        activeWallet?.isShared ?? false;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Nova Transação')),
+      appBar: AppBar(
+        title: const Text('Nova Transação'),
+      ),
       body: AnimatedBuilder(
         animation: Listenable.merge([
           transactionController,
@@ -493,31 +586,47 @@ final payerMemberId =
         ]),
         builder: (context, _) {
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding:
+                const EdgeInsets.all(AppSpacing.lg),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 TransactionBasicFieldsSection(
-                  descriptionController: descriptionController,
+                  descriptionController:
+                      descriptionController,
                   valueController: valueController,
                   type: type,
-                  hasPurchaseItems: purchaseController.hasItems,
-                  selectedCategory: selectedCategory,
-                  selectedSubcategory: selectedSubcategory,
+                  hasPurchaseItems:
+                      purchaseController.hasItems,
+                  selectedCategory:
+                      selectedCategory,
+                  selectedSubcategory:
+                      selectedSubcategory,
                   onTypeChanged: _changeType,
-                  onCategoryChanged: _changeCategory,
-                  onSubcategoryChanged: _changeSubcategory,
+                  onCategoryChanged:
+                      _changeCategory,
+                  onSubcategoryChanged:
+                      _changeSubcategory,
                 ),
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(
+                  height: AppSpacing.lg,
+                ),
                 FinancialSplitSection(
-                  enabled: !purchaseController.isSaving,
-                  showPartnerOptions: true,
-                  payerIsCurrentUser: payerIsCurrentUser,
+                  enabled:
+                      !purchaseController.isSaving,
+                  showPartnerOptions:
+                      showPartnerOptions,
+                  payerIsCurrentUser:
+                      payerIsCurrentUser,
                   purchaseFor: purchaseFor,
                   onPayerChanged: _changePayer,
-                  onPurchaseForChanged: _changePurchaseFor,
+                  onPurchaseForChanged:
+                      _changePurchaseFor,
                 ),
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(
+                  height: AppSpacing.lg,
+                ),
                 PurchaseItemsSection(
                   items: purchaseController.items,
                   total: purchaseController.total,
@@ -525,9 +634,12 @@ final payerMemberId =
                   onEditItem: _openEditItemPage,
                   onRemoveItem: _removeItem,
                 ),
-                const SizedBox(height: AppSpacing.xl),
+                const SizedBox(
+                  height: AppSpacing.xl,
+                ),
                 TransactionSaveButton(
-                  isSaving: purchaseController.isSaving,
+                  isSaving:
+                      purchaseController.isSaving,
                   onPressed: _saveTransaction,
                 ),
               ],

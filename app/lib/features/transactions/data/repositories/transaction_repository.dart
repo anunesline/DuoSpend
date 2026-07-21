@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../home/data/models/wallet_model.dart';
 import '../models/transaction_model.dart';
 
 class TransactionRepository {
@@ -14,14 +15,31 @@ class TransactionRepository {
         _auth = auth ?? FirebaseAuth.instance;
 
   Future<void> addTransaction(
-    TransactionModel transaction,
-  ) async {
+    TransactionModel transaction, {
+    WalletModel? wallet,
+  }) async {
     final user = _requireAuthenticatedUser();
 
-    await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('transactions')
+    if (wallet == null || !wallet.isShared) {
+      await _individualTransactionsReference(user.uid)
+          .doc(transaction.id)
+          .set(transaction.toMap());
+
+      return;
+    }
+
+    _validateSharedWalletAccess(
+      wallet: wallet,
+      userId: user.uid,
+    );
+
+    if (transaction.walletId.trim() != wallet.id.trim()) {
+      throw Exception(
+        'A transação não pertence à carteira compartilhada informada.',
+      );
+    }
+
+    await _sharedTransactionsReference(wallet.id)
         .doc(transaction.id)
         .set(transaction.toMap());
   }
@@ -33,32 +51,42 @@ class TransactionRepository {
       return [];
     }
 
-    final snapshot = await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('transactions')
-        .orderBy(
-          'date',
-          descending: true,
-        )
-        .get();
-
-    return snapshot.docs
-        .map(
-          (document) => TransactionModel.fromMap(
-            document.data(),
-          ),
-        )
-        .toList();
+    return _getTransactionsFromReference(
+      _individualTransactionsReference(user.uid),
+    );
   }
 
   Future<List<TransactionModel>> getTransactionsByWallet(
-    String walletId,
-  ) async {
+    String walletId, {
+    WalletModel? wallet,
+  }) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      return [];
+    }
+
     final normalizedWalletId = walletId.trim();
 
     if (normalizedWalletId.isEmpty) {
       return [];
+    }
+
+    if (wallet != null && wallet.isShared) {
+      _validateSharedWalletAccess(
+        wallet: wallet,
+        userId: user.uid,
+      );
+
+      if (wallet.id.trim() != normalizedWalletId) {
+        throw Exception(
+          'A carteira informada não corresponde ao walletId solicitado.',
+        );
+      }
+
+      return _getTransactionsFromReference(
+        _sharedTransactionsReference(normalizedWalletId),
+      );
     }
 
     final transactions = await getTransactions();
@@ -66,9 +94,65 @@ class TransactionRepository {
     return List<TransactionModel>.unmodifiable(
       transactions.where(
         (transaction) =>
-            transaction.walletId == normalizedWalletId,
+            transaction.walletId.trim() == normalizedWalletId,
       ),
     );
+  }
+
+  Future<List<TransactionModel>> _getTransactionsFromReference(
+    CollectionReference<Map<String, dynamic>> reference,
+  ) async {
+    final snapshot = await reference
+        .orderBy(
+          'date',
+          descending: true,
+        )
+        .get();
+
+    return List<TransactionModel>.unmodifiable(
+      snapshot.docs.map(
+        (document) => TransactionModel.fromMap(
+          document.data(),
+        ),
+      ),
+    );
+  }
+
+  CollectionReference<Map<String, dynamic>>
+      _individualTransactionsReference(
+    String userId,
+  ) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('transactions');
+  }
+
+  CollectionReference<Map<String, dynamic>>
+      _sharedTransactionsReference(
+    String walletId,
+  ) {
+    return _firestore
+        .collection('wallets')
+        .doc(walletId)
+        .collection('transactions');
+  }
+
+  void _validateSharedWalletAccess({
+    required WalletModel wallet,
+    required String userId,
+  }) {
+    if (!wallet.isShared) {
+      throw Exception(
+        'A carteira informada não é compartilhada.',
+      );
+    }
+
+    if (!wallet.memberIds.contains(userId)) {
+      throw Exception(
+        'O usuário não pertence à carteira compartilhada.',
+      );
+    }
   }
 
   User _requireAuthenticatedUser() {
