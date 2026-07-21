@@ -7,12 +7,13 @@ import '../../../shopping/presentation/controllers/shopping_controller.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../controllers/home_controller.dart';
-import 'partner_invites_page.dart';
 import '../widgets/balance_card.dart';
+import '../widgets/shared_balance_card.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/transactions_preview.dart';
 import '../widgets/wallet_card.dart';
 import '../widgets/wallet_view_switcher.dart';
+import 'partner_invites_page.dart';
 
 class HomePage extends StatefulWidget {
   final WalletContext walletContext;
@@ -68,7 +69,7 @@ class _HomePageState extends State<HomePage> {
           consumerController: widget.consumerController,
           purchaseController: widget.purchaseController,
           productRepository: widget.productRepository,
-),
+        ),
       ),
     );
 
@@ -139,7 +140,9 @@ class _HomePageState extends State<HomePage> {
                 decoration: const InputDecoration(
                   labelText: 'E-mail do parceiro',
                   hintText: 'parceiro@email.com',
-                  prefixIcon: Icon(Icons.email_outlined),
+                  prefixIcon: Icon(
+                    Icons.email_outlined,
+                  ),
                   border: OutlineInputBorder(),
                 ),
                 onSubmitted: (value) {
@@ -217,6 +220,66 @@ class _HomePageState extends State<HomePage> {
     await _loadHome();
   }
 
+  void _openDeveloperMenu() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (bottomSheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Área do desenvolvedor',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Ferramentas para testes durante o desenvolvimento do DuoSpend.',
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.delete_sweep_outlined,
+                  ),
+                  title: const Text(
+                    'Limpar dados de teste',
+                  ),
+                  subtitle: const Text(
+                    'Essa função será adicionada na próxima etapa.',
+                  ),
+                  onTap: () {
+                    Navigator.of(bottomSheetContext).pop();
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Limpeza de dados ainda não implementada.',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showErrorMessage() {
     final message =
         controller.errorMessage ?? 'Não foi possível concluir esta ação.';
@@ -239,7 +302,9 @@ class _HomePageState extends State<HomePage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Produto aprendido: leite integral'),
+        content: Text(
+          'Produto aprendido: leite integral',
+        ),
       ),
     );
   }
@@ -264,8 +329,17 @@ class _HomePageState extends State<HomePage> {
             centerTitle: true,
             actions: [
               IconButton(
+                tooltip: 'Desenvolvedor',
+                icon: const Icon(
+                  Icons.science_outlined,
+                ),
+                onPressed: _openDeveloperMenu,
+              ),
+              IconButton(
                 tooltip: 'Convites',
-                icon: const Icon(Icons.mail_outline_rounded),
+                icon: const Icon(
+                  Icons.mail_outline_rounded,
+                ),
                 onPressed: _openPartnerInvitesPage,
               ),
             ],
@@ -274,7 +348,9 @@ class _HomePageState extends State<HomePage> {
             onPressed: wallet == null
                 ? null
                 : _openNewTransactionPage,
-            child: const Icon(Icons.add),
+            child: const Icon(
+              Icons.add,
+            ),
           ),
           body: controller.isLoading
               ? const Center(
@@ -369,6 +445,12 @@ class _HomePageState extends State<HomePage> {
                           income: controller.totalIncome,
                           expense: controller.totalExpense,
                         ),
+                        if (controller.balanceSummary != null) ...[
+                          const SizedBox(height: 20),
+                          SharedBalanceCard(
+                            summary: controller.balanceSummary!,
+                          ),
+                        ],
                         const SizedBox(height: 20),
                         WalletCard(
                           walletName: wallet?.name ?? 'Nenhuma carteira',

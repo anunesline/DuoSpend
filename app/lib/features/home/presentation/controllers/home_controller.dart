@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import '../../../../core/context/wallet_context.dart';
 import '../../../transactions/data/models/transaction_model.dart';
 import '../../../transactions/data/repositories/transaction_repository.dart';
+import '../../../transactions/domain/purchase/services/balance_engine.dart';
+import '../../../transactions/domain/purchase/services/balance_summary.dart';
 import '../../data/models/partner_invite_model.dart';
 import '../../data/models/wallet_model.dart';
 import '../../data/repositories/partner_invite_repository.dart';
@@ -17,6 +19,7 @@ class HomeController extends ChangeNotifier {
   final PartnerInviteRepository _partnerInviteRepository;
   final TransactionRepository _transactionRepository;
   final WalletContext _walletContext;
+  final BalanceEngine _balanceEngine;
 
   HomeController({
     FirebaseAuth? auth,
@@ -24,13 +27,15 @@ class HomeController extends ChangeNotifier {
     PartnerInviteRepository? partnerInviteRepository,
     TransactionRepository? transactionRepository,
     WalletContext? walletContext,
+    BalanceEngine? balanceEngine,
   }) : _auth = auth ?? FirebaseAuth.instance,
        _walletRepository = walletRepository ?? WalletRepository(),
        _partnerInviteRepository =
            partnerInviteRepository ?? PartnerInviteRepository(),
        _transactionRepository =
            transactionRepository ?? TransactionRepository(),
-       _walletContext = walletContext ?? WalletContext() {
+       _walletContext = walletContext ?? WalletContext(),
+       _balanceEngine = balanceEngine ?? const BalanceEngine() {
     _walletContext.addListener(_handleWalletContextChanged);
   }
 
@@ -60,6 +65,12 @@ class HomeController extends ChangeNotifier {
 
   double totalIncome = 0;
   double totalExpense = 0;
+
+  /// Resultado bruto calculado pelo Balance Engine.
+  ///
+  /// Fica disponível apenas quando uma carteira compartilhada
+  /// está selecionada.
+  BalanceResult? balanceResult;
 
   bool isLoading = true;
   bool isCreatingSharedWallet = false;
@@ -99,6 +110,35 @@ class HomeController extends ChangeNotifier {
 
   bool get isSharedWalletSelected {
     return wallet?.isShared ?? false;
+  }
+
+  /// Resumo financeiro do membro autenticado.
+  ///
+  /// Retorna nulo quando:
+  /// - não existe usuário autenticado;
+  /// - a carteira selecionada não é compartilhada;
+  /// - o Balance Engine ainda não foi calculado.
+  BalanceSummary? get balanceSummary {
+    final currentUserId = user?.uid;
+    final currentResult = balanceResult;
+
+    if (currentUserId == null ||
+        currentUserId.isEmpty ||
+        currentResult == null ||
+        !isSharedWalletSelected) {
+      return null;
+    }
+
+    return BalanceSummary(
+      result: currentResult,
+      currentMemberId: currentUserId,
+    );
+  }
+
+  /// Indica se existe algum acerto pendente
+  /// na carteira compartilhada selecionada.
+  bool get hasPendingBalance {
+    return balanceResult?.hasPendingTransfers ?? false;
   }
 
   bool get canInvitePartner {
@@ -502,6 +542,7 @@ class HomeController extends ChangeNotifier {
       transactions = [];
       totalIncome = 0;
       totalExpense = 0;
+      balanceResult = null;
       return;
     }
 
@@ -512,6 +553,7 @@ class HomeController extends ChangeNotifier {
     );
 
     _calculateTotals();
+    _calculateSharedBalance();
   }
 
   void _calculateTotals() {
@@ -530,12 +572,32 @@ class HomeController extends ChangeNotifier {
     totalExpense = expense;
   }
 
+  /// Calcula automaticamente os valores que cada membro
+  /// precisa pagar ou receber.
+  ///
+  /// Carteiras individuais não possuem acerto financeiro
+  /// entre membros, portanto o resultado é limpo.
+  void _calculateSharedBalance() {
+    final selectedWallet = wallet;
+
+    if (selectedWallet == null || !selectedWallet.isShared) {
+      balanceResult = null;
+      return;
+    }
+
+    balanceResult = _balanceEngine.calculate(
+      transactions: transactions,
+      walletId: selectedWallet.id,
+    );
+  }
+
   void _clearHomeData() {
     user = null;
     _allTransactions = [];
     transactions = [];
     totalIncome = 0;
     totalExpense = 0;
+    balanceResult = null;
     isCreatingSharedWallet = false;
     isSendingPartnerInvite = false;
 

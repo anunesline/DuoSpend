@@ -4,20 +4,24 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/transaction_model.dart';
 
 class TransactionRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
 
-  Future<void> addTransaction(TransactionModel transaction) async {
-    final user = _auth.currentUser;
+  TransactionRepository({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
 
-    if (user == null) {
-      throw Exception("Usuário não autenticado.");
-    }
+  Future<void> addTransaction(
+    TransactionModel transaction,
+  ) async {
+    final user = _requireAuthenticatedUser();
 
     await _firestore
-        .collection("users")
+        .collection('users')
         .doc(user.uid)
-        .collection("transactions")
+        .collection('transactions')
         .doc(transaction.id)
         .set(transaction.toMap());
   }
@@ -30,14 +34,50 @@ class TransactionRepository {
     }
 
     final snapshot = await _firestore
-        .collection("users")
+        .collection('users')
         .doc(user.uid)
-        .collection("transactions")
-        .orderBy("date", descending: true)
+        .collection('transactions')
+        .orderBy(
+          'date',
+          descending: true,
+        )
         .get();
 
     return snapshot.docs
-        .map((doc) => TransactionModel.fromMap(doc.data()))
+        .map(
+          (document) => TransactionModel.fromMap(
+            document.data(),
+          ),
+        )
         .toList();
+  }
+
+  Future<List<TransactionModel>> getTransactionsByWallet(
+    String walletId,
+  ) async {
+    final normalizedWalletId = walletId.trim();
+
+    if (normalizedWalletId.isEmpty) {
+      return [];
+    }
+
+    final transactions = await getTransactions();
+
+    return List<TransactionModel>.unmodifiable(
+      transactions.where(
+        (transaction) =>
+            transaction.walletId == normalizedWalletId,
+      ),
+    );
+  }
+
+  User _requireAuthenticatedUser() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception('Usuário não autenticado.');
+    }
+
+    return user;
   }
 }

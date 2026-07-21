@@ -4,14 +4,29 @@ import '../../../home/data/repositories/wallet_repository.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
+import '../../domain/purchase/services/balance_settlement_synchronizer.dart';
 
 class TransactionController extends ChangeNotifier {
-  final TransactionRepository _repository = TransactionRepository();
-  final WalletRepository _walletRepository = WalletRepository();
+  final TransactionRepository _repository;
+  final WalletRepository _walletRepository;
+  final BalanceSettlementSynchronizer _settlementSynchronizer;
+
+  TransactionController({
+    TransactionRepository? repository,
+    WalletRepository? walletRepository,
+    BalanceSettlementSynchronizer? settlementSynchronizer,
+  })  : _repository = repository ?? TransactionRepository(),
+        _walletRepository =
+            walletRepository ?? WalletRepository(),
+        _settlementSynchronizer =
+            settlementSynchronizer ??
+                BalanceSettlementSynchronizer();
 
   final List<TransactionItemModel> _items = [];
 
-  List<TransactionItemModel> get items => List.unmodifiable(_items);
+  List<TransactionItemModel> get items {
+    return List.unmodifiable(_items);
+  }
 
   void addItem(TransactionItemModel item) {
     _items.add(item);
@@ -62,6 +77,7 @@ class TransactionController extends ChangeNotifier {
     required Map<String, double> memberShares,
   }) async {
     final wallet = await _walletRepository.getMainWallet();
+
     final resolvedWalletId = wallet?.id ?? walletId;
 
     final transaction = TransactionModel(
@@ -98,8 +114,14 @@ class TransactionController extends ChangeNotifier {
         newBalance -= value;
       }
 
-      await _walletRepository.updateBalance(newBalance);
+      await _walletRepository.updateBalance(
+        newBalance,
+      );
     }
+
+    await _settlementSynchronizer.synchronize(
+      walletId: resolvedWalletId,
+    );
 
     clearItems();
   }

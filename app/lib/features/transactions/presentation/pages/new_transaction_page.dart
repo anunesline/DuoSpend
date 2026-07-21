@@ -27,14 +27,14 @@ class NewTransactionPage extends StatefulWidget {
 
   final WalletContext walletContext;
 
-const NewTransactionPage({
-  super.key,
-  required this.walletContext,
-  required this.walletId,
-  required this.consumerController,
-  required this.purchaseController,
-  required this.productRepository,
-});
+  const NewTransactionPage({
+    super.key,
+    required this.walletContext,
+    required this.walletId,
+    required this.consumerController,
+    required this.purchaseController,
+    required this.productRepository,
+  });
 
   @override
   State<NewTransactionPage> createState() {
@@ -43,6 +43,24 @@ const NewTransactionPage({
 }
 
 class _NewTransactionPageState extends State<NewTransactionPage> {
+  String? _resolvePartnerMemberId(String currentUserId) {
+    final wallet = widget.walletContext.selectedWallet;
+
+    if (wallet == null || wallet.id != widget.walletId) {
+      return null;
+    }
+
+    for (final memberId in wallet.memberIds) {
+      final normalizedMemberId = memberId.trim();
+
+      if (normalizedMemberId.isNotEmpty &&
+          normalizedMemberId != currentUserId) {
+        return normalizedMemberId;
+      }
+    }
+
+    return null;
+  }
   final TextEditingController descriptionController = TextEditingController();
 
   final TextEditingController valueController = TextEditingController();
@@ -90,37 +108,146 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     );
   }
 
-  void _syncCategoryFromPurchaseItem(PurchaseItemModel item) {
-    TaxonomyItem? category;
-    TaxonomyItem? subcategory;
+  void _syncCategoryFromPurchaseItems() {
+    final items = purchaseController.items;
 
-    for (final taxonomyCategory in DuoTaxonomy.items) {
-      if (taxonomyCategory.name != item.financialCategory) {
-        continue;
-      }
+    if (items.isEmpty) {
+      setState(() {
+        selectedCategory = DuoTaxonomy.items.first;
+        selectedSubcategory =
+            selectedCategory.children.isNotEmpty
+            ? selectedCategory.children.first
+            : null;
+      });
 
-      category = taxonomyCategory;
-
-      for (final child in taxonomyCategory.children) {
-        if (child.name == item.financialSubcategory) {
-          subcategory = child;
-          break;
-        }
-      }
-
-      break;
-    }
-
-    if (category == null) {
+      _syncFinancialCategory();
       return;
     }
 
+    final categoryCounts = <String, int>{};
+    final subcategoryCountsByCategory = <String, Map<String, int>>{};
+    final firstCategoryPosition = <String, int>{};
+    final firstSubcategoryPosition = <String, int>{};
+
+    for (var index = 0; index < items.length; index++) {
+      final item = items[index];
+      final categoryName = item.financialCategory.trim();
+      final subcategoryName = item.financialSubcategory.trim();
+
+      if (categoryName.isEmpty) {
+        continue;
+      }
+
+      categoryCounts[categoryName] = (categoryCounts[categoryName] ?? 0) + 1;
+      firstCategoryPosition.putIfAbsent(categoryName, () => index);
+
+      if (subcategoryName.isEmpty) {
+        continue;
+      }
+
+      final subcategoryCounts = subcategoryCountsByCategory.putIfAbsent(
+        categoryName,
+        () => <String, int>{},
+      );
+
+      subcategoryCounts[subcategoryName] =
+          (subcategoryCounts[subcategoryName] ?? 0) + 1;
+
+      firstSubcategoryPosition.putIfAbsent(
+        '$categoryName::$subcategoryName',
+        () => index,
+      );
+    }
+
+    if (categoryCounts.isEmpty) {
+      return;
+    }
+
+    final predominantCategoryName = categoryCounts.keys.reduce((current, next) {
+      final currentCount = categoryCounts[current] ?? 0;
+      final nextCount = categoryCounts[next] ?? 0;
+
+      if (nextCount > currentCount) {
+        return next;
+      }
+
+      if (nextCount < currentCount) {
+        return current;
+      }
+
+      final currentPosition =
+          firstCategoryPosition[current] ?? items.length;
+      final nextPosition = firstCategoryPosition[next] ?? items.length;
+
+      return nextPosition < currentPosition ? next : current;
+    });
+
+    TaxonomyItem? predominantCategory;
+
+    for (final category in DuoTaxonomy.items) {
+      if (category.name == predominantCategoryName) {
+        predominantCategory = category;
+        break;
+      }
+    }
+
+    if (predominantCategory == null) {
+      return;
+    }
+
+    final subcategoryCounts =
+        subcategoryCountsByCategory[predominantCategoryName] ??
+        const <String, int>{};
+
+    String? predominantSubcategoryName;
+
+    if (subcategoryCounts.isNotEmpty) {
+      predominantSubcategoryName = subcategoryCounts.keys.reduce((
+        current,
+        next,
+      ) {
+        final currentCount = subcategoryCounts[current] ?? 0;
+        final nextCount = subcategoryCounts[next] ?? 0;
+
+        if (nextCount > currentCount) {
+          return next;
+        }
+
+        if (nextCount < currentCount) {
+          return current;
+        }
+
+        final currentPosition =
+            firstSubcategoryPosition[
+                '$predominantCategoryName::$current'] ??
+            items.length;
+
+        final nextPosition =
+            firstSubcategoryPosition[
+                '$predominantCategoryName::$next'] ??
+            items.length;
+
+        return nextPosition < currentPosition ? next : current;
+      });
+    }
+
+    TaxonomyItem? predominantSubcategory;
+
+    for (final subcategory in predominantCategory.children) {
+      if (subcategory.name == predominantSubcategoryName) {
+        predominantSubcategory = subcategory;
+        break;
+      }
+    }
+
     setState(() {
-      selectedCategory = category!;
+      selectedCategory = predominantCategory!;
 
       selectedSubcategory =
-          subcategory ??
-          (category.children.isNotEmpty ? category.children.first : null);
+          predominantSubcategory ??
+          (predominantCategory.children.isNotEmpty
+              ? predominantCategory.children.first
+              : null);
     });
 
     _syncFinancialCategory();
@@ -180,9 +307,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     purchaseController.addTransactionItem(result);
     transactionController.addItem(result);
 
-    final addedPurchaseItem = purchaseController.items.last;
-
-    _syncCategoryFromPurchaseItem(addedPurchaseItem);
+    _syncCategoryFromPurchaseItems();
     _syncValueWithPurchaseTotal();
   }
 
@@ -216,25 +341,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       updatedItem: updatedItem,
     );
 
-    final updatedPurchaseItem = _findPurchaseItemById(purchaseItem.id);
-
-    if (updatedPurchaseItem != null) {
-      _syncCategoryFromPurchaseItem(updatedPurchaseItem);
-    }
-
+    _syncCategoryFromPurchaseItems();
     _syncValueWithPurchaseTotal();
 
     _showMessage('${updatedItem.name} atualizado.');
-  }
-
-  PurchaseItemModel? _findPurchaseItemById(String itemId) {
-    for (final item in purchaseController.items) {
-      if (item.id == itemId) {
-        return item;
-      }
-    }
-
-    return null;
   }
 
   void _removeItem(PurchaseItemModel item) {
@@ -246,6 +356,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     purchaseController.removeItem(item.id);
     transactionController.removeItem(transactionItem);
 
+    _syncCategoryFromPurchaseItems();
     _syncValueWithPurchaseTotal();
   }
 
@@ -285,6 +396,22 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
       return;
     }
+    final partnerMemberId = _resolvePartnerMemberId(user.uid);
+
+final needsPartner =
+    purchaseFor != FinancialSplitService.purchaseForSelf ||
+    !payerIsCurrentUser;
+
+if (needsPartner && partnerMemberId == null) {
+  _showMessage(
+    'Adicione o parceiro à carteira antes de dividir esta transação.',
+  );
+
+  return;
+}
+
+final payerMemberId =
+    payerIsCurrentUser ? user.uid : partnerMemberId!;
 
     final id = DateTime.now().millisecondsSinceEpoch.toString();
 
@@ -323,14 +450,15 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       consumerId: consumerId,
       category: selectedCategory.name,
       subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
-      paidByMemberId: payerIsCurrentUser ? user.uid : 'partner',
+      paidByMemberId: payerMemberId,
       purchaseFor: purchaseFor,
       splitType: FinancialSplitService.splitTypeForPurchase(purchaseFor),
       memberShares: FinancialSplitService.calculateAutomaticShares(
-        value: value,
-        payerMemberId: user.uid,
-        purchaseFor: purchaseFor,
-      ),
+      value: value,
+      payerMemberId: payerMemberId,
+      partnerMemberId: partnerMemberId,
+      purchaseFor: purchaseFor,
+),
     );
 
     if (!mounted) {

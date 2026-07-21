@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
@@ -50,6 +51,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
 
   bool _isApplyingSelectedProduct = false;
   bool _showValidationErrors = false;
+  bool _isSavingItem = false;
 
   String unit = 'un';
 
@@ -80,10 +82,18 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
 
   TaxonomyItem? selectedProductCategory;
 
-  bool get isKnownProduct => selectedProduct != null;
+  bool get isKnownProduct {
+    final product = selectedProduct;
+
+    return product != null && !_isGenericOtherProduct(product);
+  }
 
   bool get hasValidProductName {
-    return nameController.text.trim().isNotEmpty;
+    final normalizedName = _normalize(nameController.text);
+
+    return normalizedName.isNotEmpty &&
+        normalizedName != 'outro' &&
+        normalizedName != 'outros';
   }
 
   List<TaxonomyItem> get financialSubcategories {
@@ -125,7 +135,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
   ProductModel? get productForSummary {
     final product = selectedProduct;
 
-    if (product == null) {
+    if (product == null || _isGenericOtherProduct(product)) {
       return null;
     }
 
@@ -220,7 +230,15 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
       _selectTaxonomyFromItemNames(item);
     }
 
-    selectedProduct = _findExistingProduct(name: item.name, brand: item.brand);
+    final existingProduct = _findExistingProduct(
+      name: item.name,
+      brand: item.brand,
+    );
+
+    selectedProduct =
+        existingProduct != null && !_isGenericOtherProduct(existingProduct)
+        ? existingProduct
+        : null;
 
     _isApplyingSelectedProduct = false;
   }
@@ -284,6 +302,12 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
 
   String _normalize(String value) {
     return productRepository.normalize(value);
+  }
+
+  bool _isGenericOtherProduct(ProductModel product) {
+    final normalizedName = _normalize(product.name);
+
+    return normalizedName == 'outro' || normalizedName == 'outros';
   }
 
   double? _parseNumber(String value) {
@@ -358,19 +382,37 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
 
   void _selectProduct(ProductModel product) {
     final path = _findTaxonomyPath(product.taxonomyId);
+    final isGenericOther = _isGenericOtherProduct(product);
+
+    final typedName = nameController.text.trim();
+    final typedBrand = brandController.text.trim();
 
     _isApplyingSelectedProduct = true;
 
     setState(() {
-      selectedProduct = product;
+      selectedProduct = isGenericOther ? null : product;
 
-      nameController.text = product.name;
-      brandController.text = product.brand;
+      if (!isGenericOther) {
+        nameController.text = product.name;
+        brandController.text = product.brand;
 
-      unit = product.defaultUnit;
+        unit = product.defaultUnit;
 
-      if (!units.contains(unit)) {
-        units.add(unit);
+        if (!units.contains(unit)) {
+          units.add(unit);
+        }
+      } else {
+        final normalizedTypedName = _normalize(typedName);
+
+        if (typedName.isNotEmpty &&
+            normalizedTypedName != 'outro' &&
+            normalizedTypedName != 'outros') {
+          nameController.text = typedName;
+        } else {
+          nameController.clear();
+        }
+
+        brandController.text = typedBrand;
       }
 
       if (path.isNotEmpty) {
@@ -459,6 +501,10 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
     final products = productRepository.search(name);
 
     for (final product in products) {
+      if (_isGenericOtherProduct(product)) {
+        continue;
+      }
+
       final sameName = _normalize(product.normalizedName) == normalizedName;
 
       final sameBrand = _normalize(product.brand) == normalizedBrand;
@@ -474,7 +520,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
   bool _selectedProductMatchesCurrentFields() {
     final product = selectedProduct;
 
-    if (product == null) {
+    if (product == null || _isGenericOtherProduct(product)) {
       return false;
     }
 
@@ -482,22 +528,33 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
         _normalize(product.brand) == _normalize(brandController.text);
   }
 
-  ProductModel _resolveAndSaveProduct({
+  Future<ProductModel> _resolveAndSaveProduct({
     required String name,
     required String brand,
     required String taxonomyId,
     required String productCategoryId,
     required String productCategoryName,
     required double unitPrice,
-  }) {
+  }) async {
     if (_selectedProductMatchesCurrentFields()) {
       return selectedProduct!;
     }
 
-    final existingProduct = _findExistingProduct(name: name, brand: brand);
+    final existingProduct = _findExistingProduct(
+      name: name,
+      brand: brand,
+    );
 
     if (existingProduct != null) {
       return existingProduct;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      throw StateError(
+        'Usuário não autenticado. Entre novamente para salvar o produto.',
+      );
     }
 
     final now = DateTime.now();
@@ -520,7 +577,10 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
       updatedAt: now,
     );
 
-    productRepository.save(newProduct);
+    await productRepository.saveLearnedProduct(
+      userId: user.uid,
+      product: newProduct,
+    );
 
     return newProduct;
   }
@@ -545,7 +605,11 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
     return null;
   }
 
-  void _saveItem() {
+  Future<void> _saveItem() async {
+    if (_isSavingItem) {
+      return;
+    }
+
     FocusScope.of(context).unfocus();
 
     setState(() {
@@ -564,61 +628,95 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
       return;
     }
 
-    final name = nameController.text.trim();
-    final brand = brandController.text.trim();
+    setState(() {
+      _isSavingItem = true;
+    });
 
-    final quantity = _parseNumber(quantityController.text)!;
+    try {
+      final name = nameController.text.trim();
+      final brand = brandController.text.trim();
 
-    final unitPrice = _parseNumber(unitPriceController.text)!;
+      final quantity = _parseNumber(quantityController.text)!;
 
-    final totalPrice = quantity * unitPrice;
+      final unitPrice = _parseNumber(unitPriceController.text)!;
 
-    final productCategoryId =
-        selectedProduct?.productCategoryId ?? selectedProductCategory?.id ?? '';
+      final totalPrice = quantity * unitPrice;
 
-    final productCategoryName =
-        selectedProduct?.productCategoryName ??
-        selectedProductCategory?.name ??
-        '';
+      final productCategoryId =
+          selectedProduct?.productCategoryId ??
+          selectedProductCategory?.id ??
+          '';
 
-    final taxonomyId =
-        selectedProduct?.taxonomyId ??
-        selectedProductCategory?.id ??
-        selectedFinancialSubcategory?.id ??
-        selectedFinancialCategory.id;
+      final productCategoryName =
+          selectedProduct?.productCategoryName ??
+          selectedProductCategory?.name ??
+          '';
 
-    final product = _resolveAndSaveProduct(
-      name: name,
-      brand: brand,
-      taxonomyId: taxonomyId,
-      productCategoryId: productCategoryId,
-      productCategoryName: productCategoryName,
-      unitPrice: unitPrice,
-    );
+      final taxonomyId =
+          selectedProduct?.taxonomyId ??
+          selectedProductCategory?.id ??
+          selectedFinancialSubcategory?.id ??
+          selectedFinancialCategory.id;
 
-    final originalItem = widget.initialItem;
-    final now = DateTime.now();
+      final product = await _resolveAndSaveProduct(
+        name: name,
+        brand: brand,
+        taxonomyId: taxonomyId,
+        productCategoryId: productCategoryId,
+        productCategoryName: productCategoryName,
+        unitPrice: unitPrice,
+      );
 
-    final item = TransactionItemModel(
-      id: originalItem?.id ?? now.microsecondsSinceEpoch.toString(),
-      transactionId: originalItem?.transactionId ?? '',
-      productId: product.id,
-      merchantId: originalItem?.merchantId,
-      name: product.name,
-      brand: product.brand,
-      quantity: quantity,
-      unit: unit,
-      unitPrice: unitPrice,
-      totalPrice: totalPrice,
-      taxonomyId: product.taxonomyId,
-      category: selectedFinancialCategory.name,
-      subcategory: selectedFinancialSubcategory?.name ?? 'Sem subcategoria',
-      productCategoryId: product.productCategoryId,
-      productCategoryName: product.productCategoryName,
-      createdAt: originalItem?.createdAt ?? now,
-    );
+      final originalItem = widget.initialItem;
+      final now = DateTime.now();
 
-    Navigator.pop(context, item);
+      final item = TransactionItemModel(
+        id: originalItem?.id ?? now.microsecondsSinceEpoch.toString(),
+        transactionId: originalItem?.transactionId ?? '',
+        productId: product.id,
+        merchantId: originalItem?.merchantId,
+        name: product.name,
+        brand: product.brand,
+        quantity: quantity,
+        unit: unit,
+        unitPrice: unitPrice,
+        totalPrice: totalPrice,
+        taxonomyId: product.taxonomyId,
+        category: selectedFinancialCategory.name,
+        subcategory:
+            selectedFinancialSubcategory?.name ?? 'Sem subcategoria',
+        productCategoryId: product.productCategoryId,
+        productCategoryName: product.productCategoryName,
+        createdAt: originalItem?.createdAt ?? now,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.pop(context, item);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Não foi possível salvar o produto: $error',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingItem = false;
+        });
+      }
+    }
   }
 
   @override
@@ -640,7 +738,10 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
               children: [
                 const Text(
                   'Produto *',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 ProductSearchField(
@@ -674,7 +775,8 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                   decoration: const InputDecoration(
                     labelText: 'Marca',
                     hintText: 'Ex.: Tirol',
-                    helperText: 'Opcional. O DuoSpend aprenderá essa variação.',
+                    helperText:
+                        'Opcional. O DuoSpend aprenderá essa variação.',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -698,7 +800,10 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                 ] else ...[
                   const Text(
                     'Classificação',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
@@ -725,8 +830,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                           (category) => DropdownMenuItem<TaxonomyItem>(
                             value: category,
                             child: Text(
-                              '${category.icon} '
-                              '${category.name}',
+                              '${category.icon} ${category.name}',
                             ),
                           ),
                         )
@@ -755,8 +859,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                           (subcategory) => DropdownMenuItem<TaxonomyItem>(
                             value: subcategory,
                             child: Text(
-                              '${subcategory.icon} '
-                              '${subcategory.name}',
+                              '${subcategory.icon} ${subcategory.name}',
                             ),
                           ),
                         )
@@ -765,34 +868,33 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                         ? null
                         : _changeFinancialSubcategory,
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  DropdownButtonFormField<TaxonomyItem>(
-                    key: ValueKey(
-                      'product-category-'
-                      '${selectedFinancialSubcategory?.id}-'
-                      '${selectedProductCategory?.id}',
-                    ),
-                    initialValue: selectedProductCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'Categoria do produto',
-                      helperText: 'Ex.: Laticínios, Bebidas ou Carnes',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: productCategories
-                        .map(
-                          (category) => DropdownMenuItem<TaxonomyItem>(
-                            value: category,
-                            child: Text(
-                              '${category.icon} '
-                              '${category.name}',
+                  if (productCategories.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    DropdownButtonFormField<TaxonomyItem>(
+                      key: ValueKey(
+                        'product-category-'
+                        '${selectedFinancialSubcategory?.id}-'
+                        '${selectedProductCategory?.id}',
+                      ),
+                      initialValue: selectedProductCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Categoria do produto',
+                        helperText: 'Ex.: Laticínios, Bebidas ou Carnes',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: productCategories
+                          .map(
+                            (category) => DropdownMenuItem<TaxonomyItem>(
+                              value: category,
+                              child: Text(
+                                '${category.icon} ${category.name}',
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: productCategories.isEmpty
-                        ? null
-                        : _changeProductCategory,
-                  ),
+                          )
+                          .toList(),
+                      onChanged: _changeProductCategory,
+                    ),
+                  ],
                 ],
                 const SizedBox(height: AppSpacing.lg),
                 Row(
@@ -801,9 +903,10 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                     Expanded(
                       child: TextFormField(
                         controller: quantityController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
+                        keyboardType:
+                            const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                         textInputAction: TextInputAction.next,
                         validator: _validateQuantity,
                         decoration: const InputDecoration(
@@ -851,8 +954,8 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                   ),
                   textInputAction: TextInputAction.done,
                   validator: _validateUnitPrice,
-                  onFieldSubmitted: (_) {
-                    _saveItem();
+                  onFieldSubmitted: (_) async {
+                    await _saveItem();
                   },
                   decoration: const InputDecoration(
                     labelText: 'Preço unitário *',
@@ -940,12 +1043,30 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                 SizedBox(
                   height: 52,
                   child: FilledButton.icon(
-                    onPressed: _saveItem,
-                    icon: Icon(
-                      widget.isEditing ? Icons.check_outlined : Icons.add,
-                    ),
+                    onPressed: _isSavingItem
+                        ? null
+                        : () async {
+                            await _saveItem();
+                          },
+                    icon: _isSavingItem
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Icon(
+                            widget.isEditing
+                                ? Icons.check_outlined
+                                : Icons.add,
+                          ),
                     label: Text(
-                      widget.isEditing ? 'Salvar alterações' : 'Adicionar item',
+                      _isSavingItem
+                          ? 'Salvando...'
+                          : widget.isEditing
+                          ? 'Salvar alterações'
+                          : 'Adicionar item',
                     ),
                   ),
                 ),
@@ -956,4 +1077,4 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
       ),
     );
   }
-}
+}                                                                                        
