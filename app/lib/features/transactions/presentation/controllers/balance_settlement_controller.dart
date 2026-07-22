@@ -1,16 +1,25 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../home/data/models/wallet_model.dart';
 import '../../data/models/balance_settlement_model.dart';
 import '../../data/repositories/balance_settlement_repository.dart';
+import '../../domain/purchase/usecases/settle_balance_use_case.dart';
 
 class BalanceSettlementController extends ChangeNotifier {
   final BalanceSettlementRepository _repository;
+  final SettleBalanceUseCase _settleBalanceUseCase;
 
   BalanceSettlementController({
     BalanceSettlementRepository? repository,
-  }) : _repository = repository ?? BalanceSettlementRepository();
+    SettleBalanceUseCase? settleBalanceUseCase,
+  }) : _repository =
+           repository ?? BalanceSettlementRepository(),
+       _settleBalanceUseCase =
+           settleBalanceUseCase ?? SettleBalanceUseCase();
 
   List<BalanceSettlementModel> _settlements = [];
+
+  final Set<String> _processingSettlementIds = {};
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -25,7 +34,7 @@ class BalanceSettlementController extends ChangeNotifier {
   List<BalanceSettlementModel> get pendingSettlements {
     return List<BalanceSettlementModel>.unmodifiable(
       _settlements.where(
-        (settlement) => settlement.isPending,
+        (settlement) => !settlement.isSettled,
       ),
     );
   }
@@ -50,13 +59,31 @@ class BalanceSettlementController extends ChangeNotifier {
     return pendingSettlements.isNotEmpty;
   }
 
+  bool get isProcessingAnySettlement {
+    return _processingSettlementIds.isNotEmpty;
+  }
+
+  bool isProcessing(String settlementId) {
+    final normalizedSettlementId = settlementId.trim();
+
+    if (normalizedSettlementId.isEmpty) {
+      return false;
+    }
+
+    return _processingSettlementIds.contains(
+      normalizedSettlementId,
+    );
+  }
+
   Future<void> loadSettlements({
     required String walletId,
   }) async {
     final normalizedWalletId = walletId.trim();
 
     if (normalizedWalletId.isEmpty) {
-      _setError('Não foi possível identificar a carteira.');
+      _setError(
+        'Não foi possível identificar a carteira.',
+      );
       return;
     }
 
@@ -119,7 +146,7 @@ class BalanceSettlementController extends ChangeNotifier {
       return false;
     }
 
-    final existingSettlement = _findPendingSettlement(
+    final existingSettlement = _findActiveSettlement(
       walletId: normalizedWalletId,
       fromMemberId: normalizedFromMemberId,
       toMemberId: normalizedToMemberId,
@@ -165,55 +192,200 @@ class BalanceSettlementController extends ChangeNotifier {
     }
   }
 
-  Future<bool> markAsSettled({
+  Future<bool> declarePayment({
     required BalanceSettlementModel settlement,
-    DateTime? settledAt,
+    DateTime? declaredAt,
     String? notes,
   }) async {
-    if (!settlement.isPending) {
+    if (settlement.isSettled) {
       return true;
     }
 
-    _setLoading(true);
+    if (!_canProcessSettlement(settlement)) {
+      return false;
+    }
+
+    _setSettlementProcessing(
+      settlement.id,
+      true,
+    );
 
     try {
-      final paymentDate = settledAt ?? DateTime.now();
-
-      await _repository.markAsSettled(
-        settlement: settlement,
-        settledAt: paymentDate,
-        notes: notes,
-      );
-
-      final updatedSettlement = settlement.markAsSettled(
-        settledAt: paymentDate,
-        notes: notes,
-      );
+      final updatedSettlement =
+          await _settleBalanceUseCase.declarePayment(
+            settlement: settlement,
+            declaredAt: declaredAt,
+            notes: notes,
+          );
 
       _replaceSettlement(updatedSettlement);
       _clearError();
-      notifyListeners();
+
+      await _reloadCurrentWalletSettlements();
 
       return true;
     } catch (error) {
       _setError(
-        'Não foi possível marcar o acerto como pago.',
+        'Não foi possível informar o pagamento. '
+        'Tente novamente.',
       );
 
       debugPrint(
-        'Erro ao concluir acerto: $error',
+        'Erro ao declarar pagamento do acerto: $error',
       );
 
       return false;
     } finally {
-      _setLoading(false);
+      _setSettlementProcessing(
+        settlement.id,
+        false,
+      );
+    }
+  }
+
+  Future<bool> cancelPaymentDeclaration({
+    required BalanceSettlementModel settlement,
+  }) async {
+    if (settlement.isSettled) {
+      _setError(
+        'Este acerto já foi concluído.',
+      );
+      return false;
+    }
+
+    if (!_canProcessSettlement(settlement)) {
+      return false;
+    }
+
+    _setSettlementProcessing(
+      settlement.id,
+      true,
+    );
+
+    try {
+      final updatedSettlement =
+          await _settleBalanceUseCase
+              .cancelPaymentDeclaration(
+                settlement: settlement,
+              );
+
+      _replaceSettlement(updatedSettlement);
+      _clearError();
+
+      await _reloadCurrentWalletSettlements();
+
+      return true;
+    } catch (error) {
+      _setError(
+        'Não foi possível cancelar o aviso de pagamento. '
+        'Tente novamente.',
+      );
+
+      debugPrint(
+        'Erro ao cancelar declaração de pagamento: $error',
+      );
+
+      return false;
+    } finally {
+      _setSettlementProcessing(
+        settlement.id,
+        false,
+      );
+    }
+  }
+
+  Future<bool> confirmReceipt({
+    required BalanceSettlementModel settlement,
+    required WalletModel wallet,
+    DateTime? confirmedAt,
+    String? notes,
+  }) async {
+    if (settlement.isSettled) {
+      return true;
+    }
+
+    if (!_canProcessSettlement(settlement)) {
+      return false;
+    }
+
+    _setSettlementProcessing(
+      settlement.id,
+      true,
+    );
+
+    try {
+      final updatedSettlement =
+          await _settleBalanceUseCase.confirmReceipt(
+            settlement: settlement,
+            wallet: wallet,
+            confirmedAt: confirmedAt,
+            notes: notes,
+          );
+
+      _replaceSettlement(updatedSettlement);
+      _clearError();
+
+      await _reloadCurrentWalletSettlements();
+
+      return true;
+    } catch (error) {
+      _setError(
+        'Não foi possível confirmar o recebimento. '
+        'Tente novamente.',
+      );
+
+      debugPrint(
+        'Erro ao confirmar recebimento do acerto: $error',
+      );
+
+      return false;
+    } finally {
+      _setSettlementProcessing(
+        settlement.id,
+        false,
+      );
+    }
+  }
+
+  Future<bool> hasSettlementTransaction({
+    required BalanceSettlementModel settlement,
+    required WalletModel wallet,
+  }) async {
+    try {
+      final exists =
+          await _settleBalanceUseCase
+              .hasSettlementTransaction(
+                settlement: settlement,
+                wallet: wallet,
+              );
+
+      _clearError();
+
+      return exists;
+    } catch (error) {
+      _setError(
+        'Não foi possível verificar a transação do acerto.',
+      );
+
+      debugPrint(
+        'Erro ao verificar transação de settlement: $error',
+      );
+
+      return false;
     }
   }
 
   Future<bool> deleteSettlement(
     BalanceSettlementModel settlement,
   ) async {
-    _setLoading(true);
+    if (!_canProcessSettlement(settlement)) {
+      return false;
+    }
+
+    _setSettlementProcessing(
+      settlement.id,
+      true,
+    );
 
     try {
       await _repository.deleteSettlement(
@@ -240,7 +412,10 @@ class BalanceSettlementController extends ChangeNotifier {
 
       return false;
     } finally {
-      _setLoading(false);
+      _setSettlementProcessing(
+        settlement.id,
+        false,
+      );
     }
   }
 
@@ -249,7 +424,53 @@ class BalanceSettlementController extends ChangeNotifier {
     notifyListeners();
   }
 
-  BalanceSettlementModel? _findPendingSettlement({
+  Future<void> _reloadCurrentWalletSettlements() async {
+    final currentWalletId =
+        _walletId?.trim().isNotEmpty == true
+        ? _walletId!.trim()
+        : null;
+
+    if (currentWalletId == null) {
+      notifyListeners();
+      return;
+    }
+
+    try {
+      _settlements = await _repository.getSettlements(
+        walletId: currentWalletId,
+      );
+
+      _clearError();
+      notifyListeners();
+    } catch (error) {
+      debugPrint(
+        'Erro ao recarregar acertos após ação: $error',
+      );
+
+      notifyListeners();
+    }
+  }
+
+  bool _canProcessSettlement(
+    BalanceSettlementModel settlement,
+  ) {
+    final normalizedSettlementId = settlement.id.trim();
+
+    if (normalizedSettlementId.isEmpty) {
+      _setError(
+        'Não foi possível identificar o acerto.',
+      );
+      return false;
+    }
+
+    if (isProcessing(normalizedSettlementId)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  BalanceSettlementModel? _findActiveSettlement({
     required String walletId,
     required String fromMemberId,
     required String toMemberId,
@@ -259,7 +480,7 @@ class BalanceSettlementController extends ChangeNotifier {
           settlement.walletId == walletId &&
           settlement.fromMemberId == fromMemberId &&
           settlement.toMemberId == toMemberId &&
-          settlement.isPending;
+          !settlement.isSettled;
 
       if (isSameSettlement) {
         return settlement;
@@ -273,15 +494,42 @@ class BalanceSettlementController extends ChangeNotifier {
     BalanceSettlementModel updatedSettlement,
   ) {
     final index = _settlements.indexWhere(
-      (settlement) => settlement.id == updatedSettlement.id,
+      (settlement) =>
+          settlement.id == updatedSettlement.id,
     );
 
     if (index == -1) {
-      _settlements.insert(0, updatedSettlement);
+      _settlements.insert(
+        0,
+        updatedSettlement,
+      );
       return;
     }
 
     _settlements[index] = updatedSettlement;
+  }
+
+  void _setSettlementProcessing(
+    String settlementId,
+    bool isProcessing,
+  ) {
+    final normalizedSettlementId = settlementId.trim();
+
+    if (normalizedSettlementId.isEmpty) {
+      return;
+    }
+
+    if (isProcessing) {
+      _processingSettlementIds.add(
+        normalizedSettlementId,
+      );
+    } else {
+      _processingSettlementIds.remove(
+        normalizedSettlementId,
+      );
+    }
+
+    notifyListeners();
   }
 
   void _setLoading(bool value) {
