@@ -1,19 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../auth/data/repositories/user_repository.dart';
 import '../models/partner_invite_model.dart';
 
 class PartnerInviteRepository {
   static const String _collection = 'partnerInvites';
+  static const String _walletsCollection = 'wallets';
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final UserRepository _userRepository;
 
   PartnerInviteRepository({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
+    UserRepository? userRepository,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _auth = auth ?? FirebaseAuth.instance;
+       _auth = auth ?? FirebaseAuth.instance,
+       _userRepository = userRepository ?? UserRepository();
 
   String? get currentUserId => _auth.currentUser?.uid;
 
@@ -25,8 +30,16 @@ class PartnerInviteRepository {
     DateTime? expiresAt,
   }) async {
     final userId = _requireAuthenticatedUserId();
-
+    final normalizedWalletId = walletId.trim();
     final normalizedEmail = invitedEmail.trim().toLowerCase();
+
+    if (normalizedWalletId.isEmpty) {
+      throw ArgumentError.value(
+        walletId,
+        'walletId',
+        'A carteira do convite não pode ficar vazia.',
+      );
+    }
 
     if (normalizedEmail.isEmpty) {
       throw ArgumentError.value(
@@ -37,12 +50,11 @@ class PartnerInviteRepository {
     }
 
     final document = _firestore.collection(_collection).doc();
-
     final now = DateTime.now();
 
     final invite = PartnerInviteModel(
       id: document.id,
-      walletId: walletId,
+      walletId: normalizedWalletId,
       inviterUserId: userId,
       invitedEmail: normalizedEmail,
       expiresAt: expiresAt,
@@ -90,22 +102,141 @@ class PartnerInviteRepository {
         .toList(growable: false);
   }
 
+  Future<String> getInviterDisplayName(
+    PartnerInviteModel invite,
+  ) async {
+    final inviterUserId = invite.inviterUserId.trim();
+
+    if (inviterUserId.isEmpty) {
+      return 'Usuário do DuoSpend';
+    }
+
+    final displayName = await _userRepository.getUserDisplayName(
+      inviterUserId,
+    );
+
+    if (displayName == null || displayName.trim().isEmpty) {
+      return inviterUserId;
+    }
+
+    return displayName.trim();
+  }
+
   Future<void> acceptInvite(
     PartnerInviteModel invite,
   ) async {
-    final userId = _requireAuthenticatedUserId();
+    final user = _requireAuthenticatedUser();
+    final normalizedUserEmail =
+        user.email?.trim().toLowerCase() ?? '';
+    final normalizedInviteId = invite.id.trim();
+    final normalizedWalletId = invite.walletId.trim();
 
-    final acceptedInvite = invite.accept(
-      userId: userId,
-    );
+    if (normalizedUserEmail.isEmpty) {
+      throw StateError(
+        'A conta autenticada não possui um e-mail válido.',
+      );
+    }
 
-    await _firestore
+    if (normalizedInviteId.isEmpty) {
+      throw ArgumentError.value(
+        invite.id,
+        'invite.id',
+        'O convite precisa possuir um ID.',
+      );
+    }
+
+    if (normalizedWalletId.isEmpty) {
+      throw ArgumentError.value(
+        invite.walletId,
+        'invite.walletId',
+        'O convite não possui uma carteira válida.',
+      );
+    }
+
+    final inviteReference = _firestore
         .collection(_collection)
-        .doc(invite.id)
-        .set(
-          acceptedInvite.toMap(),
-          SetOptions(merge: true),
+        .doc(normalizedInviteId);
+
+    final walletReference = _firestore
+        .collection(_walletsCollection)
+        .doc(normalizedWalletId);
+
+    await _firestore.runTransaction((transaction) async {
+      final inviteDocument = await transaction.get(inviteReference);
+
+      if (!inviteDocument.exists || inviteDocument.data() == null) {
+        throw StateError('Convite não encontrado.');
+      }
+
+      final storedInvite = _inviteFromDocument(inviteDocument);
+      final storedInvitedEmail =
+          storedInvite.invitedEmail.trim().toLowerCase();
+
+      if (storedInvite.status != PartnerInviteStatus.pending) {
+        throw StateError(
+          'Este convite não está mais disponível para aceite.',
         );
+      }
+
+      if (storedInvite.isExpired) {
+        throw StateError('Este convite expirou.');
+      }
+
+      if (storedInvitedEmail != normalizedUserEmail) {
+        throw StateError(
+          'Este convite foi enviado para outra conta.',
+        );
+      }
+
+      if (storedInvite.walletId.trim() != normalizedWalletId) {
+        throw StateError(
+          'O convite não corresponde à carteira informada.',
+        );
+      }
+
+      final walletDocument = await transaction.get(walletReference);
+
+      if (!walletDocument.exists || walletDocument.data() == null) {
+        throw StateError(
+          'A carteira compartilhada não foi encontrada.',
+        );
+      }
+
+      final walletData = walletDocument.data()!;
+      final walletType =
+          walletData['type']?.toString().trim().toLowerCase() ?? '';
+      final ownerId =
+          walletData['ownerId']?.toString().trim() ?? '';
+
+      if (walletType != 'shared') {
+        throw StateError(
+          'O convite não pertence a uma carteira compartilhada.',
+        );
+      }
+
+      if (ownerId.isEmpty ||
+          ownerId != storedInvite.inviterUserId.trim()) {
+        throw StateError(
+          'O responsável pelo convite não corresponde '
+          'ao responsável pela carteira.',
+        );
+      }
+
+      final acceptedInvite = storedInvite.accept(
+        userId: user.uid,
+      );
+
+      transaction.update(walletReference, {
+        'memberIds': FieldValue.arrayUnion([user.uid]),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+
+      transaction.set(
+        inviteReference,
+        acceptedInvite.toMap(),
+        SetOptions(merge: true),
+      );
+    });
   }
 
   Future<void> declineInvite(
@@ -139,9 +270,15 @@ class PartnerInviteRepository {
   Future<PartnerInviteModel?> getInviteById(
     String inviteId,
   ) async {
+    final normalizedInviteId = inviteId.trim();
+
+    if (normalizedInviteId.isEmpty) {
+      return null;
+    }
+
     final snapshot = await _firestore
         .collection(_collection)
-        .doc(inviteId)
+        .doc(normalizedInviteId)
         .get();
 
     if (!snapshot.exists || snapshot.data() == null) {
@@ -163,15 +300,17 @@ class PartnerInviteRepository {
     return PartnerInviteModel.fromMap(data);
   }
 
-  String _requireAuthenticatedUserId() {
-    final userId = currentUserId;
+  User _requireAuthenticatedUser() {
+    final user = _auth.currentUser;
 
-    if (userId == null) {
-      throw StateError(
-        'Usuário não autenticado.',
-      );
+    if (user == null) {
+      throw StateError('Usuário não autenticado.');
     }
 
-    return userId;
+    return user;
+  }
+
+  String _requireAuthenticatedUserId() {
+    return _requireAuthenticatedUser().uid;
   }
 }

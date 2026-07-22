@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -41,6 +43,9 @@ class HomeController extends ChangeNotifier {
 
   User? user;
 
+  bool _isInitializingWalletContext = false;
+  int _transactionLoadVersion = 0;
+
   /// Carteira atualmente selecionada.
   ///
   /// O nome `wallet` é preservado para manter compatibilidade com as telas
@@ -53,12 +58,6 @@ class HomeController extends ChangeNotifier {
   ///
   /// A fonte real desta lista é o WalletContext.
   List<WalletModel> get wallets => _walletContext.wallets;
-
-  /// Todas as transações carregadas do repositório.
-  ///
-  /// Esta lista é mantida internamente para permitir a troca de carteira
-  /// sem exigir uma nova leitura do Firestore a cada seleção.
-  List<TransactionModel> _allTransactions = [];
 
   /// Transações pertencentes à carteira atualmente selecionada.
   List<TransactionModel> transactions = [];
@@ -185,16 +184,10 @@ class HomeController extends ChangeNotifier {
 
       final loadedWallets = await _walletRepository.getUserWallets();
       final mainWallet = await _walletRepository.getMainWallet();
-      final loadedTransactions =
-          await _transactionRepository.getTransactions();
 
       final mergedWallets = _mergeWallets(
         loadedWallets: loadedWallets,
         mainWallet: mainWallet,
-      );
-
-      _allTransactions = List<TransactionModel>.unmodifiable(
-        loadedTransactions,
       );
 
       final selectedWallet = _resolveSelectedWallet(
@@ -203,17 +196,28 @@ class HomeController extends ChangeNotifier {
         mainWallet: mainWallet,
       );
 
-      _walletContext.initialize(
-        wallets: mergedWallets,
-        selectedWallet: selectedWallet,
-        sharedWalletIds: mergedWallets
-            .where(
-              (currentWallet) => currentWallet.isShared,
-            )
-            .map(
-              (currentWallet) => currentWallet.id,
-            )
-            .toSet(),
+      _isInitializingWalletContext = true;
+
+      try {
+        _walletContext.initialize(
+          wallets: mergedWallets,
+          selectedWallet: selectedWallet,
+          sharedWalletIds: mergedWallets
+              .where(
+                (currentWallet) => currentWallet.isShared,
+              )
+              .map(
+                (currentWallet) => currentWallet.id,
+              )
+              .toSet(),
+        );
+      } finally {
+        _isInitializingWalletContext = false;
+      }
+
+      await _loadTransactionsForWallet(
+        selectedWallet,
+        notifyWhenFinished: false,
       );
     } catch (error, stackTrace) {
       debugPrint('Erro ao carregar a Home: $error');
@@ -412,15 +416,23 @@ class HomeController extends ChangeNotifier {
         }),
       );
 
-      _walletContext.updateWallets(refreshedWallets);
+      _isInitializingWalletContext = true;
 
-      if (refreshedWallet.isShared) {
-        _walletContext.markWalletAsShared(refreshedWallet.id);
-      } else {
-        _walletContext.markWalletAsSolo(refreshedWallet.id);
+      try {
+        _walletContext.updateWallets(refreshedWallets);
+
+        if (refreshedWallet.isShared) {
+          _walletContext.markWalletAsShared(refreshedWallet.id);
+        } else {
+          _walletContext.markWalletAsSolo(refreshedWallet.id);
+        }
+
+        _walletContext.updateSelectedWallet(refreshedWallet);
+      } finally {
+        _isInitializingWalletContext = false;
       }
 
-      _walletContext.updateSelectedWallet(refreshedWallet);
+      await _loadTransactionsForWallet(refreshedWallet);
     } catch (error, stackTrace) {
       debugPrint('Erro ao atualizar a carteira selecionada: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -455,6 +467,67 @@ class HomeController extends ChangeNotifier {
 
       errorMessage = 'Não foi possível atualizar o saldo da carteira.';
       notifyListeners();
+    }
+  }
+
+  Future<void> _loadTransactionsForWallet(
+    WalletModel? selectedWallet, {
+    bool notifyWhenFinished = true,
+  }) async {
+    final loadVersion = ++_transactionLoadVersion;
+
+    if (selectedWallet == null) {
+      _clearTransactionData();
+
+      if (notifyWhenFinished) {
+        notifyListeners();
+      }
+
+      return;
+    }
+
+    errorMessage = null;
+
+    try {
+      final loadedTransactions =
+          await _transactionRepository.getTransactionsByWallet(
+        selectedWallet.id,
+        wallet: selectedWallet,
+      );
+
+      if (loadVersion != _transactionLoadVersion) {
+        return;
+      }
+
+      if (wallet?.id != selectedWallet.id) {
+        return;
+      }
+
+      transactions = List<TransactionModel>.unmodifiable(
+        loadedTransactions,
+      );
+
+      _calculateTotals();
+      _calculateSharedBalance();
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Erro ao carregar transações da carteira '
+        '${selectedWallet.id}: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (loadVersion != _transactionLoadVersion) {
+        return;
+      }
+
+      _clearTransactionData();
+      errorMessage =
+          'Não foi possível carregar as transações da carteira.';
+    } finally {
+      if (notifyWhenFinished &&
+          loadVersion == _transactionLoadVersion) {
+        notifyListeners();
+      }
     }
   }
 
@@ -531,29 +604,16 @@ class HomeController extends ChangeNotifier {
   }
 
   void _handleWalletContextChanged() {
-    _applySelectedWallet();
-    notifyListeners();
-  }
-
-  void _applySelectedWallet() {
-    final selectedWallet = wallet;
-
-    if (selectedWallet == null) {
-      transactions = [];
-      totalIncome = 0;
-      totalExpense = 0;
-      balanceResult = null;
+    if (_isInitializingWalletContext) {
       return;
     }
 
-    transactions = List<TransactionModel>.unmodifiable(
-      _allTransactions.where(
-        (transaction) => transaction.walletId == selectedWallet.id,
-      ),
-    );
+    _clearTransactionData();
+    notifyListeners();
 
-    _calculateTotals();
-    _calculateSharedBalance();
+    unawaited(
+      _loadTransactionsForWallet(wallet),
+    );
   }
 
   void _calculateTotals() {
@@ -591,21 +651,32 @@ class HomeController extends ChangeNotifier {
     );
   }
 
-  void _clearHomeData() {
-    user = null;
-    _allTransactions = [];
+  void _clearTransactionData() {
     transactions = [];
     totalIncome = 0;
     totalExpense = 0;
     balanceResult = null;
+  }
+
+  void _clearHomeData() {
+    user = null;
+    _transactionLoadVersion++;
+    _clearTransactionData();
     isCreatingSharedWallet = false;
     isSendingPartnerInvite = false;
 
-    _walletContext.clear();
+    _isInitializingWalletContext = true;
+
+    try {
+      _walletContext.clear();
+    } finally {
+      _isInitializingWalletContext = false;
+    }
   }
 
   @override
   void dispose() {
+    _transactionLoadVersion++;
     _walletContext.removeListener(_handleWalletContextChanged);
     super.dispose();
   }
