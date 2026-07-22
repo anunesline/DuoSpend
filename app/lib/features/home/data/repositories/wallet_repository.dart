@@ -204,48 +204,53 @@ class WalletRepository {
     String walletId = _mainWalletId,
   }) async {
     final userId = _requireAuthenticatedUserId();
-    final normalizedWalletId = walletId.trim();
+    final normalizedWalletId = _normalizeWalletId(walletId);
+    final walletReference = await _resolveWalletReference(
+      userId: userId,
+      walletId: normalizedWalletId,
+    );
 
-    if (normalizedWalletId.isEmpty) {
-      throw ArgumentError.value(
-        walletId,
-        'walletId',
-        'O ID da carteira não pode ficar vazio.',
+    await _firestore.runTransaction((transaction) async {
+      final walletDocument = await transaction.get(walletReference);
+
+      _validateWalletAccess(
+        document: walletDocument,
+        userId: userId,
+        isLegacyMainWallet: _isLegacyMainWalletReference(
+          reference: walletReference,
+          userId: userId,
+        ),
       );
-    }
 
-    final updateData = <String, dynamic>{
-      'balance': balance,
-      'updatedAt': DateTime.now().toIso8601String(),
-    };
+      transaction.update(walletReference, {
+        'balance': balance,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    });
+  }
 
-    if (normalizedWalletId == _mainWalletId) {
-      final modernWallet = await _getModernMainWallet(userId);
+  Future<void> incrementBalance(
+    double amount, {
+    String walletId = _mainWalletId,
+  }) async {
+    _validateBalanceAmount(amount);
 
-      if (modernWallet != null) {
-        await _firestore
-            .collection(_walletsCollection)
-            .doc(modernWallet.id)
-            .update(updateData);
+    await _changeBalanceAtomically(
+      amount: amount,
+      walletId: walletId,
+    );
+  }
 
-        return;
-      }
+  Future<void> decrementBalance(
+    double amount, {
+    String walletId = _mainWalletId,
+  }) async {
+    _validateBalanceAmount(amount);
 
-      await _legacyMainWalletReference(userId).update(updateData);
-
-      return;
-    }
-
-    final wallet = await getWalletById(normalizedWalletId);
-
-    if (wallet == null) {
-      throw StateError('Carteira não encontrada ou usuário sem acesso.');
-    }
-
-    await _firestore
-        .collection(_walletsCollection)
-        .doc(normalizedWalletId)
-        .update(updateData);
+    await _changeBalanceAtomically(
+      amount: -amount,
+      walletId: walletId,
+    );
   }
 
   Future<void> addMember({
@@ -326,6 +331,108 @@ class WalletRepository {
       'memberIds': FieldValue.arrayRemove([normalizedMemberId]),
       'updatedAt': DateTime.now().toIso8601String(),
     });
+  }
+
+  Future<void> _changeBalanceAtomically({
+    required double amount,
+    required String walletId,
+  }) async {
+    final userId = _requireAuthenticatedUserId();
+    final normalizedWalletId = _normalizeWalletId(walletId);
+    final walletReference = await _resolveWalletReference(
+      userId: userId,
+      walletId: normalizedWalletId,
+    );
+
+    await _firestore.runTransaction((transaction) async {
+      final walletDocument = await transaction.get(walletReference);
+
+      _validateWalletAccess(
+        document: walletDocument,
+        userId: userId,
+        isLegacyMainWallet: _isLegacyMainWalletReference(
+          reference: walletReference,
+          userId: userId,
+        ),
+      );
+
+      transaction.update(walletReference, {
+        'balance': FieldValue.increment(amount),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    });
+  }
+
+  Future<DocumentReference<Map<String, dynamic>>> _resolveWalletReference({
+    required String userId,
+    required String walletId,
+  }) async {
+    if (walletId != _mainWalletId) {
+      return _firestore.collection(_walletsCollection).doc(walletId);
+    }
+
+    final modernWallet = await _getModernMainWallet(userId);
+
+    if (modernWallet != null) {
+      return _firestore.collection(_walletsCollection).doc(modernWallet.id);
+    }
+
+    return _legacyMainWalletReference(userId);
+  }
+
+  void _validateWalletAccess({
+    required DocumentSnapshot<Map<String, dynamic>> document,
+    required String userId,
+    required bool isLegacyMainWallet,
+  }) {
+    if (!document.exists || document.data() == null) {
+      throw StateError('Carteira não encontrada ou usuário sem acesso.');
+    }
+
+    if (isLegacyMainWallet) {
+      return;
+    }
+
+    final data = document.data()!;
+    final ownerId = data['ownerId']?.toString().trim() ?? '';
+    final memberIds = _parseMemberIds(data['memberIds'])
+        .map((memberId) => memberId.trim())
+        .where((memberId) => memberId.isNotEmpty);
+
+    if (ownerId != userId && !memberIds.contains(userId)) {
+      throw StateError('Carteira não encontrada ou usuário sem acesso.');
+    }
+  }
+
+  bool _isLegacyMainWalletReference({
+    required DocumentReference<Map<String, dynamic>> reference,
+    required String userId,
+  }) {
+    return reference.path == _legacyMainWalletReference(userId).path;
+  }
+
+  String _normalizeWalletId(String walletId) {
+    final normalizedWalletId = walletId.trim();
+
+    if (normalizedWalletId.isEmpty) {
+      throw ArgumentError.value(
+        walletId,
+        'walletId',
+        'O ID da carteira não pode ficar vazio.',
+      );
+    }
+
+    return normalizedWalletId;
+  }
+
+  void _validateBalanceAmount(double amount) {
+    if (!amount.isFinite || amount < 0) {
+      throw ArgumentError.value(
+        amount,
+        'amount',
+        'O valor precisa ser finito e maior ou igual a zero.',
+      );
+    }
   }
 
   Future<WalletModel?> _getModernMainWallet(String userId) async {
