@@ -99,6 +99,70 @@ class TransactionRepository {
     );
   }
 
+  /// Procura a transação criada para representar
+  /// o pagamento de um acerto financeiro.
+  ///
+  /// Retorna null quando ainda não existe uma transação
+  /// vinculada ao settlement informado.
+  Future<TransactionModel?> findSettlementTransaction({
+    required String walletId,
+    required String settlementId,
+    WalletModel? wallet,
+  }) async {
+    final normalizedWalletId = walletId.trim();
+    final normalizedSettlementId = settlementId.trim();
+
+    if (normalizedWalletId.isEmpty) {
+      throw ArgumentError.value(
+        walletId,
+        'walletId',
+        'O ID da carteira não pode ficar vazio.',
+      );
+    }
+
+    if (normalizedSettlementId.isEmpty) {
+      throw ArgumentError.value(
+        settlementId,
+        'settlementId',
+        'O ID do acerto não pode ficar vazio.',
+      );
+    }
+
+    final transactions = await getTransactionsByWallet(
+      normalizedWalletId,
+      wallet: wallet,
+    );
+
+    for (final transaction in transactions) {
+      if (!transaction.isSettlement) {
+        continue;
+      }
+
+      if (transaction.settlementId?.trim() ==
+          normalizedSettlementId) {
+        return transaction;
+      }
+    }
+
+    return null;
+  }
+
+  /// Informa se o acerto já possui uma transação
+  /// registrada no histórico financeiro.
+  Future<bool> settlementTransactionExists({
+    required String walletId,
+    required String settlementId,
+    WalletModel? wallet,
+  }) async {
+    final transaction = await findSettlementTransaction(
+      walletId: walletId,
+      settlementId: settlementId,
+      wallet: wallet,
+    );
+
+    return transaction != null;
+  }
+
   Future<List<TransactionModel>> _getTransactionsFromReference(
     CollectionReference<Map<String, dynamic>> reference,
   ) async {

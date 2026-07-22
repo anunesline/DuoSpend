@@ -53,6 +53,19 @@ class TransactionModel {
   /// }
   final Map<String, double> memberShares;
 
+  /// Indica que esta transação representa o pagamento
+  /// de um acerto financeiro entre membros da carteira.
+  ///
+  /// Transações antigas recebem false por padrão.
+  final bool isSettlement;
+
+  /// Identificador do acerto financeiro que originou
+  /// esta transação.
+  ///
+  /// Permite rastrear o pagamento e impedir que o mesmo
+  /// acerto gere mais de uma transação.
+  final String? settlementId;
+
   final String category;
   final String subcategory;
   final List<TransactionItemModel> items;
@@ -69,6 +82,8 @@ class TransactionModel {
     this.purchaseFor = 'self',
     this.splitType = 'none',
     this.memberShares = const {},
+    this.isSettlement = false,
+    this.settlementId,
     required this.category,
     required this.subcategory,
     this.items = const [],
@@ -84,6 +99,16 @@ class TransactionModel {
   /// aos dois membros da carteira.
   bool get isForBoth {
     return purchaseFor == 'both';
+  }
+
+  /// Retorna verdadeiro quando existe um vínculo válido
+  /// com um acerto financeiro.
+  bool get hasSettlementReference {
+    final normalizedSettlementId = settlementId?.trim();
+
+    return isSettlement &&
+        normalizedSettlementId != null &&
+        normalizedSettlementId.isNotEmpty;
   }
 
   /// Retorna o valor atribuído a um membro específico.
@@ -129,6 +154,8 @@ class TransactionModel {
       'purchaseFor': purchaseFor,
       'splitType': splitType,
       'memberShares': memberShares,
+      'isSettlement': isSettlement,
+      'settlementId': settlementId,
       'category': category,
       'subcategory': subcategory,
       'items': items.map((item) => item.toMap()).toList(),
@@ -156,6 +183,8 @@ class TransactionModel {
       purchaseFor: map['purchaseFor']?.toString() ?? 'self',
       splitType: map['splitType']?.toString() ?? 'none',
       memberShares: _parseMemberShares(rawMemberShares),
+      isSettlement: _parseBool(map['isSettlement']),
+      settlementId: map['settlementId']?.toString(),
       category: map['category']?.toString() ?? 'Sem categoria',
       subcategory:
           map['subcategory']?.toString() ?? 'Sem subcategoria',
@@ -180,6 +209,8 @@ class TransactionModel {
     String? purchaseFor,
     String? splitType,
     Map<String, double>? memberShares,
+    bool? isSettlement,
+    String? settlementId,
     String? category,
     String? subcategory,
     List<TransactionItemModel>? items,
@@ -196,6 +227,8 @@ class TransactionModel {
       purchaseFor: purchaseFor ?? this.purchaseFor,
       splitType: splitType ?? this.splitType,
       memberShares: memberShares ?? this.memberShares,
+      isSettlement: isSettlement ?? this.isSettlement,
+      settlementId: settlementId ?? this.settlementId,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
       items: items ?? this.items,
@@ -210,6 +243,14 @@ class TransactionModel {
     return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 
+  static bool _parseBool(dynamic value) {
+    if (value is bool) {
+      return value;
+    }
+
+    return value?.toString().toLowerCase() == 'true';
+  }
+
   static Map<String, double> _parseMemberShares(dynamic rawValue) {
     if (rawValue is! Map) {
       return const {};
@@ -218,7 +259,7 @@ class TransactionModel {
     final result = <String, double>{};
 
     for (final entry in rawValue.entries) {
-      final memberId = entry.key.toString();
+      final memberId = entry.key.toString().trim();
 
       if (memberId.isEmpty) {
         continue;

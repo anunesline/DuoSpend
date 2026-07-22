@@ -1,25 +1,45 @@
 class BalanceSettlementModel {
+  static const String pendingStatus = 'pending';
+  static const String awaitingConfirmationStatus =
+      'awaiting_confirmation';
+  static const String settledStatus = 'settled';
+
   final String id;
   final String walletId;
   final String fromMemberId;
   final String toMemberId;
   final double amount;
 
-  /// Momento em que o acerto foi registrado.
+  /// Momento em que o acerto foi criado.
   final DateTime createdAt;
 
-  /// Momento em que o pagamento foi confirmado.
-  ///
-  /// Permanece nulo enquanto o acerto estiver pendente.
+  /// Momento em que o pagamento foi definitivamente confirmado.
   final DateTime? settledAt;
 
-  /// Status esperado:
-  /// - pending
-  /// - settled
+  /// Status possíveis:
+  /// - pending;
+  /// - awaiting_confirmation;
+  /// - settled.
   final String status;
 
-  /// Observação opcional sobre o pagamento.
+  /// Observação opcional relacionada ao acerto.
   final String? notes;
+
+  /// Momento em que o devedor declarou ter realizado o pagamento.
+  final DateTime? paymentDeclaredAt;
+
+  /// Membro que declarou ter realizado o pagamento.
+  final String? paymentDeclaredByMemberId;
+
+  /// Momento em que o credor confirmou o recebimento.
+  final DateTime? receiptConfirmedAt;
+
+  /// Membro que confirmou o recebimento.
+  final String? receiptConfirmedByMemberId;
+
+  /// Transação criada no histórico para representar
+  /// o pagamento confirmado.
+  final String? settlementTransactionId;
 
   const BalanceSettlementModel({
     required this.id,
@@ -29,26 +49,180 @@ class BalanceSettlementModel {
     required this.amount,
     required this.createdAt,
     this.settledAt,
-    this.status = 'pending',
+    this.status = pendingStatus,
     this.notes,
+    this.paymentDeclaredAt,
+    this.paymentDeclaredByMemberId,
+    this.receiptConfirmedAt,
+    this.receiptConfirmedByMemberId,
+    this.settlementTransactionId,
   });
 
   bool get isPending {
-    return status == 'pending';
+    return status == pendingStatus;
+  }
+
+  bool get isAwaitingConfirmation {
+    return status == awaitingConfirmationStatus;
   }
 
   bool get isSettled {
-    return status == 'settled';
+    return status == settledStatus;
   }
 
+  bool get hasPaymentDeclaration {
+    return paymentDeclaredAt != null &&
+        paymentDeclaredByMemberId != null &&
+        paymentDeclaredByMemberId!.trim().isNotEmpty;
+  }
+
+  bool get hasReceiptConfirmation {
+    return receiptConfirmedAt != null &&
+        receiptConfirmedByMemberId != null &&
+        receiptConfirmedByMemberId!.trim().isNotEmpty;
+  }
+
+  bool get hasSettlementTransaction {
+    return settlementTransactionId != null &&
+        settlementTransactionId!.trim().isNotEmpty;
+  }
+
+  BalanceSettlementModel declarePayment({
+    required String declaredByMemberId,
+    required DateTime declaredAt,
+    String? notes,
+  }) {
+    final normalizedMemberId = declaredByMemberId.trim();
+
+    if (normalizedMemberId.isEmpty) {
+      throw ArgumentError.value(
+        declaredByMemberId,
+        'declaredByMemberId',
+        'O membro que declarou o pagamento não pode ficar vazio.',
+      );
+    }
+
+    if (normalizedMemberId != fromMemberId.trim()) {
+      throw StateError(
+        'Somente o membro devedor pode declarar o pagamento.',
+      );
+    }
+
+    if (!isPending) {
+      throw StateError(
+        'Somente um acerto pendente pode ser declarado como pago.',
+      );
+    }
+
+    return copyWith(
+      status: awaitingConfirmationStatus,
+      paymentDeclaredAt: declaredAt,
+      paymentDeclaredByMemberId: normalizedMemberId,
+      notes: notes ?? this.notes,
+    );
+  }
+
+  BalanceSettlementModel cancelPaymentDeclaration({
+    required String cancelledByMemberId,
+  }) {
+    final normalizedMemberId = cancelledByMemberId.trim();
+
+    if (normalizedMemberId.isEmpty) {
+      throw ArgumentError.value(
+        cancelledByMemberId,
+        'cancelledByMemberId',
+        'O membro que cancelou a declaração não pode ficar vazio.',
+      );
+    }
+
+    if (!isAwaitingConfirmation) {
+      throw StateError(
+        'Não existe uma declaração de pagamento aguardando confirmação.',
+      );
+    }
+
+    if (normalizedMemberId != fromMemberId.trim()) {
+      throw StateError(
+        'Somente o membro devedor pode cancelar a declaração de pagamento.',
+      );
+    }
+
+    return BalanceSettlementModel(
+      id: id,
+      walletId: walletId,
+      fromMemberId: fromMemberId,
+      toMemberId: toMemberId,
+      amount: amount,
+      createdAt: createdAt,
+      settledAt: null,
+      status: pendingStatus,
+      notes: notes,
+      paymentDeclaredAt: null,
+      paymentDeclaredByMemberId: null,
+      receiptConfirmedAt: null,
+      receiptConfirmedByMemberId: null,
+      settlementTransactionId: null,
+    );
+  }
+
+  BalanceSettlementModel confirmReceipt({
+    required String confirmedByMemberId,
+    required DateTime confirmedAt,
+    required String transactionId,
+    String? notes,
+  }) {
+    final normalizedMemberId = confirmedByMemberId.trim();
+    final normalizedTransactionId = transactionId.trim();
+
+    if (normalizedMemberId.isEmpty) {
+      throw ArgumentError.value(
+        confirmedByMemberId,
+        'confirmedByMemberId',
+        'O membro que confirmou o recebimento não pode ficar vazio.',
+      );
+    }
+
+    if (normalizedTransactionId.isEmpty) {
+      throw ArgumentError.value(
+        transactionId,
+        'transactionId',
+        'O ID da transação do acerto não pode ficar vazio.',
+      );
+    }
+
+    if (!isAwaitingConfirmation) {
+      throw StateError(
+        'O pagamento precisa ser declarado antes da confirmação.',
+      );
+    }
+
+    if (normalizedMemberId != toMemberId.trim()) {
+      throw StateError(
+        'Somente o membro credor pode confirmar o recebimento.',
+      );
+    }
+
+    return copyWith(
+      status: settledStatus,
+      settledAt: confirmedAt,
+      receiptConfirmedAt: confirmedAt,
+      receiptConfirmedByMemberId: normalizedMemberId,
+      settlementTransactionId: normalizedTransactionId,
+      notes: notes ?? this.notes,
+    );
+  }
+
+  /// Mantido temporariamente para compatibilidade
+  /// com partes antigas do fluxo.
   BalanceSettlementModel markAsSettled({
     required DateTime settledAt,
     String? notes,
   }) {
     return copyWith(
-      status: 'settled',
+      status: settledStatus,
       settledAt: settledAt,
-      notes: notes,
+      receiptConfirmedAt: settledAt,
+      notes: notes ?? this.notes,
     );
   }
 
@@ -63,6 +237,16 @@ class BalanceSettlementModel {
       'settledAt': settledAt?.toIso8601String(),
       'status': status,
       'notes': notes,
+      'paymentDeclaredAt':
+          paymentDeclaredAt?.toIso8601String(),
+      'paymentDeclaredByMemberId':
+          paymentDeclaredByMemberId,
+      'receiptConfirmedAt':
+          receiptConfirmedAt?.toIso8601String(),
+      'receiptConfirmedByMemberId':
+          receiptConfirmedByMemberId,
+      'settlementTransactionId':
+          settlementTransactionId,
     };
   }
 
@@ -72,18 +256,25 @@ class BalanceSettlementModel {
     return BalanceSettlementModel(
       id: map['id']?.toString() ?? '',
       walletId: map['walletId']?.toString() ?? '',
-      fromMemberId: map['fromMemberId']?.toString() ?? '',
+      fromMemberId:
+          map['fromMemberId']?.toString() ?? '',
       toMemberId: map['toMemberId']?.toString() ?? '',
       amount: _parseDouble(map['amount']),
-      createdAt: DateTime.tryParse(
-            map['createdAt']?.toString() ?? '',
-          ) ??
+      createdAt: _parseDateTime(map['createdAt']) ??
           DateTime.now(),
-      settledAt: DateTime.tryParse(
-        map['settledAt']?.toString() ?? '',
-      ),
-      status: map['status']?.toString() ?? 'pending',
+      settledAt: _parseDateTime(map['settledAt']),
+      status: map['status']?.toString() ?? pendingStatus,
       notes: map['notes']?.toString(),
+      paymentDeclaredAt:
+          _parseDateTime(map['paymentDeclaredAt']),
+      paymentDeclaredByMemberId:
+          map['paymentDeclaredByMemberId']?.toString(),
+      receiptConfirmedAt:
+          _parseDateTime(map['receiptConfirmedAt']),
+      receiptConfirmedByMemberId:
+          map['receiptConfirmedByMemberId']?.toString(),
+      settlementTransactionId:
+          map['settlementTransactionId']?.toString(),
     );
   }
 
@@ -97,6 +288,11 @@ class BalanceSettlementModel {
     DateTime? settledAt,
     String? status,
     String? notes,
+    DateTime? paymentDeclaredAt,
+    String? paymentDeclaredByMemberId,
+    DateTime? receiptConfirmedAt,
+    String? receiptConfirmedByMemberId,
+    String? settlementTransactionId,
   }) {
     return BalanceSettlementModel(
       id: id ?? this.id,
@@ -108,6 +304,19 @@ class BalanceSettlementModel {
       settledAt: settledAt ?? this.settledAt,
       status: status ?? this.status,
       notes: notes ?? this.notes,
+      paymentDeclaredAt:
+          paymentDeclaredAt ?? this.paymentDeclaredAt,
+      paymentDeclaredByMemberId:
+          paymentDeclaredByMemberId ??
+          this.paymentDeclaredByMemberId,
+      receiptConfirmedAt:
+          receiptConfirmedAt ?? this.receiptConfirmedAt,
+      receiptConfirmedByMemberId:
+          receiptConfirmedByMemberId ??
+          this.receiptConfirmedByMemberId,
+      settlementTransactionId:
+          settlementTransactionId ??
+          this.settlementTransactionId,
     );
   }
 
@@ -117,5 +326,17 @@ class BalanceSettlementModel {
     }
 
     return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    return DateTime.tryParse(value.toString());
   }
 }
