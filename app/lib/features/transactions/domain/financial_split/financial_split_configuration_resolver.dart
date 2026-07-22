@@ -4,6 +4,29 @@ import 'financial_split_rules.dart';
 class FinancialSplitConfigurationResolver {
   const FinancialSplitConfigurationResolver();
 
+  FinancialSplitConfiguration resolveFromMembers({
+    required bool isSharedWallet,
+    required String currentUserMemberId,
+    required Iterable<String> walletMemberIds,
+  }) {
+    final normalizedCurrentUserMemberId =
+        currentUserMemberId.trim();
+
+    final partnerMemberId = _resolvePartnerMemberId(
+      isSharedWallet: isSharedWallet,
+      currentUserMemberId:
+          normalizedCurrentUserMemberId,
+      walletMemberIds: walletMemberIds,
+    );
+
+    return resolve(
+      isSharedWallet: isSharedWallet,
+      currentUserMemberId:
+          normalizedCurrentUserMemberId,
+      partnerMemberId: partnerMemberId,
+    );
+  }
+
   FinancialSplitConfiguration resolve({
     required bool isSharedWallet,
     required String currentUserMemberId,
@@ -75,5 +98,26 @@ class FinancialSplitConfigurationResolver {
       defaultSplitType:
           FinancialSplitRules.splitTypeNone,
     );
+  }
+
+  String? _resolvePartnerMemberId({
+    required bool isSharedWallet,
+    required String currentUserMemberId,
+    required Iterable<String> walletMemberIds,
+  }) {
+    if (!isSharedWallet) {
+      return null;
+    }
+
+    for (final memberId in walletMemberIds) {
+      final normalizedMemberId = memberId.trim();
+
+      if (normalizedMemberId.isNotEmpty &&
+          normalizedMemberId != currentUserMemberId) {
+        return normalizedMemberId;
+      }
+    }
+
+    return null;
   }
 }

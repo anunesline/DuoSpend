@@ -9,7 +9,8 @@ import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../data/models/transaction_item_model.dart';
-import '../../domain/financial_split/financial_split_rules.dart';
+import '../../domain/financial_split/financial_split_configuration.dart';
+import '../../domain/financial_split/financial_split_configuration_resolver.dart';
 import '../../domain/financial_split/financial_split_service.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
 import '../../domain/purchase/models/purchase_item_model.dart';
@@ -53,6 +54,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   final TransactionController transactionController =
       TransactionController();
 
+  final FinancialSplitConfigurationResolver
+      _financialSplitConfigurationResolver =
+      const FinancialSplitConfigurationResolver();
+
   final FinancialSplitService _financialSplitService =
       const FinancialSplitService();
 
@@ -62,9 +67,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   String type = 'expense';
 
-  bool payerIsCurrentUser = true;
+  String? selectedPayerMemberId;
 
-  String purchaseFor = FinancialSplitRules.purchaseForSelf;
+  String? selectedPurchaseDestination;
 
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
 
@@ -121,6 +126,21 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     }
 
     return null;
+  }
+
+  FinancialSplitConfiguration
+      _resolveFinancialSplitConfiguration({
+    required WalletModel wallet,
+    required String currentUserMemberId,
+  }) {
+    return _financialSplitConfigurationResolver.resolve(
+      isSharedWallet: wallet.isShared,
+      currentUserMemberId: currentUserMemberId,
+      partnerMemberId: _resolvePartnerMemberId(
+        wallet: wallet,
+        currentUserId: currentUserMemberId,
+      ),
+    );
   }
 
   void _syncFinancialCategory() {
@@ -321,15 +341,15 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     });
   }
 
-  void _changePayer(bool value) {
+  void _changePayer(String memberId) {
     setState(() {
-      payerIsCurrentUser = value;
+      selectedPayerMemberId = memberId;
     });
   }
 
-  void _changePurchaseFor(String value) {
+  void _changePurchaseDestination(String value) {
     setState(() {
-      purchaseFor = value;
+      selectedPurchaseDestination = value;
     });
   }
 
@@ -464,26 +484,21 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       return;
     }
 
-    final partnerMemberId = _resolvePartnerMemberId(
+    final financialSplitConfiguration =
+        _resolveFinancialSplitConfiguration(
       wallet: activeWallet,
-      currentUserId: user.uid,
+      currentUserMemberId: user.uid,
     );
 
-    final needsPartner =
-        FinancialSplitRules.requiresPartner(purchaseFor) ||
-        !payerIsCurrentUser;
+    final payerMemberId =
+        financialSplitConfiguration.resolvePayerMemberId(
+      selectedPayerMemberId,
+    );
 
-    if (needsPartner && partnerMemberId == null) {
-      _showMessage(
-        'Adicione o parceiro à carteira antes de dividir esta transação.',
-      );
-
-      return;
-    }
-
-    final payerMemberId = payerIsCurrentUser
-        ? user.uid
-        : partnerMemberId!;
+    final purchaseDestination =
+        financialSplitConfiguration.resolvePurchaseDestination(
+      selectedPurchaseDestination,
+    );
 
     final id =
         DateTime.now().millisecondsSinceEpoch.toString();
@@ -524,8 +539,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         _financialSplitService.calculateAutomaticSplit(
       value: value,
       payerMemberId: payerMemberId,
-      partnerMemberId: partnerMemberId,
-      purchaseFor: purchaseFor,
+      partnerMemberId:
+          financialSplitConfiguration.partnerMemberId,
+      purchaseFor: purchaseDestination,
     );
 
     await transactionController.saveTransaction(
@@ -541,7 +557,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
           selectedSubcategory?.name ??
           'Sem subcategoria',
       paidByMemberId: payerMemberId,
-      purchaseFor: purchaseFor,
+      purchaseFor: purchaseDestination,
       splitType: financialSplitResult.splitType,
       memberShares: financialSplitResult.memberShares,
     );
@@ -573,9 +589,15 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   @override
   Widget build(BuildContext context) {
     final activeWallet = _resolveActiveWallet();
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-    final showPartnerOptions =
-        activeWallet?.isShared ?? false;
+    final financialSplitConfiguration =
+        activeWallet != null && currentUser != null
+            ? _resolveFinancialSplitConfiguration(
+                wallet: activeWallet,
+                currentUserMemberId: currentUser.uid,
+              )
+            : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -614,18 +636,26 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                 const SizedBox(
                   height: AppSpacing.lg,
                 ),
-                FinancialSplitSection(
-                  enabled:
-                      !purchaseController.isSaving,
-                  showPartnerOptions:
-                      showPartnerOptions,
-                  payerIsCurrentUser:
-                      payerIsCurrentUser,
-                  purchaseFor: purchaseFor,
-                  onPayerChanged: _changePayer,
-                  onPurchaseForChanged:
-                      _changePurchaseFor,
-                ),
+                if (financialSplitConfiguration != null)
+                  FinancialSplitSection(
+                    enabled:
+                        !purchaseController.isSaving,
+                    configuration:
+                        financialSplitConfiguration,
+                    selectedPayerMemberId:
+                        financialSplitConfiguration
+                            .resolvePayerMemberId(
+                      selectedPayerMemberId,
+                    ),
+                    selectedPurchaseDestination:
+                        financialSplitConfiguration
+                            .resolvePurchaseDestination(
+                      selectedPurchaseDestination,
+                    ),
+                    onPayerChanged: _changePayer,
+                    onPurchaseDestinationChanged:
+                        _changePurchaseDestination,
+                  ),
                 const SizedBox(
                   height: AppSpacing.lg,
                 ),
