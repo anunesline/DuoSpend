@@ -115,6 +115,32 @@ class WalletRepository {
     return wallet;
   }
 
+  Future<WalletModel?> getFinancialWalletForMember(
+    String memberId,
+  ) async {
+    _requireAuthenticatedUserId();
+
+    final normalizedMemberId = memberId.trim();
+
+    if (normalizedMemberId.isEmpty) {
+      throw ArgumentError.value(
+        memberId,
+        'memberId',
+        'O ID do membro não pode ficar vazio.',
+      );
+    }
+
+    final modernWallet = await _getModernMainWallet(
+      normalizedMemberId,
+    );
+
+    if (modernWallet != null) {
+      return modernWallet;
+    }
+
+    return _getLegacyMainWallet(normalizedMemberId);
+  }
+
   Future<WalletModel> createWallet({
     required String name,
     required WalletType type,

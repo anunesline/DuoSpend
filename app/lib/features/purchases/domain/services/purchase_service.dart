@@ -5,6 +5,9 @@ abstract class PurchaseService {
   Future<void> savePurchase({
     required String walletId,
     String? consumerId,
+    String? purchaseDestination,
+    String? splitType,
+    Map<String, double>? customShares,
     required MerchantModel merchant,
     required double totalValue,
     required String financialCategory,

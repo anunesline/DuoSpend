@@ -77,9 +77,14 @@ class TransactionController extends ChangeNotifier {
     WalletModel? wallet,
   }) async {
     final normalizedWalletId = walletId.trim();
+    final normalizedPaidByMemberId = paidByMemberId.trim();
 
     if (normalizedWalletId.isEmpty) {
       throw Exception('Carteira da transação não informada.');
+    }
+
+    if (normalizedPaidByMemberId.isEmpty) {
+      throw Exception('Pagador da transação não informado.');
     }
 
     final resolvedWallet =
@@ -100,6 +105,23 @@ class TransactionController extends ChangeNotifier {
       );
     }
 
+    final financialWallet =
+        await _walletRepository.getFinancialWalletForMember(
+          normalizedPaidByMemberId,
+        );
+
+    if (financialWallet == null) {
+      throw Exception(
+        'Não foi possível localizar a carteira financeira do pagador.',
+      );
+    }
+
+    if (!financialWallet.isIndividual) {
+      throw Exception(
+        'A origem financeira da transação precisa ser uma carteira individual.',
+      );
+    }
+
     final transaction = TransactionModel(
       id: transactionId,
       description: description,
@@ -110,7 +132,7 @@ class TransactionController extends ChangeNotifier {
       consumerId: consumerId,
       category: category,
       subcategory: subcategory,
-      paidByMemberId: paidByMemberId,
+      paidByMemberId: normalizedPaidByMemberId,
       purchaseFor: purchaseFor,
       splitType: splitType,
       memberShares: memberShares,
@@ -129,7 +151,7 @@ class TransactionController extends ChangeNotifier {
     );
 
     await _updateWalletBalance(
-      wallet: resolvedWallet,
+      wallet: financialWallet,
       transactionType: type,
       transactionValue: value,
     );
