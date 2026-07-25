@@ -11,11 +11,11 @@ class SavePurchaseUseCase implements PurchaseService {
     TransactionRepository? transactionRepository,
     WalletRepository? walletRepository,
     MerchantMemoryRepository? merchantMemoryRepository,
-  })  : _transactionRepository =
-            transactionRepository ?? TransactionRepository(),
-        _walletRepository = walletRepository ?? WalletRepository(),
-        _merchantMemoryRepository =
-            merchantMemoryRepository ?? MerchantMemoryRepository();
+  }) : _transactionRepository =
+           transactionRepository ?? TransactionRepository(),
+       _walletRepository = walletRepository ?? WalletRepository(),
+       _merchantMemoryRepository =
+           merchantMemoryRepository ?? MerchantMemoryRepository();
 
   final TransactionRepository _transactionRepository;
   final WalletRepository _walletRepository;
@@ -31,7 +31,7 @@ class SavePurchaseUseCase implements PurchaseService {
     required String financialSubcategory,
     required List<TransactionItemModel> items,
   }) async {
-    final wallet = await _walletRepository.getMainWallet();
+    final payerWallet = await _walletRepository.getMainWallet();
 
     final transactionId = DateTime.now().millisecondsSinceEpoch.toString();
 
@@ -41,8 +41,9 @@ class SavePurchaseUseCase implements PurchaseService {
       value: totalValue,
       type: 'expense',
       date: DateTime.now(),
-      walletId: wallet?.id ?? walletId,
+      walletId: walletId,
       consumerId: consumerId,
+      paidByMemberId: _walletRepository.currentUserId,
       category: financialCategory,
       subcategory: financialSubcategory,
       items: items
@@ -56,9 +57,11 @@ class SavePurchaseUseCase implements PurchaseService {
 
     await _transactionRepository.addTransaction(transaction);
 
-    if (wallet != null) {
-      final newBalance = wallet.balance - totalValue;
-      await _walletRepository.updateBalance(newBalance);
+    if (payerWallet != null) {
+      await _walletRepository.decrementBalance(
+        totalValue,
+        walletId: payerWallet.id,
+      );
     }
 
     await _merchantMemoryRepository.updateAfterPurchase(

@@ -1,0 +1,294 @@
+🪐 DuoSpend Roadmap Oficial (Beta → V1.0)
+✅ Sprint 19.4 — Financial Split UI
+
+Objetivo: terminar a integração entre a UI e o domínio financeiro.
+
+Entregas
+integrar FinancialSplitConfigurationResolver;
+remover regras financeiras da NewTransactionPage;
+UI apenas consome o domínio;
+validar solo, casal sem parceiro e casal completo;
+testes completos.
+✅ Sprint 19.5 — Settlement Compartilhado
+
+Objetivo:
+deixar o fluxo de acertos totalmente funcional.
+
+Entregas
+revisar Settlement completo;
+impedir settlement em carteira individual;
+usar sempre a carteira selecionada;
+recalcular automaticamente;
+impedir duplicidade;
+validar pagamento do acerto;
+revisar BalanceEngine.
+✅ Sprint 19.6 — WalletRepository V2
+
+Objetivo:
+deixar o app seguro para uso simultâneo.
+
+Entregas
+Firestore Transaction;
+FieldValue.increment;
+eliminar race conditions;
+updateBalance transacional;
+revisar sincronização;
+testes simultâneos em dois aparelhos.
+🚀 PRIMEIRO BETA EM CASAL
+
+Agora sim.
+
+Convidar o Matheus.
+
+Instalar nos dois celulares.
+
+Usar como aplicativo principal.
+
+Registrar tudo.
+
+Nada de desenvolver feature nova durante alguns dias.
+
+Só usar.
+
+✅ Sprint 19.7 — Beta Casal
+
+Objetivo:
+
+corrigir tudo encontrado no uso real.
+
+Exemplos
+
+UX ruim
+fluxo confuso
+bugs
+sincronização
+telas
+loading
+mensagens
+inconsistências
+performance
+
+Essa sprint é totalmente guiada pela experiência de vocês.
+
+✅ Sprint 19.8 — Dashboard Vivo
+
+Agora os cards ficam clicáveis.
+
+Saldo
+
+↓
+
+Extrato
+
+Receita
+
+↓
+
+Lista de receitas
+
+Despesas
+
+↓
+
+Categorias
+
+Carteira
+
+↓
+
+Configurações
+
+Membros
+
+Convites
+
+Últimas movimentações
+
+↓
+
+Editar transação
+
+✅ Sprint 20 — Consumo Inteligente
+
+A maior feature do DuoSpend.
+
+Cada item passa a saber quem consumiu.
+
+Exemplo
+
+Mercado
+
+Café → Matheus
+Shampoo → Aline
+Arroz → Ambos
+Leite → Ambos
+
+Depois:
+
+aprendizado automático.
+
+✅ Sprint 21 — Inteligência Financeira
+
+Knowledge Engine começa a trabalhar.
+
+Exemplos
+
+"Você gastou 18% mais com mercado."
+
+"Robert consumiu R$220."
+
+"Café aumentou 35%."
+
+"Você compra leite a cada 8 dias."
+
+✅ Sprint 22 — Planejamento Financeiro
+
+Lembra daquele backlog?
+
+Agora entra.
+
+Entradas futuras
+
+Salário
+
+PIX
+
+Freela
+
+Despesas futuras
+
+Boletos
+
+Cartão
+
+Financiamentos
+
+IPVA
+
+Fluxo de caixa
+
+Quanto sobrará em cada dia.
+
+✅ Sprint 23 — Relatórios
+
+Dashboard analítico.
+
+Mensal
+
+Anual
+
+Categorias
+
+Pessoa
+
+Mercado
+
+Produtos
+
+Gráficos
+
+✅ Sprint 24 — Metas
+
+Guardar dinheiro
+
+Viagens
+
+Casa
+
+Reserva
+
+Objetivos compartilhados
+
+✅ Sprint 25 — Orçamentos
+
+Limite mensal
+
+Alertas
+
+Previsão
+
+Meta por categoria
+
+✅ Sprint 26 — IA Financeira
+
+O DuoSpend começa a sugerir.
+
+"Comprar no Condor economiza R$38."
+
+"Você pagou caro."
+
+"Este produto aumentou."
+
+"Esse mês ficará negativo."
+
+"Melhor dia para comprar."
+
+✅ Sprint 27 — Compartilhamento Inteligente
+
+Convites
+
+Permissões
+
+Administrador
+
+Convidado
+
+Família
+
+✅ Sprint 28 — Scanner Fiscal
+
+Ler NFC-e
+
+OCR
+
+Importar produtos
+
+Aprender automaticamente
+
+✅ Sprint 29 — Dashboard IA
+
+Resumo diário
+
+Resumo semanal
+
+Insights
+
+Previsões
+
+✅ Sprint 30 — DuoSpend V1.0
+
+Polimento geral.
+
+Performance.
+
+Correções.
+
+UX.
+
+Publicação.
+
+📌 Backlog Permanente
+Área do Desenvolvedor
+botão Limpar dados de teste;
+ferramentas internas;
+importadores;
+simuladores.
+Melhorias Técnicas
+WalletRepository V2
+testes automatizados
+cache offline
+logs
+sincronização
+monitoramento
+IA
+consumo inteligente
+sugestões
+previsão financeira
+preços
+padrões de consumo
+Planejamento
+datas definidas pelo usuário
+contas recorrentes
+salários
+calendário financeiro
+fluxo de caixa

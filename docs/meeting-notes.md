@@ -2755,11 +2755,11 @@ As funcionalidades ainda poderão manter a interface atual, mas a infraestrutura
 
 ### Sprint 18.3 — Wallet Switcher
 
-## Objetivo
+ Objetivo
 
-Permitir que o usuário alterne entre a carteira individual e as carteiras compartilhadas diretamente pela Home, mantendo toda a aplicação sincronizada pelo `WalletContext`.
+Permitir que o usuário alterne entre a carteira individual e as carteiras compartilhadas diretamente pela Home, mantendo toda a aplicação sincronizada pelo `WalletContext`
 
-## Escopo
+ Escopo
 
 * Criar componente visual para seleção de carteira.
 * Exibir carteira individual e carteiras compartilhadas disponíveis.
@@ -2776,7 +2776,7 @@ Permitir que o usuário alterne entre a carteira individual e as carteiras compa
 * Evitar inicializações e recarregamentos manuais duplicados.
 * Preparar o fluxo para membros e divisão de despesas na Sprint 19.
 
-## Resultado esperado
+ Resultado esperado
 
 O usuário poderá alternar entre:
 
@@ -2785,11 +2785,11 @@ O usuário poderá alternar entre:
 
 Ao selecionar uma carteira, toda a Home e os controllers relacionados deverão refletir automaticamente o novo contexto.
 
-## Estimativa
+ Estimativa
 
 2 a 3 horas.
 
-## Critérios de aceite
+ Critérios de aceite
 
 * A carteira ativa pode ser alterada pela interface.
 * O nome e o saldo da carteira mudam corretamente.
@@ -2798,3 +2798,573 @@ Ao selecionar uma carteira, toda a Home e os controllers relacionados deverão r
 * Não há dados misturados entre carteiras.
 * A troca não gera duplicidade de carregamento.
 * `flutter analyze` permanece sem novos erros.
+
+
+## Sprint 18.3 — UX do Modo Individual (≈ 5h)
+
+Objetivo
+Definir a experiência inicial do DuoSpend para usuários individuais, preparando a futura ativação do modo casal.
+
+Entregas
+
+Definição da jornada de uso individual como padrão do aplicativo.
+Revisão da navegação da Home para evitar funcionalidades indisponíveis.
+Decisão de exibir o View Switcher apenas após a ativação do modo casal.
+Definição do fluxo de ativação do modo casal via Configurações.
+Planejamento da arquitetura para transição entre modo individual e compartilhado sem refatorações futuras.
+Validação do roadmap das próximas sprints (ativação, convite e aceitação do parceiro).
+
+Resultado
+O DuoSpend passa a iniciar como um aplicativo de finanças pessoais, habilitando o modo casal apenas quando o usuário optar por utilizá-lo.
+
+## Sprint 18.4 — Ativação do Modo Casal (≈ 8 horas)
+Objetivo
+
+Implementar o fluxo que permite ao usuário transformar sua conta individual em uma experiência compartilhada, criando a carteira do casal de forma simples e preparando a estrutura para o convite do parceiro.
+
+Entregas
+Criar o fluxo "Usar em casal" nas Configurações/Perfil.
+Criar automaticamente a carteira compartilhada ("Nossa Carteira") quando o usuário ativar o modo casal.
+Atualizar o WalletContext para reconhecer múltiplas carteiras.
+Exibir o View Switcher (👤 Eu | 👥 Nós) apenas para usuários que possuem carteira compartilhada.
+Atualizar a Home para alternar entre as visões individual e compartilhada.
+Preparar a arquitetura para o fluxo de convite do parceiro na próxima sprint.
+Resultado esperado
+
+O DuoSpend continua simples para quem utiliza sozinho, mas passa a oferecer uma transição natural para o modo casal. Após a ativação, o usuário já consegue alternar entre a visão individual e a visão compartilhada, deixando o aplicativo pronto para a etapa de convite e vinculação do parceiro.
+
+🚀 Essa sprint é um marco importante: é nela que o DuoSpend deixa de ser apenas um app de controle financeiro pessoal e passa a suportar oficialmente o conceito de finanças compartilhadas, que é um dos principais diferenciais do projeto.
+
+agora 00:35
+terminado 1:09
+
+## Sprint 18.4 — Modo Casal (Shared Wallet)
+
+ Objetivo
+Implementar a infraestrutura completa para uso do DuoSpend em casal.
+
+ Entregas
+- WalletContext preparado para modo Solo/Casal
+- WalletModel expandido para múltiplos membros
+- Criação de carteira compartilhada
+- Repositório de convites
+- Modelo de convite
+- Envio de convite por e-mail
+- Tela de convites recebidos
+- Aceitar/recusar convite
+- Inclusão automática do parceiro na carteira
+- Atualização automática da Home
+- Navegação para gerenciamento de convites
+
+ Resultado
+Primeira versão totalmente funcional do modo compartilhado do DuoSpend.
+Arquitetura preparada para evolução sem necessidade de refatoração.
+
+01:09
+01:58
+
+### Sprint 19 — Acerto Inteligente entre Membros
+19.1 — Balance Engine (6h)
+criar o motor de cálculo de saldo;
+calcular automaticamente quanto cada membro deve ou tem a receber;
+considerar:
+quem pagou;
+compra para quem;
+compra compartilhada.
+
+## 19.2 — Home Dashboard (4h)
+
+Adicionar novos cards:
+
+Você gastou
+R$ xxx
+
+Parceiro gastou
+R$ xxx
+
+──────────────
+
+💰 Você tem a receber
+
+ou
+
+💸 Você deve
+19.3 — Histórico Financeiro (5h)
+
+Dentro da carteira compartilhada:
+
+Mercado
+R$ 220
+
+Você pagou
+
+Compra para ambos
+
+↓
+
+Parceiro te deve
+R$110
+19.4 — Acerto Manual (3h)
+
+Registrar:
+
+Matheus me pagou R$50
+
+Atualizar automaticamente o saldo.
+
+19.5 — Auditoria e Testes (2h)
+
+Testar todos os cenários:
+
+compra individual;
+compra do parceiro;
+compra compartilhada;
+parceiro pagando;
+você pagando;
+saldo zerado;
+saldo positivo;
+saldo negativo.
+
+## Sprint 19.3 — UX Completa do Modo Casal
+
+Estimativa: 6–8 horas
+
+Objetivo
+
+Finalizar toda a experiência do usuário no modo compartilhado, garantindo que o fluxo fique intuitivo antes da implementação do Settlement Engine.
+
+1. Fluxo completo da carteira compartilhada
+Revisar criação da carteira compartilhada.
+Revisar envio do convite.
+Revisar aceitação do convite.
+Atualizar automaticamente o WalletContext.
+Validar alternância entre modo Solo e Casal.
+2. UX do Financial Split
+Ocultar a seção em modo solo.
+Exibir a seção ao utilizar carteira compartilhada.
+Mostrar apenas as opções válidas quando ainda não houver parceiro.
+Liberar todas as opções após o convite ser aceito.
+Exibir o nome do parceiro quando disponível.
+Revisar completamente o card Quem pagou?
+Revisar completamente o card Quem consome?
+Validar todas as combinações possíveis de divisão.
+3. Validação funcional
+
+Testar todos os cenários:
+
+Modo Solo
+
+Receita
+Despesa
+Compra
+
+Carteira compartilhada (convite pendente)
+
+Criação da carteira
+Visual da tela
+Opções disponíveis
+
+Carteira compartilhada (convite aceito)
+
+Receita
+Despesa
+Compra
+Todas as combinações de:
+quem pagou;
+quem consumiu;
+divisão.
+4. Ajustes finais de UX
+Revisar mensagens de validação.
+Revisar estados vazios.
+Revisar comportamento dos componentes após mudanças de carteira.
+Corrigir pequenas inconsistências encontradas durante os testes.
+
+## Sprint 19.4 — Integração da Divisão Financeira com a UI
+Objetivo
+
+Conectar a nova estrutura de financial_split à NewTransactionPage, fazendo a tela consumir as regras do domínio em vez de decidir tudo sozinha.
+
+Escopo
+integrar FinancialSplitConfigurationResolver na NewTransactionPage;
+remover decisões manuais da UI sobre:
+carteira compartilhada;
+existência de parceiro;
+pagador válido;
+destino válido da compra;
+fazer a tela usar:
+isFinancialSplitAvailable;
+resolvePayerMemberId;
+resolvePurchaseDestination;
+configurações padrão do domínio;
+garantir funcionamento correto nos cenários:
+modo solo;
+carteira compartilhada sem parceiro;
+carteira compartilhada com parceiro;
+preservar o fluxo atual de compra e transação;
+rodar flutter analyze;
+realizar testes manuais das combinações de divisão.
+Testes esperados
+Modo solo
+seção de divisão não aparece;
+transação salva para o próprio usuário;
+splitType fica como none.
+Carteira compartilhada sem parceiro
+seção de divisão não aparece;
+app não permite gerar divisão inválida;
+transação continua salvando normalmente para o usuário atual.
+Carteira compartilhada com parceiro
+seção de divisão aparece;
+usuário pode escolher quem pagou;
+usuário pode escolher compra para:
+eu;
+parceiro;
+ambos;
+valores e responsabilidades são calculados pelo domínio.
+Validação
+nenhuma combinação inválida é salva;
+não ocorre null error;
+não ocorre divisão sem parceiro válido.
+Resultado esperado
+
+A NewTransactionPage deixa de carregar regras financeiras espalhadas e passa a apenas consumir a configuração resolvida pelo domínio.
+
+Estimativa
+
+3 a 5 horas
+
+## Sprint 19.5 — Settlement Compartilhado
+Objetivo
+
+Concluir definitivamente o motor de acertos financeiros entre os membros da carteira compartilhada.
+
+Nesta sprint o DuoSpend passa a saber:
+
+quem deve para quem;
+quanto deve;
+quando o acerto foi realizado;
+impedir inconsistências;
+recalcular automaticamente sempre que necessário.
+Entregas
+✅ 19.5.1 — Revisão do Settlement
+revisar todo o domínio de Settlement;
+revisar modelos;
+revisar serviços;
+eliminar regras duplicadas.
+✅ 19.5.2 — Wallet Compartilhada
+
+Garantir que:
+
+Settlement nunca funcione em carteira individual;
+utilize sempre a carteira atualmente selecionada;
+ignore wallets antigas ou inválidas.
+✅ 19.5.3 — Settlement Engine
+
+Criar o motor responsável por:
+
+calcular saldo entre membros;
+compensar pagamentos;
+recalcular automaticamente após qualquer movimentação;
+impedir resultados inconsistentes.
+✅ 19.5.4 — Liquidação (Settlement Payment)
+
+Implementar:
+
+registrar pagamento do acerto;
+impedir pagamento duplicado;
+atualizar saldos;
+manter histórico do acerto.
+✅ 19.5.5 — Balance Engine Review
+
+Revisar toda integração entre:
+
+Financial Split
+Balance Engine
+Settlement Engine
+
+Garantindo consistência completa.
+
+✅ 19.5.6 — Testes
+
+Validar:
+
+carteira individual;
+carteira compartilhada;
+múltiplas compras;
+pagamentos cruzados;
+alterações simultâneas;
+acertos completos.
+
+
+## 19.6 — Fluxo Completo de Settlement (Integração UI + Domínio)
+Objetivo
+
+Integrar toda a arquitetura criada na Sprint 19.5 à interface do usuário, permitindo que o fluxo de acerto financeiro funcione de ponta a ponta entre os membros da carteira compartilhada.
+
+Implementado
+Integração do SettleBalanceUseCase ao fluxo da aplicação.
+Criação do SettlementPaymentService para centralizar toda a lógica operacional do pagamento.
+Implementação do SettleBalanceUseCase como orquestrador do domínio.
+Separação clara entre:
+Use Cases (fluxos de negócio);
+Services (operações financeiras);
+Repositories (persistência);
+Balance Engine (algoritmo);
+Synchronizer (reconciliação dos acertos).
+Fluxo de dupla confirmação:
+Devedor → "Já paguei".
+Credor → "Recebi".
+Criação automática da transação de acerto apenas após a confirmação do credor.
+Prevenção de pagamentos duplicados utilizando identificação determinística da transação.
+Preparação da arquitetura para futuras funcionalidades:
+comprovantes;
+PIX;
+notificações;
+pagamento parcial;
+auditoria.
+Resultado
+
+O módulo financeiro passou a possuir uma arquitetura de domínio completa, desacoplada e preparada para evolução sem necessidade de grandes refatorações.
+
+## 19.7 beta casal
+
+--- testar nos dois cel
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## CORRIGIR
+
+📝 Corrigir o fluxo do Settlement para carteira compartilhada.
+📝 Botão "Limpar dados de teste" na Área do Desenvolvedor.
+⭐ Sprint: Consumo Inteligente por Item (quem consumiu cada item, com aprendizado automático).
+quem consome o q?
+WalletRepository V2
+Tornar updateBalance transacional utilizando Firestore Transaction ou FieldValue.increment para eliminar race conditions em uso simultâneo.
+incluir despesas fixas, com calendário, e tb uma caixa pra selecionar qd sai da conta
+o mesmo em receitas
+qd eu add dinheiro na carteira nos, ele tem q ssair de algum lugar, da minha carteira no caso outra coisa: alimentação ostumamos pagar com VR, temos q cadastrar todas as formas de pgt tb o aviso de vc tem dinehrio a receber ta ok até, mas tb ta estatico
+compras para ambos, deve ser aceita pelo outro
+

@@ -16,10 +16,10 @@ class TransactionController extends ChangeNotifier {
     TransactionRepository? repository,
     WalletRepository? walletRepository,
     BalanceSettlementSynchronizer? settlementSynchronizer,
-  })  : _repository = repository ?? TransactionRepository(),
-        _walletRepository = walletRepository ?? WalletRepository(),
-        _settlementSynchronizer =
-            settlementSynchronizer ?? BalanceSettlementSynchronizer();
+  }) : _repository = repository ?? TransactionRepository(),
+       _walletRepository = walletRepository ?? WalletRepository(),
+       _settlementSynchronizer =
+           settlementSynchronizer ?? BalanceSettlementSynchronizer();
 
   final List<TransactionItemModel> _items = [];
 
@@ -82,7 +82,8 @@ class TransactionController extends ChangeNotifier {
       throw Exception('Carteira da transação não informada.');
     }
 
-    final resolvedWallet = wallet ??
+    final resolvedWallet =
+        wallet ??
         await _walletRepository.getWalletById(
           normalizedWalletId,
         );
@@ -147,21 +148,26 @@ class TransactionController extends ChangeNotifier {
     required String transactionType,
     required double transactionValue,
   }) async {
-    var newBalance = wallet.balance;
-
     if (transactionType == 'income') {
-      newBalance += transactionValue;
-    } else if (transactionType == 'expense') {
-      newBalance -= transactionValue;
-    } else {
-      throw Exception(
-        'Tipo de transação inválido: $transactionType.',
+      await _walletRepository.incrementBalance(
+        transactionValue,
+        walletId: wallet.id,
       );
+
+      return;
     }
 
-    await _walletRepository.updateBalance(
-      newBalance,
-      walletId: wallet.id,
+    if (transactionType == 'expense') {
+      await _walletRepository.decrementBalance(
+        transactionValue,
+        walletId: wallet.id,
+      );
+
+      return;
+    }
+
+    throw Exception(
+      'Tipo de transação inválido: $transactionType.',
     );
   }
 }

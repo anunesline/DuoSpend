@@ -1,0 +1,15 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\app",
+    "\\app\\lib",
+    "\\app\\lib\\app",
+    "\\app\\lib\\features",
+    "\\app\\lib\\features\\auth",
+    "\\app\\lib\\features\\auth\\data",
+    "\\app\\lib\\features\\auth\\data\\datasources",
+    "\\app\\lib\\features\\auth\\data\\models"
+  ],
+  "SelectedNode": "\\app\\lib\\features\\auth\\data\\models\\user_model.dart",
+  "PreviewInSolutionExplorer": false
+}
