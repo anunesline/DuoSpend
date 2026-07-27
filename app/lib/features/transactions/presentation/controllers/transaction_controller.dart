@@ -3,32 +3,54 @@ import 'package:flutter/foundation.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
 import '../../data/models/transaction_item_model.dart';
-import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
+import '../../domain/financial_split/financial_split_service.dart';
 import '../../domain/purchase/services/balance_settlement_synchronizer.dart';
+import '../../transaction/usecases/create_transaction_usecase.dart';
 
 class TransactionController extends ChangeNotifier {
-  final TransactionRepository _repository;
-  final WalletRepository _walletRepository;
-  final BalanceSettlementSynchronizer _settlementSynchronizer;
+  final CreateTransactionUseCase _createTransactionUseCase;
 
   TransactionController({
+    CreateTransactionUseCase? createTransactionUseCase,
     TransactionRepository? repository,
     WalletRepository? walletRepository,
+    FinancialSplitService? financialSplitService,
     BalanceSettlementSynchronizer? settlementSynchronizer,
-  }) : _repository = repository ?? TransactionRepository(),
-       _walletRepository = walletRepository ?? WalletRepository(),
-       _settlementSynchronizer =
-           settlementSynchronizer ?? BalanceSettlementSynchronizer();
+  }) : _createTransactionUseCase =
+           createTransactionUseCase ??
+           CreateTransactionUseCase(
+             transactionRepository:
+                 repository ?? TransactionRepository(),
+             walletRepository:
+                 walletRepository ?? WalletRepository(),
+             financialSplitService:
+                 financialSplitService ??
+                 const FinancialSplitService(),
+             settlementSynchronizer:
+                 settlementSynchronizer ??
+                 BalanceSettlementSynchronizer(),
+           );
 
   final List<TransactionItemModel> _items = [];
+
+  bool _isSaving = false;
+  String? _errorMessage;
+  CreateTransactionResult? _lastResult;
 
   List<TransactionItemModel> get items {
     return List.unmodifiable(_items);
   }
 
+  bool get isSaving => _isSaving;
+
+  String? get errorMessage => _errorMessage;
+
+  CreateTransactionResult? get lastResult => _lastResult;
+
   void addItem(TransactionItemModel item) {
     _items.add(item);
+    _clearError();
     notifyListeners();
   }
 
@@ -45,6 +67,8 @@ class TransactionController extends ChangeNotifier {
     }
 
     _items[index] = updatedItem;
+
+    _clearError();
     notifyListeners();
   }
 
@@ -53,6 +77,7 @@ class TransactionController extends ChangeNotifier {
       (currentItem) => currentItem.id == item.id,
     );
 
+    _clearError();
     notifyListeners();
   }
 
@@ -61,7 +86,7 @@ class TransactionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> saveTransaction({
+  Future<CreateTransactionResult> saveTransaction({
     required String transactionId,
     required String description,
     required double value,
@@ -72,124 +97,89 @@ class TransactionController extends ChangeNotifier {
     required String subcategory,
     required String paidByMemberId,
     required String purchaseFor,
-    required String splitType,
-    required Map<String, double> memberShares,
+    String? partnerMemberId,
     WalletModel? wallet,
+
+    // Compatibilidade temporária com a NewTransactionPage antiga.
+    // O split agora é calculado pelo CreateTransactionUseCase.
+    String? splitType,
+    Map<String, double>? memberShares,
   }) async {
-    final normalizedWalletId = walletId.trim();
-    final normalizedPaidByMemberId = paidByMemberId.trim();
-
-    if (normalizedWalletId.isEmpty) {
-      throw Exception('Carteira da transação não informada.');
-    }
-
-    if (normalizedPaidByMemberId.isEmpty) {
-      throw Exception('Pagador da transação não informado.');
-    }
-
-    final resolvedWallet =
-        wallet ??
-        await _walletRepository.getWalletById(
-          normalizedWalletId,
-        );
-
-    if (resolvedWallet == null) {
-      throw Exception(
-        'Não foi possível localizar a carteira da transação.',
+    if (_isSaving) {
+      throw StateError(
+        'Uma transação já está sendo salva.',
       );
     }
 
-    if (resolvedWallet.id.trim() != normalizedWalletId) {
-      throw Exception(
-        'A carteira informada não corresponde ao walletId da transação.',
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await _createTransactionUseCase(
+        transactionId: transactionId,
+        description: description,
+        value: value,
+        type: type,
+        walletId: walletId,
+        wallet: wallet,
+        consumerId: consumerId,
+        category: category,
+        subcategory: subcategory,
+        paidByMemberId: paidByMemberId,
+        purchaseFor: purchaseFor,
+        partnerMemberId: partnerMemberId,
+        items: List.unmodifiable(_items),
       );
+
+      _lastResult = result;
+      _items.clear();
+
+      return result;
+    } catch (error) {
+      _errorMessage = _formatError(error);
+      rethrow;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
     }
-
-    final financialWallet =
-        await _walletRepository.getFinancialWalletForMember(
-          normalizedPaidByMemberId,
-        );
-
-    if (financialWallet == null) {
-      throw Exception(
-        'Não foi possível localizar a carteira financeira do pagador.',
-      );
-    }
-
-    if (!financialWallet.isIndividual) {
-      throw Exception(
-        'A origem financeira da transação precisa ser uma carteira individual.',
-      );
-    }
-
-    final transaction = TransactionModel(
-      id: transactionId,
-      description: description,
-      value: value,
-      type: type,
-      date: DateTime.now(),
-      walletId: resolvedWallet.id,
-      consumerId: consumerId,
-      category: category,
-      subcategory: subcategory,
-      paidByMemberId: normalizedPaidByMemberId,
-      purchaseFor: purchaseFor,
-      splitType: splitType,
-      memberShares: memberShares,
-      items: _items
-          .map(
-            (item) => item.copyWith(
-              transactionId: transactionId,
-            ),
-          )
-          .toList(),
-    );
-
-    await _repository.addTransaction(
-      transaction,
-      wallet: resolvedWallet,
-    );
-
-    await _updateWalletBalance(
-      wallet: financialWallet,
-      transactionType: type,
-      transactionValue: value,
-    );
-
-    if (resolvedWallet.isShared) {
-      await _settlementSynchronizer.synchronize(
-        walletId: resolvedWallet.id,
-      );
-    }
-
-    clearItems();
   }
 
-  Future<void> _updateWalletBalance({
-    required WalletModel wallet,
-    required String transactionType,
-    required double transactionValue,
-  }) async {
-    if (transactionType == 'income') {
-      await _walletRepository.incrementBalance(
-        transactionValue,
-        walletId: wallet.id,
-      );
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
 
-      return;
+  void clearState() {
+    _items.clear();
+    _isSaving = false;
+    _errorMessage = null;
+    _lastResult = null;
+
+    notifyListeners();
+  }
+
+  void _clearError() {
+    if (_errorMessage != null) {
+      _errorMessage = null;
+    }
+  }
+
+  String _formatError(Object error) {
+    final message = error.toString();
+
+    if (message.startsWith('Exception: ')) {
+      return message.substring(
+        'Exception: '.length,
+      );
     }
 
-    if (transactionType == 'expense') {
-      await _walletRepository.decrementBalance(
-        transactionValue,
-        walletId: wallet.id,
+    if (message.startsWith('Bad state: ')) {
+      return message.substring(
+        'Bad state: '.length,
       );
-
-      return;
     }
 
-    throw Exception(
-      'Tipo de transação inválido: $transactionType.',
-    );
+    return message;
   }
 }

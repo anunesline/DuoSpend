@@ -11,7 +11,6 @@ import '../../../home/data/models/wallet_model.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../domain/financial_split/financial_split_configuration.dart';
 import '../../domain/financial_split/financial_split_configuration_resolver.dart';
-import '../../domain/financial_split/financial_split_service.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
 import '../../domain/purchase/models/purchase_item_model.dart';
 import '../controllers/purchase_controller.dart';
@@ -57,9 +56,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   final FinancialSplitConfigurationResolver
       _financialSplitConfigurationResolver =
       const FinancialSplitConfigurationResolver();
-
-  final FinancialSplitService _financialSplitService =
-      const FinancialSplitService();
 
   PurchaseController get purchaseController {
     return widget.purchaseController;
@@ -233,7 +229,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       final nextPosition =
           firstCategoryPosition[next] ?? items.length;
 
-      return nextPosition < currentPosition ? next : current;
+      return nextPosition < currentPosition
+          ? next
+          : current;
     });
 
     TaxonomyItem? predominantCategory;
@@ -496,77 +494,79 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     );
 
     final purchaseDestination =
-        financialSplitConfiguration.resolvePurchaseDestination(
+        financialSplitConfiguration
+            .resolvePurchaseDestination(
       selectedPurchaseDestination,
     );
 
     final id =
         DateTime.now().millisecondsSinceEpoch.toString();
 
-    final consumerId =
-        await _resolveConsumerId(activeWallet.id);
+    try {
+      final consumerId =
+          await _resolveConsumerId(activeWallet.id);
 
-    if (purchaseController.hasItems) {
-      final purchaseResult =
-          await purchaseController.completePurchase(
-        CreatePurchaseCommand(
-          id: id,
-          userId: user.uid,
-          walletId: activeWallet.id,
-          consumerId: consumerId,
-          purchaseDate: DateTime.now(),
-        ),
+      if (purchaseController.hasItems) {
+        final purchaseResult =
+            await purchaseController.completePurchase(
+          CreatePurchaseCommand(
+            id: id,
+            userId: user.uid,
+            walletId: activeWallet.id,
+            consumerId: consumerId,
+            purchaseDate: DateTime.now(),
+          ),
+        );
+
+        if (purchaseController.errorMessage != null) {
+          _showMessage(
+            purchaseController.errorMessage!,
+          );
+
+          return;
+        }
+
+        if (purchaseResult == null) {
+          _showMessage(
+            'Não foi possível concluir a compra.',
+          );
+
+          return;
+        }
+      }
+
+      await transactionController.saveTransaction(
+        transactionId: id,
+        description: description,
+        value: value,
+        type: type,
+        walletId: activeWallet.id,
+        wallet: activeWallet,
+        consumerId: consumerId,
+        category: selectedCategory.name,
+        subcategory:
+            selectedSubcategory?.name ??
+            'Sem subcategoria',
+        paidByMemberId: payerMemberId,
+        purchaseFor: purchaseDestination,
+        partnerMemberId:
+            financialSplitConfiguration.partnerMemberId,
       );
 
-      if (purchaseController.errorMessage != null) {
-        _showMessage(
-          purchaseController.errorMessage!,
-        );
-
+      if (!mounted) {
         return;
       }
 
-      if (purchaseResult == null) {
-        _showMessage(
-          'Não foi possível concluir a compra.',
-        );
+      Navigator.pop(context);
+    } catch (_) {
+      final errorMessage =
+          transactionController.errorMessage;
 
-        return;
-      }
+      _showMessage(
+        errorMessage ??
+            'Não foi possível salvar a transação.',
+      );
     }
-
-    final financialSplitResult =
-        _financialSplitService.calculateAutomaticSplit(
-      value: value,
-      payerMemberId: payerMemberId,
-      partnerMemberId:
-          financialSplitConfiguration.partnerMemberId,
-      purchaseFor: purchaseDestination,
-    );
-
-    await transactionController.saveTransaction(
-      transactionId: id,
-      description: description,
-      value: value,
-      type: type,
-      walletId: activeWallet.id,
-      wallet: activeWallet,
-      consumerId: consumerId,
-      category: selectedCategory.name,
-      subcategory:
-          selectedSubcategory?.name ??
-          'Sem subcategoria',
-      paidByMemberId: payerMemberId,
-      purchaseFor: purchaseDestination,
-      splitType: financialSplitResult.splitType,
-      memberShares: financialSplitResult.memberShares,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    Navigator.pop(context);
   }
 
   void _showMessage(String message) {
@@ -609,6 +609,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
           purchaseController,
         ]),
         builder: (context, _) {
+          final isSaving =
+              purchaseController.isSaving ||
+              transactionController.isSaving;
+
           return SingleChildScrollView(
             padding:
                 const EdgeInsets.all(AppSpacing.lg),
@@ -638,8 +642,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                 ),
                 if (financialSplitConfiguration != null)
                   FinancialSplitSection(
-                    enabled:
-                        !purchaseController.isSaving,
+                    enabled: !isSaving,
                     configuration:
                         financialSplitConfiguration,
                     selectedPayerMemberId:
@@ -670,8 +673,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                   height: AppSpacing.xl,
                 ),
                 TransactionSaveButton(
-                  isSaving:
-                      purchaseController.isSaving,
+                  isSaving: isSaving,
                   onPressed: _saveTransaction,
                 ),
               ],

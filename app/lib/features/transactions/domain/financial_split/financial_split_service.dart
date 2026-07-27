@@ -3,7 +3,73 @@ import 'financial_split_rules.dart';
 import 'financial_split_validator.dart';
 
 class FinancialSplitService {
-    const FinancialSplitService();
+  const FinancialSplitService();
+
+  /// Resolve a divisão financeira conforme o tipo informado.
+  ///
+  /// Divisões `none` e `equal` são calculadas automaticamente
+  /// a partir do destino da compra.
+  ///
+  /// Divisões `custom` exigem os valores monetários de cada
+  /// membro em [customMemberShares].
+  FinancialSplitResult calculateSplit({
+    required double value,
+    required String payerMemberId,
+    String? partnerMemberId,
+    required String purchaseFor,
+    required String splitType,
+    Map<String, double>? customMemberShares,
+  }) {
+    FinancialSplitValidator.validateTransactionValue(value);
+
+    FinancialSplitValidator.validateMemberId(
+      payerMemberId,
+      fieldName: 'payerMemberId',
+    );
+
+    FinancialSplitValidator.validatePurchaseFor(purchaseFor);
+
+    if (!FinancialSplitRules.isValidSplitType(splitType)) {
+      throw ArgumentError.value(
+        splitType,
+        'splitType',
+        'Use none, equal ou custom.',
+      );
+    }
+
+    final expectedAutomaticSplitType =
+        FinancialSplitRules.automaticSplitTypeForPurchase(
+      purchaseFor,
+    );
+
+    if (splitType == FinancialSplitRules.splitTypeCustom) {
+      if (customMemberShares == null) {
+        throw ArgumentError(
+          'A divisão personalizada precisa informar os valores de cada membro.',
+        );
+      }
+
+      return calculateCustomSplit(
+        value: value,
+        payerMemberId: payerMemberId,
+        purchaseFor: purchaseFor,
+        memberShares: customMemberShares,
+      );
+    }
+
+    if (splitType != expectedAutomaticSplitType) {
+      throw ArgumentError(
+        'O tipo de divisão não corresponde ao destino da compra.',
+      );
+    }
+
+    return calculateAutomaticSplit(
+      value: value,
+      payerMemberId: payerMemberId,
+      partnerMemberId: partnerMemberId,
+      purchaseFor: purchaseFor,
+    );
+  }
 
   /// Calcula automaticamente a responsabilidade financeira
   /// de cada membro da carteira.
