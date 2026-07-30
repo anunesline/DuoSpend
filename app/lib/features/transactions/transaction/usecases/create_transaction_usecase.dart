@@ -7,6 +7,7 @@ import '../../domain/financial_split/financial_split_result.dart';
 import '../../domain/financial_split/financial_split_rules.dart';
 import '../../domain/financial_split/financial_split_service.dart';
 import '../../domain/purchase/services/balance_settlement_synchronizer.dart';
+import '../../domain/services/shared_transaction_confirmation_service.dart';
 
 class CreateTransactionResult {
   final TransactionModel transaction;
@@ -27,16 +28,21 @@ class CreateTransactionUseCase {
   final WalletRepository _walletRepository;
   final FinancialSplitService _financialSplitService;
   final BalanceSettlementSynchronizer _settlementSynchronizer;
+  final SharedTransactionConfirmationService
+      _confirmationService;
 
   const CreateTransactionUseCase({
     required TransactionRepository transactionRepository,
     required WalletRepository walletRepository,
     required FinancialSplitService financialSplitService,
     required BalanceSettlementSynchronizer settlementSynchronizer,
+    SharedTransactionConfirmationService confirmationService =
+        const SharedTransactionConfirmationService(),
   })  : _transactionRepository = transactionRepository,
         _walletRepository = walletRepository,
         _financialSplitService = financialSplitService,
-        _settlementSynchronizer = settlementSynchronizer;
+        _settlementSynchronizer = settlementSynchronizer,
+        _confirmationService = confirmationService;
 
   Future<CreateTransactionResult> call({
     required String transactionId,
@@ -97,6 +103,17 @@ class CreateTransactionUseCase {
       customMemberShares: customMemberShares,
     );
 
+    final hasFinancialSplit =
+        financialSplit.splitType != 'none' &&
+            financialSplit.memberShares.isNotEmpty;
+
+    final confirmationDecision = _confirmationService.resolve(
+      wallet: transactionWallet,
+      transactionType: type,
+      hasFinancialSplit: hasFinancialSplit,
+      isSettlement: false,
+    );
+
     final transaction = TransactionModel(
       id: normalizedTransactionId,
       description: normalizedDescription,
@@ -104,16 +121,20 @@ class CreateTransactionUseCase {
       type: type,
       date: DateTime.now(),
       walletId: transactionWallet.id,
-      consumerId: normalizedConsumerId == null ||
-              normalizedConsumerId.isEmpty
-          ? null
-          : normalizedConsumerId,
+      consumerId:
+          normalizedConsumerId == null ||
+                  normalizedConsumerId.isEmpty
+              ? null
+              : normalizedConsumerId,
       category: normalizedCategory,
       subcategory: normalizedSubcategory,
       paidByMemberId: normalizedPaidByMemberId,
       purchaseFor: financialSplit.purchaseFor,
       splitType: financialSplit.splitType,
       memberShares: financialSplit.memberShares,
+      confirmationStatus: confirmationDecision.status,
+      confirmationRequestedAt:
+          confirmationDecision.requestedAt,
       items: items
           .map(
             (item) => item.copyWith(
@@ -134,7 +155,8 @@ class CreateTransactionUseCase {
       transactionValue: value,
     );
 
-    if (transactionWallet.isShared) {
+    if (transactionWallet.isShared &&
+        confirmationDecision.shouldSynchronizeSettlement) {
       await _settlementSynchronizer.synchronize(
         walletId: transactionWallet.id,
       );
@@ -152,7 +174,8 @@ class CreateTransactionUseCase {
     required String walletId,
     required WalletModel? wallet,
   }) async {
-    final resolvedWallet = wallet ??
+    final resolvedWallet =
+        wallet ??
         await _walletRepository.getWalletById(
           walletId,
         );
@@ -177,8 +200,8 @@ class CreateTransactionUseCase {
   }) async {
     final financialWallet =
         await _walletRepository.getFinancialWalletForMember(
-      paidByMemberId,
-    );
+          paidByMemberId,
+        );
 
     if (financialWallet == null) {
       throw Exception(

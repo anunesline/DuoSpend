@@ -1,3 +1,4 @@
+import '../../domain/models/shared_transaction_confirmation_status.dart';
 import 'transaction_item_model.dart';
 
 class TransactionModel {
@@ -53,6 +54,30 @@ class TransactionModel {
   /// }
   final Map<String, double> memberShares;
 
+  /// Estado da confirmação bilateral da despesa compartilhada.
+  ///
+  /// Transações antigas são consideradas aceitas por padrão,
+  /// preservando o comportamento financeiro existente antes
+  /// da Sprint 20.5.
+  final SharedTransactionConfirmationStatus confirmationStatus;
+
+  /// Momento em que a confirmação bilateral foi solicitada
+  /// ao outro membro da carteira.
+  ///
+  /// Pode ser nulo em transações individuais, settlements
+  /// ou transações antigas.
+  final DateTime? confirmationRequestedAt;
+
+  /// Momento em que a confirmação bilateral recebeu
+  /// uma decisão definitiva.
+  ///
+  /// É preenchido tanto em aceitações quanto em recusas.
+  final DateTime? confirmationResolvedAt;
+
+  /// Identificador do membro que aceitou ou recusou
+  /// a despesa compartilhada.
+  final String? confirmationRespondedByMemberId;
+
   /// Indica que esta transação representa o pagamento
   /// de um acerto financeiro entre membros da carteira.
   ///
@@ -82,6 +107,11 @@ class TransactionModel {
     this.purchaseFor = 'self',
     this.splitType = 'none',
     this.memberShares = const {},
+    this.confirmationStatus =
+        SharedTransactionConfirmationStatus.accepted,
+    this.confirmationRequestedAt,
+    this.confirmationResolvedAt,
+    this.confirmationRespondedByMemberId,
     this.isSettlement = false,
     this.settlementId,
     required this.category,
@@ -99,6 +129,41 @@ class TransactionModel {
   /// aos dois membros da carteira.
   bool get isForBoth {
     return purchaseFor == 'both';
+  }
+
+  /// Retorna verdadeiro quando a transação representa
+  /// uma despesa compartilhada entre membros.
+  bool get isSharedExpense {
+    return type == 'expense' &&
+        !isSettlement &&
+        hasFinancialSplit &&
+        isForBoth;
+  }
+
+  /// Indica que a despesa compartilhada ainda aguarda
+  /// a decisão do outro membro.
+  bool get isAwaitingConfirmation {
+    return isSharedExpense && confirmationStatus.isPending;
+  }
+
+  /// Indica que a confirmação bilateral já recebeu
+  /// uma decisão definitiva.
+  bool get hasConfirmationDecision {
+    return confirmationStatus.isResolved;
+  }
+
+  /// Indica que a divisão financeira desta transação
+  /// pode impactar os saldos entre os membros.
+  ///
+  /// Transações sem divisão financeira continuam válidas
+  /// normalmente. Despesas compartilhadas somente produzem
+  /// impacto definitivo após serem aceitas.
+  bool get canAffectSharedBalance {
+    if (!hasFinancialSplit) {
+      return true;
+    }
+
+    return confirmationStatus.canAffectSharedBalance;
   }
 
   /// Retorna verdadeiro quando existe um vínculo válido
@@ -122,9 +187,13 @@ class TransactionModel {
   /// Retorna quanto o pagador desembolsou em benefício
   /// dos demais membros.
   ///
-  /// Esse valor será utilizado posteriormente no cálculo
-  /// do saldo e no acerto de contas.
+  /// Despesas compartilhadas pendentes ou recusadas
+  /// não geram responsabilidade financeira definitiva.
   double get amountPaidForOthers {
+    if (!canAffectSharedBalance) {
+      return 0;
+    }
+
     final payerId = paidByMemberId;
 
     if (payerId == null || payerId.isEmpty) {
@@ -154,6 +223,13 @@ class TransactionModel {
       'purchaseFor': purchaseFor,
       'splitType': splitType,
       'memberShares': memberShares,
+      'confirmationStatus': confirmationStatus.value,
+      'confirmationRequestedAt':
+          confirmationRequestedAt?.toIso8601String(),
+      'confirmationResolvedAt':
+          confirmationResolvedAt?.toIso8601String(),
+      'confirmationRespondedByMemberId':
+          confirmationRespondedByMemberId,
       'isSettlement': isSettlement,
       'settlementId': settlementId,
       'category': category,
@@ -173,16 +249,23 @@ class TransactionModel {
       description: map['description']?.toString() ?? '',
       value: _parseDouble(map['value']),
       type: map['type']?.toString() ?? 'expense',
-      date: DateTime.tryParse(
-            map['date']?.toString() ?? '',
-          ) ??
-          DateTime.now(),
+      date: _parseDateTime(map['date']) ?? DateTime.now(),
       walletId: map['walletId']?.toString() ?? 'principal',
       consumerId: map['consumerId']?.toString(),
       paidByMemberId: map['paidByMemberId']?.toString(),
       purchaseFor: map['purchaseFor']?.toString() ?? 'self',
       splitType: map['splitType']?.toString() ?? 'none',
       memberShares: _parseMemberShares(rawMemberShares),
+      confirmationStatus:
+          SharedTransactionConfirmationStatus.fromValue(
+        map['confirmationStatus'],
+      ),
+      confirmationRequestedAt:
+          _parseDateTime(map['confirmationRequestedAt']),
+      confirmationResolvedAt:
+          _parseDateTime(map['confirmationResolvedAt']),
+      confirmationRespondedByMemberId:
+          map['confirmationRespondedByMemberId']?.toString(),
       isSettlement: _parseBool(map['isSettlement']),
       settlementId: map['settlementId']?.toString(),
       category: map['category']?.toString() ?? 'Sem categoria',
@@ -209,6 +292,10 @@ class TransactionModel {
     String? purchaseFor,
     String? splitType,
     Map<String, double>? memberShares,
+    SharedTransactionConfirmationStatus? confirmationStatus,
+    DateTime? confirmationRequestedAt,
+    DateTime? confirmationResolvedAt,
+    String? confirmationRespondedByMemberId,
     bool? isSettlement,
     String? settlementId,
     String? category,
@@ -227,6 +314,15 @@ class TransactionModel {
       purchaseFor: purchaseFor ?? this.purchaseFor,
       splitType: splitType ?? this.splitType,
       memberShares: memberShares ?? this.memberShares,
+      confirmationStatus:
+          confirmationStatus ?? this.confirmationStatus,
+      confirmationRequestedAt:
+          confirmationRequestedAt ?? this.confirmationRequestedAt,
+      confirmationResolvedAt:
+          confirmationResolvedAt ?? this.confirmationResolvedAt,
+      confirmationRespondedByMemberId:
+          confirmationRespondedByMemberId ??
+              this.confirmationRespondedByMemberId,
       isSettlement: isSettlement ?? this.isSettlement,
       settlementId: settlementId ?? this.settlementId,
       category: category ?? this.category,
@@ -249,6 +345,18 @@ class TransactionModel {
     }
 
     return value?.toString().toLowerCase() == 'true';
+  }
+
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    return DateTime.tryParse(value.toString());
   }
 
   static Map<String, double> _parseMemberShares(dynamic rawValue) {

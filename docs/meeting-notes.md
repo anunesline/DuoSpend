@@ -3129,7 +3129,129 @@ O módulo financeiro passou a possuir uma arquitetura de domínio completa, desa
 
 --- testar nos dois cel
 
+## 19.8
 
+## 19.9 Sprint 19.9 — Origem Financeira da Transação
+Objetivo
+
+Consolidar a arquitetura financeira do DuoSpend, separando definitivamente:
+
+onde a transação pertence;
+de onde o dinheiro realmente saiu.
+
+A carteira compartilhada passa a representar apenas o contexto financeiro compartilhado, enquanto os recursos financeiros continuam pertencendo às carteiras individuais.
+
+Entregas
+1. Origem financeira
+
+Implementar paidByMemberId como fonte oficial da movimentação financeira.
+
+2. Débito da carteira correta
+
+Ao salvar uma despesa:
+
+localizar automaticamente a carteira individual do pagador;
+debitar apenas essa carteira.
+3. Crédito da carteira correta
+
+Ao salvar uma receita:
+
+localizar automaticamente a carteira individual correspondente;
+creditar apenas essa carteira.
+4. Carteira compartilhada
+
+Transformar a carteira compartilhada em um contexto financeiro:
+
+armazenar transações;
+armazenar divisão financeira;
+armazenar settlements;
+armazenar histórico compartilhado;
+
+Sem depender de um saldo financeiro próprio para representar o dinheiro disponível.
+
+5. Settlement
+
+Revisar o fluxo para garantir que:
+
+settlements movimentem apenas carteiras individuais;
+o histórico compartilhado permaneça íntegro.
+6. Compatibilidade
+
+Manter compatibilidade com:
+
+WalletRepository V2;
+BalanceEngine;
+Financial Split;
+Settlement;
+WalletContext;
+HomeController.
+7. Testes
+
+Validar:
+
+usuário solo;
+casal;
+despesas individuais;
+despesas compartilhadas;
+receitas;
+settlement;
+sincronização.
+Critério de conclusão
+Arquitetura financeira consistente.
+Carteira compartilhada desacoplada da origem do dinheiro.
+Saldo individual sempre correto.
+flutter analyze sem erros (apenas infos).
+
+
+## Sprint 20 — Smart Financial Split
+
+Essa é a evolução natural do que acabamos de construir.
+
+Objetivo
+
+Fazer a divisão financeira ficar realmente inteligente.
+
+Hoje o app já sabe:
+
+quem pagou;
+quem consumiu;
+quanto cada um deve.
+
+Agora ele precisa tomar decisões automaticamente.
+
+Entregas que eu colocaria
+✅ Centralizar todas as regras de divisão em um único domínio (FinancialSplitEngine ou equivalente).
+✅ Remover qualquer lógica de divisão restante da UI.
+✅ Calcular automaticamente:
+individual;
+metade/metade;
+proporcional;
+personalizado.
+✅ Considerar corretamente paidByMemberId.
+✅ Gerar os memberShares automaticamente quando possível.
+✅ Preparar o domínio para a confirmação bilateral da Sprint 20.5.
+Depois dela
+19.9 ✅ Origem Financeira
+
+20 ✅ Smart Financial Split
+
+20.5 ✅ Confirmação bilateral
+
+21 ✅ Consumo Inteligente por Item
+
+22 ✅ Recorrências
+
+23 ✅ Contas e Formas de Pagamento
+
+23.5 ✅ Sonhos / Metas
+
+23.8 ⭐ Home Foundation (proposta)
+
+24 ✅ Home Inteligente
+
+26 ✅ Beta Final
+
+27 ✅ V1.0
 
 
 
@@ -3367,4 +3489,5 @@ incluir despesas fixas, com calendário, e tb uma caixa pra selecionar qd sai da
 o mesmo em receitas
 qd eu add dinheiro na carteira nos, ele tem q ssair de algum lugar, da minha carteira no caso outra coisa: alimentação ostumamos pagar com VR, temos q cadastrar todas as formas de pgt tb o aviso de vc tem dinehrio a receber ta ok até, mas tb ta estatico
 compras para ambos, deve ser aceita pelo outro
+carteira compartilhada deve ter uma aba de sonhos, tipo pra guardar dinheiro
 

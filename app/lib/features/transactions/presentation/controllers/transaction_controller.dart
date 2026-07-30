@@ -3,34 +3,60 @@ import 'package:flutter/foundation.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
 import '../../data/models/transaction_item_model.dart';
+import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../domain/financial_split/financial_split_service.dart';
 import '../../domain/purchase/services/balance_settlement_synchronizer.dart';
+import '../../transaction/usecases/accept_shared_transaction_usecase.dart';
 import '../../transaction/usecases/create_transaction_usecase.dart';
+import '../../transaction/usecases/reject_shared_transaction_usecase.dart';
 
 class TransactionController extends ChangeNotifier {
   final CreateTransactionUseCase _createTransactionUseCase;
+  final AcceptSharedTransactionUseCase
+      _acceptSharedTransactionUseCase;
+  final RejectSharedTransactionUseCase
+      _rejectSharedTransactionUseCase;
 
   TransactionController({
     CreateTransactionUseCase? createTransactionUseCase,
+    AcceptSharedTransactionUseCase?
+        acceptSharedTransactionUseCase,
+    RejectSharedTransactionUseCase?
+        rejectSharedTransactionUseCase,
     TransactionRepository? repository,
     WalletRepository? walletRepository,
     FinancialSplitService? financialSplitService,
     BalanceSettlementSynchronizer? settlementSynchronizer,
-  }) : _createTransactionUseCase =
-           createTransactionUseCase ??
-           CreateTransactionUseCase(
-             transactionRepository:
-                 repository ?? TransactionRepository(),
-             walletRepository:
-                 walletRepository ?? WalletRepository(),
-             financialSplitService:
-                 financialSplitService ??
-                 const FinancialSplitService(),
-             settlementSynchronizer:
-                 settlementSynchronizer ??
-                 BalanceSettlementSynchronizer(),
-           );
+  })  : _createTransactionUseCase =
+            createTransactionUseCase ??
+                CreateTransactionUseCase(
+                  transactionRepository:
+                      repository ?? TransactionRepository(),
+                  walletRepository:
+                      walletRepository ?? WalletRepository(),
+                  financialSplitService:
+                      financialSplitService ??
+                          const FinancialSplitService(),
+                  settlementSynchronizer:
+                      settlementSynchronizer ??
+                          BalanceSettlementSynchronizer(),
+                ),
+        _acceptSharedTransactionUseCase =
+            acceptSharedTransactionUseCase ??
+                AcceptSharedTransactionUseCase(
+                  transactionRepository:
+                      repository ?? TransactionRepository(),
+                  settlementSynchronizer:
+                      settlementSynchronizer ??
+                          BalanceSettlementSynchronizer(),
+                ),
+        _rejectSharedTransactionUseCase =
+            rejectSharedTransactionUseCase ??
+                RejectSharedTransactionUseCase(
+                  transactionRepository:
+                      repository ?? TransactionRepository(),
+                );
 
   final List<TransactionItemModel> _items = [];
 
@@ -136,6 +162,66 @@ class TransactionController extends ChangeNotifier {
       _items.clear();
 
       return result;
+    } catch (error) {
+      _errorMessage = _formatError(error);
+      rethrow;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  Future<TransactionModel> acceptSharedTransaction({
+    required TransactionModel transaction,
+    required WalletModel wallet,
+    required String respondingMemberId,
+  }) async {
+    if (_isSaving) {
+      throw StateError(
+        'Uma operação de transação já está em andamento.',
+      );
+    }
+
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      return await _acceptSharedTransactionUseCase(
+        transaction: transaction,
+        wallet: wallet,
+        respondingMemberId: respondingMemberId,
+      );
+    } catch (error) {
+      _errorMessage = _formatError(error);
+      rethrow;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  Future<TransactionModel> rejectSharedTransaction({
+    required TransactionModel transaction,
+    required WalletModel wallet,
+    required String respondingMemberId,
+  }) async {
+    if (_isSaving) {
+      throw StateError(
+        'Uma operação de transação já está em andamento.',
+      );
+    }
+
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      return await _rejectSharedTransactionUseCase(
+        transaction: transaction,
+        wallet: wallet,
+        respondingMemberId: respondingMemberId,
+      );
     } catch (error) {
       _errorMessage = _formatError(error);
       rethrow;

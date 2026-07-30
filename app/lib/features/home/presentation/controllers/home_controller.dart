@@ -111,6 +111,50 @@ class HomeController extends ChangeNotifier {
     return wallet?.isShared ?? false;
   }
 
+  /// Despesas compartilhadas que aguardam a resposta
+  /// do membro atualmente autenticado.
+  ///
+  /// Não inclui:
+  /// - transações individuais;
+  /// - transações já confirmadas ou recusadas;
+  /// - despesas criadas pelo próprio usuário;
+  /// - transações sem pagador identificado.
+  List<TransactionModel> get pendingSharedConfirmations {
+    final currentUserId = user?.uid.trim();
+
+    if (currentUserId == null ||
+        currentUserId.isEmpty ||
+        !isSharedWalletSelected) {
+      return const [];
+    }
+
+    return List<TransactionModel>.unmodifiable(
+      transactions.where((transaction) {
+        final payerId = transaction.paidByMemberId?.trim();
+
+        if (!transaction.isAwaitingConfirmation ||
+            payerId == null ||
+            payerId.isEmpty) {
+          return false;
+        }
+
+        return payerId != currentUserId;
+      }),
+    );
+  }
+
+  /// Quantidade de despesas compartilhadas que aguardam
+  /// uma decisão do usuário atual.
+  int get pendingSharedConfirmationCount {
+    return pendingSharedConfirmations.length;
+  }
+
+  /// Indica se o usuário atual possui pelo menos uma
+  /// despesa compartilhada aguardando confirmação.
+  bool get hasPendingSharedConfirmations {
+    return pendingSharedConfirmationCount > 0;
+  }
+
   /// Resumo financeiro do membro autenticado.
   ///
   /// Retorna nulo quando:

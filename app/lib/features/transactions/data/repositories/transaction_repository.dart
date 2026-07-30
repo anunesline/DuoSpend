@@ -44,6 +44,36 @@ class TransactionRepository {
         .set(transaction.toMap());
   }
 
+  Future<void> updateTransaction(
+    TransactionModel transaction, {
+    WalletModel? wallet,
+  }) async {
+    final user = _requireAuthenticatedUser();
+
+    if (wallet == null || !wallet.isShared) {
+      await _individualTransactionsReference(user.uid)
+          .doc(transaction.id)
+          .update(transaction.toMap());
+
+      return;
+    }
+
+    _validateSharedWalletAccess(
+      wallet: wallet,
+      userId: user.uid,
+    );
+
+    if (transaction.walletId.trim() != wallet.id.trim()) {
+      throw Exception(
+        'A transação não pertence à carteira compartilhada informada.',
+      );
+    }
+
+    await _sharedTransactionsReference(wallet.id)
+        .doc(transaction.id)
+        .update(transaction.toMap());
+  }
+
   Future<List<TransactionModel>> getTransactions() async {
     final user = _auth.currentUser;
 

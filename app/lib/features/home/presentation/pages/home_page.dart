@@ -5,6 +5,8 @@ import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
+import '../../../transactions/presentation/controllers/transaction_controller.dart';
+import '../../../transactions/presentation/pages/history_page.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/balance_card.dart';
@@ -37,6 +39,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late final HomeController controller;
+  late final TransactionController transactionController;
 
   @override
   void initState() {
@@ -45,6 +48,8 @@ class _HomePageState extends State<HomePage> {
     controller = HomeController(
       walletContext: widget.walletContext,
     );
+
+    transactionController = TransactionController();
 
     _loadHome();
   }
@@ -69,6 +74,31 @@ class _HomePageState extends State<HomePage> {
           consumerController: widget.consumerController,
           purchaseController: widget.purchaseController,
           productRepository: widget.productRepository,
+        ),
+      ),
+    );
+
+    await _loadHome();
+  }
+
+  Future<void> _openHistoryPage() async {
+    final wallet = controller.wallet;
+    final currentUserId = controller.user?.uid;
+
+    if (wallet == null ||
+        currentUserId == null ||
+        currentUserId.isEmpty) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HistoryPage(
+          wallet: wallet,
+          transactions: controller.transactions,
+          transactionController: transactionController,
+          currentUserId: currentUserId,
         ),
       ),
     );
@@ -311,7 +341,9 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    transactionController.dispose();
     controller.dispose();
+
     super.dispose();
   }
 
@@ -322,6 +354,8 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final wallet = controller.wallet;
         final hasSharedWallet = controller.hasSharedWallet;
+        final pendingConfirmationCount =
+            controller.pendingSharedConfirmationCount;
 
         return Scaffold(
           appBar: AppBar(
@@ -436,6 +470,13 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                         ],
+                        if (controller.hasPendingSharedConfirmations) ...[
+                          const SizedBox(height: 20),
+                          _PendingConfirmationsCard(
+                            count: pendingConfirmationCount,
+                            onTap: _openHistoryPage,
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         BalanceCard(
                           balance: wallet?.balance ?? 0,
@@ -460,6 +501,9 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 20),
                         TransactionsPreview(
                           transactions: controller.transactions,
+                          onViewAll: wallet == null
+                              ? null
+                              : _openHistoryPage,
                         ),
                         const SizedBox(height: 20),
                         OutlinedButton.icon(
@@ -477,6 +521,115 @@ class _HomePageState extends State<HomePage> {
                 ),
         );
       },
+    );
+  }
+}
+
+class _PendingConfirmationsCard extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _PendingConfirmationsCard({
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final description = count == 1
+        ? 'Uma despesa compartilhada precisa da sua resposta.'
+        : '$count despesas compartilhadas precisam da sua resposta.';
+
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.pending_actions_rounded,
+                  color: colorScheme.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Aguardando sua confirmação',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            count.toString(),
+                            style: TextStyle(
+                              color: colorScheme.onPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Toque para revisar',
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
