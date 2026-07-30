@@ -9,15 +9,24 @@ import '../../../../shared/widgets/product_search_field.dart';
 import '../../../../shared/widgets/product_summary_card.dart';
 import '../../data/models/product_model.dart';
 import '../../data/models/transaction_item_model.dart';
+import '../../domain/purchase/models/item_consumption.dart';
 
 class AddTransactionItemPage extends StatefulWidget {
   final TransactionItemModel? initialItem;
   final ProductRepository productRepository;
+  final String? currentMemberId;
+  final String? partnerMemberId;
+  final String currentMemberLabel;
+  final String partnerMemberLabel;
 
   const AddTransactionItemPage({
     super.key,
     this.initialItem,
     required this.productRepository,
+    this.currentMemberId,
+    this.partnerMemberId,
+    this.currentMemberLabel = 'Eu',
+    this.partnerMemberLabel = 'Parceiro',
   });
 
   bool get isEditing => initialItem != null;
@@ -52,6 +61,8 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
   bool _isApplyingSelectedProduct = false;
   bool _showValidationErrors = false;
   bool _isSavingItem = false;
+
+  String _selectedConsumer = 'me';
 
   String unit = 'un';
 
@@ -169,6 +180,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
 
     _setDefaultProductCategory();
     _populateInitialItem();
+    _initializeConsumerSelection();
 
     nameController.addListener(_handleProductDataChanged);
     brandController.addListener(_handleProductDataChanged);
@@ -286,6 +298,140 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
 
       return;
     }
+  }
+
+  String? get _resolvedCurrentMemberId {
+    final providedMemberId = widget.currentMemberId?.trim();
+
+    if (providedMemberId != null && providedMemberId.isNotEmpty) {
+      return providedMemberId;
+    }
+
+    final authenticatedMemberId =
+        FirebaseAuth.instance.currentUser?.uid.trim();
+
+    if (authenticatedMemberId == null ||
+        authenticatedMemberId.isEmpty) {
+      return null;
+    }
+
+    return authenticatedMemberId;
+  }
+
+  String? get _resolvedPartnerMemberId {
+    final partnerMemberId = widget.partnerMemberId?.trim();
+
+    if (partnerMemberId == null || partnerMemberId.isEmpty) {
+      return null;
+    }
+
+    return partnerMemberId;
+  }
+
+  bool get _hasPartnerMember => _resolvedPartnerMemberId != null;
+
+  void _initializeConsumerSelection() {
+    final item = widget.initialItem;
+    final currentMemberId = _resolvedCurrentMemberId;
+    final partnerMemberId = _resolvedPartnerMemberId;
+
+    if (item == null ||
+        item.consumptions.isEmpty ||
+        currentMemberId == null) {
+      _selectedConsumer = 'me';
+      return;
+    }
+
+    final consumerIds = item.consumptions
+        .map((consumption) => consumption.consumerId.trim())
+        .where((consumerId) => consumerId.isNotEmpty)
+        .toSet();
+
+    final consumedByCurrent = consumerIds.contains(currentMemberId);
+    final consumedByPartner = partnerMemberId != null &&
+        consumerIds.contains(partnerMemberId);
+
+    if (consumedByCurrent && consumedByPartner) {
+      _selectedConsumer = 'both';
+      return;
+    }
+
+    if (consumedByPartner) {
+      _selectedConsumer = 'partner';
+      return;
+    }
+
+    if (consumedByCurrent) {
+      _selectedConsumer = 'me';
+    }
+  }
+
+  List<ItemConsumption> _buildConsumptions() {
+    final currentMemberId = _resolvedCurrentMemberId;
+    final partnerMemberId = _resolvedPartnerMemberId;
+
+    if (currentMemberId == null) {
+      return List.unmodifiable(
+        widget.initialItem?.consumptions ?? const <ItemConsumption>[],
+      );
+    }
+
+    switch (_selectedConsumer) {
+      case 'partner':
+        if (partnerMemberId == null) {
+          return [
+            ItemConsumption(
+              consumerId: currentMemberId,
+              percentage: 1,
+            ),
+          ];
+        }
+
+        return [
+          ItemConsumption(
+            consumerId: partnerMemberId,
+            percentage: 1,
+          ),
+        ];
+      case 'both':
+        if (partnerMemberId == null) {
+          return [
+            ItemConsumption(
+              consumerId: currentMemberId,
+              percentage: 1,
+            ),
+          ];
+        }
+
+        return [
+          ItemConsumption(
+            consumerId: currentMemberId,
+            percentage: 0.5,
+          ),
+          ItemConsumption(
+            consumerId: partnerMemberId,
+            percentage: 0.5,
+          ),
+        ];
+      case 'me':
+      default:
+        return [
+          ItemConsumption(
+            consumerId: currentMemberId,
+            percentage: 1,
+          ),
+        ];
+    }
+  }
+
+  void _changeConsumer(String selection) {
+    if (_isSavingItem) {
+      return;
+    }
+
+    setState(() {
+      _selectedConsumer = selection;
+    });
   }
 
   String _formatEditableNumber(double value) {
@@ -687,6 +833,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
             selectedFinancialSubcategory?.name ?? 'Sem subcategoria',
         productCategoryId: product.productCategoryId,
         productCategoryName: product.productCategoryName,
+        consumptions: _buildConsumptions(),
         createdAt: originalItem?.createdAt ?? now,
       );
 
@@ -1039,6 +1186,15 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                     ),
                   ),
                 ),
+                const SizedBox(height: AppSpacing.lg),
+                _ItemConsumerSection(
+                  selectedConsumer: _selectedConsumer,
+                  currentMemberLabel: widget.currentMemberLabel,
+                  partnerMemberLabel: widget.partnerMemberLabel,
+                  hasPartnerMember: _hasPartnerMember,
+                  enabled: !_isSavingItem,
+                  onChanged: _changeConsumer,
+                ),
                 const SizedBox(height: AppSpacing.xl),
                 SizedBox(
                   height: 52,
@@ -1078,3 +1234,144 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
     );
   }
 }                                                                                        
+
+class _ItemConsumerSection extends StatelessWidget {
+  final String selectedConsumer;
+  final String currentMemberLabel;
+  final String partnerMemberLabel;
+  final bool hasPartnerMember;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  const _ItemConsumerSection({
+    required this.selectedConsumer,
+    required this.currentMemberLabel,
+    required this.partnerMemberLabel,
+    required this.hasPartnerMember,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: colorScheme.outlineVariant,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.restaurant_outlined,
+                  color: colorScheme.onSecondaryContainer,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Consumido por',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      hasPartnerMember
+                          ? 'Escolha quem vai consumir este item.'
+                          : 'Este item será associado a você.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              _ConsumerChoiceChip(
+                label: currentMemberLabel,
+                icon: Icons.person_outline,
+                selected: selectedConsumer == 'me',
+                enabled: enabled,
+                onSelected: () => onChanged('me'),
+              ),
+              if (hasPartnerMember)
+                _ConsumerChoiceChip(
+                  label: partnerMemberLabel,
+                  icon: Icons.favorite_border,
+                  selected: selectedConsumer == 'partner',
+                  enabled: enabled,
+                  onSelected: () => onChanged('partner'),
+                ),
+              if (hasPartnerMember)
+                _ConsumerChoiceChip(
+                  label: 'Ambos',
+                  icon: Icons.group_outlined,
+                  selected: selectedConsumer == 'both',
+                  enabled: enabled,
+                  onSelected: () => onChanged('both'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConsumerChoiceChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onSelected;
+
+  const _ConsumerChoiceChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      selected: selected,
+      onSelected: enabled ? (_) => onSelected() : null,
+      avatar: Icon(
+        icon,
+        size: 18,
+      ),
+      label: Text(label),
+      labelStyle: const TextStyle(
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}

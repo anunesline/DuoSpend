@@ -6,6 +6,7 @@ import '../../data/models/transaction_item_model.dart';
 import '../../data/repositories/firebase_purchase_repository.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
 import '../../domain/purchase/mappers/purchase_item_mapper.dart';
+import '../../domain/purchase/models/item_consumption.dart';
 import '../../domain/purchase/models/purchase_item_model.dart';
 import '../../domain/purchase/models/purchase_model.dart';
 import '../../domain/purchase/repositories/purchase_repository.dart';
@@ -101,9 +102,8 @@ class PurchaseController extends ChangeNotifier {
     required String category,
     required String subcategory,
   }) {
-    _financialCategory = category.trim().isEmpty
-        ? 'Sem categoria'
-        : category.trim();
+    _financialCategory =
+        category.trim().isEmpty ? 'Sem categoria' : category.trim();
 
     _financialSubcategory = subcategory.trim().isEmpty
         ? 'Sem subcategoria'
@@ -151,14 +151,154 @@ class PurchaseController extends ChangeNotifier {
     required String originalItemId,
     required TransactionItemModel updatedItem,
   }) {
-    final purchaseItem = _purchaseItemMapper.fromTransactionItem(
+    final index = _items.indexWhere(
+      (item) => item.id == originalItemId,
+    );
+
+    if (index == -1) {
+      return;
+    }
+
+    final currentItem = _items[index];
+    final mappedItem = _purchaseItemMapper.fromTransactionItem(
       updatedItem,
     );
 
-    updatePurchaseItem(
-      originalItemId: originalItemId,
-      updatedItem: purchaseItem,
+    _items[index] = mappedItem.copyWith(
+      consumptions: currentItem.consumptions,
     );
+
+    _clearError();
+    notifyListeners();
+  }
+
+  String? selectedConsumerForItem({
+    required PurchaseItemModel item,
+    required String currentMemberId,
+    String? partnerMemberId,
+  }) {
+    final normalizedCurrentMemberId = currentMemberId.trim();
+    final normalizedPartnerMemberId = partnerMemberId?.trim();
+
+    if (normalizedCurrentMemberId.isEmpty ||
+        item.consumptions.isEmpty) {
+      return null;
+    }
+
+    final consumerIds = item.consumptions
+        .map((consumption) => consumption.consumerId.trim())
+        .where((consumerId) => consumerId.isNotEmpty)
+        .toSet();
+
+    final consumedByCurrent =
+        consumerIds.contains(normalizedCurrentMemberId);
+
+    final consumedByPartner =
+        normalizedPartnerMemberId != null &&
+        normalizedPartnerMemberId.isNotEmpty &&
+        consumerIds.contains(normalizedPartnerMemberId);
+
+    if (consumedByCurrent && consumedByPartner) {
+      return 'both';
+    }
+
+    if (consumedByCurrent) {
+      return 'me';
+    }
+
+    if (consumedByPartner) {
+      return 'partner';
+    }
+
+    return null;
+  }
+
+  void updateItemConsumption({
+    required String itemId,
+    required String currentMemberId,
+    required String selection,
+    String? partnerMemberId,
+  }) {
+    final index = _items.indexWhere(
+      (item) => item.id == itemId,
+    );
+
+    if (index == -1) {
+      return;
+    }
+
+    final normalizedCurrentMemberId = currentMemberId.trim();
+    final normalizedPartnerMemberId = partnerMemberId?.trim();
+
+    if (normalizedCurrentMemberId.isEmpty) {
+      _errorMessage =
+          'Não foi possível identificar o usuário atual.';
+      notifyListeners();
+      return;
+    }
+
+    final consumptions = <ItemConsumption>[];
+
+    switch (selection) {
+      case 'me':
+        consumptions.add(
+          ItemConsumption(
+            consumerId: normalizedCurrentMemberId,
+            percentage: 1,
+          ),
+        );
+        break;
+      case 'partner':
+        if (normalizedPartnerMemberId == null ||
+            normalizedPartnerMemberId.isEmpty) {
+          _errorMessage =
+              'Adicione um parceiro à carteira para selecionar esta opção.';
+          notifyListeners();
+          return;
+        }
+
+        consumptions.add(
+          ItemConsumption(
+            consumerId: normalizedPartnerMemberId,
+            percentage: 1,
+          ),
+        );
+        break;
+      case 'both':
+        if (normalizedPartnerMemberId == null ||
+            normalizedPartnerMemberId.isEmpty) {
+          _errorMessage =
+              'Adicione um parceiro à carteira para dividir o consumo.';
+          notifyListeners();
+          return;
+        }
+
+        consumptions
+          ..add(
+            ItemConsumption(
+              consumerId: normalizedCurrentMemberId,
+              percentage: 0.5,
+            ),
+          )
+          ..add(
+            ItemConsumption(
+              consumerId: normalizedPartnerMemberId,
+              percentage: 0.5,
+            ),
+          );
+        break;
+      default:
+        _errorMessage = 'Seleção de consumo inválida.';
+        notifyListeners();
+        return;
+    }
+
+    _items[index] = _items[index].copyWith(
+      consumptions: List.unmodifiable(consumptions),
+    );
+
+    _clearError();
+    notifyListeners();
   }
 
   void removeItem(String itemId) {
@@ -242,25 +382,54 @@ class PurchaseController extends ChangeNotifier {
     required CreatePurchaseCommand command,
     required PurchaseModel purchase,
   }) async {
-    final consumerId = command.consumerId?.trim();
-
-    if (consumerId == null || consumerId.isEmpty) {
-      return;
-    }
-
     final processUseCase = _processConsumerIntelligenceUseCase;
 
     if (processUseCase == null) {
       return;
     }
 
-    await processUseCase.execute(
-      payload: ConsumerKnowledgePayload(
-        walletId: command.walletId,
-        consumerId: consumerId,
-        purchase: purchase,
-      ),
-    );
+    final itemsByConsumer = <String, List<PurchaseItemModel>>{};
+
+    for (final item in purchase.items) {
+      for (final consumption in item.consumptions) {
+        final consumerId = consumption.consumerId.trim();
+
+        if (consumerId.isEmpty) {
+          continue;
+        }
+
+        final consumerItems = itemsByConsumer.putIfAbsent(
+          consumerId,
+          () => [],
+        );
+
+        if (!consumerItems.any((savedItem) => savedItem.id == item.id)) {
+          consumerItems.add(item);
+        }
+      }
+    }
+
+    if (itemsByConsumer.isEmpty) {
+      final legacyConsumerId = command.consumerId?.trim();
+
+      if (legacyConsumerId != null && legacyConsumerId.isNotEmpty) {
+        itemsByConsumer[legacyConsumerId] = List.of(purchase.items);
+      }
+    }
+
+    for (final entry in itemsByConsumer.entries) {
+      if (entry.value.isEmpty) {
+        continue;
+      }
+
+      await processUseCase.execute(
+        payload: ConsumerKnowledgePayload(
+          walletId: command.walletId,
+          consumerId: entry.key,
+          consumedItems: List.unmodifiable(entry.value),
+        ),
+      );
+    }
   }
 
   TransactionItemModel toTransactionItem({

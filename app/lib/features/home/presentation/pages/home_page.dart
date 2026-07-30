@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/context/wallet_context.dart';
+import '../../../../core/design_system/duo_card.dart';
+import '../../../../core/design_system/duo_colors.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
@@ -14,8 +16,6 @@ import '../widgets/shared_balance_card.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/transactions_preview.dart';
 import '../widgets/wallet_card.dart';
-import '../widgets/wallet_view_switcher.dart';
-import 'partner_invites_page.dart';
 
 class HomePage extends StatefulWidget {
   final WalletContext walletContext;
@@ -52,6 +52,66 @@ class _HomePageState extends State<HomePage> {
     transactionController = TransactionController();
 
     _loadHome();
+  }
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 12) {
+      return 'Bom dia';
+    }
+
+    if (hour >= 12 && hour < 18) {
+      return 'Boa tarde';
+    }
+
+    return 'Boa noite';
+  }
+
+  String get _greetingEmoji {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 12) {
+      return '☀️';
+    }
+
+    if (hour >= 12 && hour < 18) {
+      return '🌤️';
+    }
+
+    return '🌙';
+  }
+
+  String get _formattedDate {
+    const weekDays = [
+      'segunda-feira',
+      'terça-feira',
+      'quarta-feira',
+      'quinta-feira',
+      'sexta-feira',
+      'sábado',
+      'domingo',
+    ];
+
+    const months = [
+      'janeiro',
+      'fevereiro',
+      'março',
+      'abril',
+      'maio',
+      'junho',
+      'julho',
+      'agosto',
+      'setembro',
+      'outubro',
+      'novembro',
+      'dezembro',
+    ];
+
+    final now = DateTime.now();
+
+    return '${weekDays[now.weekday - 1]}, '
+        '${now.day} de ${months[now.month - 1]}';
   }
 
   Future<void> _loadHome() async {
@@ -106,237 +166,27 @@ class _HomePageState extends State<HomePage> {
     await _loadHome();
   }
 
-  void _changeWalletView(bool selectShared) {
-    final currentWallet = controller.wallet;
-
-    if (currentWallet == null) {
+  void _toggleWalletContext() {
+    if (!controller.hasConnectedPartner) {
       return;
     }
 
-    if (currentWallet.isShared == selectShared) {
-      return;
-    }
-
-    for (final wallet in controller.wallets) {
-      if (wallet.isShared == selectShared) {
+    if (controller.isSharedWalletSelected) {
+      for (final wallet in controller.individualWallets) {
         controller.selectWalletById(wallet.id);
         return;
       }
-    }
-  }
 
-  Future<void> _enableCoupleMode() async {
-    final createdWallet = await controller.createSharedWallet();
-
-    if (!mounted) {
       return;
     }
 
-    if (createdWallet == null) {
-      _showErrorMessage();
+    final sharedWallet = controller.connectedSharedWallet;
+
+    if (sharedWallet == null) {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'A ${createdWallet.name} foi criada.',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openPartnerInviteDialog() async {
-    final emailController = TextEditingController();
-
-    final invitedEmail = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Convidar parceiro'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Informe o e-mail que seu parceiro usará no DuoSpend.',
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.done,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'E-mail do parceiro',
-                  hintText: 'parceiro@email.com',
-                  prefixIcon: Icon(
-                    Icons.email_outlined,
-                  ),
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (value) {
-                  final normalizedEmail = value.trim();
-
-                  if (normalizedEmail.isEmpty) {
-                    return;
-                  }
-
-                  Navigator.of(dialogContext).pop(normalizedEmail);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final normalizedEmail = emailController.text.trim();
-
-                if (normalizedEmail.isEmpty) {
-                  return;
-                }
-
-                Navigator.of(dialogContext).pop(normalizedEmail);
-              },
-              child: const Text('Enviar convite'),
-            ),
-          ],
-        );
-      },
-    );
-
-    emailController.dispose();
-
-    if (invitedEmail == null || invitedEmail.isEmpty) {
-      return;
-    }
-
-    final invite = await controller.sendPartnerInvite(
-      invitedEmail: invitedEmail,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (invite == null) {
-      _showErrorMessage();
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Convite enviado para ${invite.invitedEmail}.',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openPartnerInvitesPage() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const PartnerInvitesPage(),
-      ),
-    );
-
-    await _loadHome();
-  }
-
-  void _openDeveloperMenu() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (bottomSheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              0,
-              20,
-              24,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Área do desenvolvedor',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Ferramentas para testes durante o desenvolvimento do DuoSpend.',
-                ),
-                const SizedBox(height: 20),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.delete_sweep_outlined,
-                  ),
-                  title: const Text(
-                    'Limpar dados de teste',
-                  ),
-                  subtitle: const Text(
-                    'Essa função será adicionada na próxima etapa.',
-                  ),
-                  onTap: () {
-                    Navigator.of(bottomSheetContext).pop();
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Limpeza de dados ainda não implementada.',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showErrorMessage() {
-    final message =
-        controller.errorMessage ?? 'Não foi possível concluir esta ação.';
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
-  }
-
-  Future<void> _testShoppingKnowledgeEngine() async {
-    await widget.shoppingController.createItemFromNameForTest(
-      'Leite integral',
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Produto aprendido: leite integral',
-        ),
-      ),
-    );
+    controller.selectWalletById(sharedWallet.id);
   }
 
   @override
@@ -353,174 +203,245 @@ class _HomePageState extends State<HomePage> {
       animation: controller,
       builder: (context, _) {
         final wallet = controller.wallet;
-        final hasSharedWallet = controller.hasSharedWallet;
+        final hasConnectedPartner = controller.hasConnectedPartner;
         final pendingConfirmationCount =
             controller.pendingSharedConfirmationCount;
 
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('DuoSpend'),
-            centerTitle: true,
-            actions: [
-              IconButton(
-                tooltip: 'Desenvolvedor',
-                icon: const Icon(
-                  Icons.science_outlined,
+          backgroundColor: DuoColors.background,
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerFloat,
+          floatingActionButton: wallet == null
+              ? null
+              : _NewTransactionButton(
+                  onPressed: _openNewTransactionPage,
                 ),
-                onPressed: _openDeveloperMenu,
-              ),
-              IconButton(
-                tooltip: 'Convites',
-                icon: const Icon(
-                  Icons.mail_outline_rounded,
-                ),
-                onPressed: _openPartnerInvitesPage,
-              ),
-            ],
-          ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: wallet == null
-                ? null
-                : _openNewTransactionPage,
-            child: const Icon(
-              Icons.add,
-            ),
-          ),
           body: controller.isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadHome,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(
-                      20,
-                      20,
-                      20,
-                      100,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Olá, ${controller.userName}',
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
+              ? const _PremiumLoadingState()
+              : SafeArea(
+                  child: RefreshIndicator(
+                    color: DuoColors.primary,
+                    backgroundColor: DuoColors.surface,
+                    onRefresh: _loadHome,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(
+                        20,
+                        12,
+                        20,
+                        112,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _HomeTopBar(
+                            isSharedSelected:
+                                controller.isSharedWalletSelected,
+                            hasConnectedPartner: hasConnectedPartner,
+                            onToggleWallet: _toggleWalletContext,
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        WalletViewSwitcher(
-                          isSharedSelected: wallet?.isShared ?? false,
-                          sharedEnabled: hasSharedWallet,
-                          onChanged: _changeWalletView,
-                        ),
-                        if (!hasSharedWallet) ...[
+                          const SizedBox(height: 24),
+                          _GreetingBlock(
+                            greeting: _greeting,
+                            userName: controller.userName,
+                            emoji: _greetingEmoji,
+                            date: _formattedDate,
+                          ),
+                          const SizedBox(height: 22),
+                          BalanceCard(
+                            balance: wallet?.balance ?? 0,
+                          ),
                           const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.icon(
-                              onPressed: controller.isCreatingSharedWallet
-                                  ? null
-                                  : _enableCoupleMode,
-                              icon: controller.isCreatingSharedWallet
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.favorite_outline,
-                                    ),
-                              label: Text(
-                                controller.isCreatingSharedWallet
-                                    ? 'Criando carteira...'
-                                    : 'Usar em casal',
-                              ),
+                          SummaryCard(
+                            income: controller.totalIncome,
+                            expense: controller.totalExpense,
+                          ),
+                          if (hasConnectedPartner &&
+                              controller
+                                  .hasPendingSharedConfirmations) ...[
+                            const SizedBox(height: 20),
+                            _PendingConfirmationsCard(
+                              count: pendingConfirmationCount,
+                              onTap: _openHistoryPage,
                             ),
-                          ),
-                        ],
-                        if (controller.canInvitePartner) ...[
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: controller.isSendingPartnerInvite
-                                  ? null
-                                  : _openPartnerInviteDialog,
-                              icon: controller.isSendingPartnerInvite
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.person_add_alt_1_outlined,
-                                    ),
-                              label: Text(
-                                controller.isSendingPartnerInvite
-                                    ? 'Enviando convite...'
-                                    : 'Convidar parceiro',
-                              ),
+                          ],
+                          if (hasConnectedPartner &&
+                              controller.balanceSummary != null) ...[
+                            const SizedBox(height: 20),
+                            SharedBalanceCard(
+                              summary: controller.balanceSummary!,
                             ),
+                          ],
+                          const SizedBox(height: 28),
+                          const _SectionTitle(
+                            title: 'Carteira',
+                          ),
+                          const SizedBox(height: 14),
+                          WalletCard(
+                            walletName:
+                                wallet?.name ?? 'Nenhuma carteira',
+                            balance: wallet?.balance ?? 0,
+                            isShared:
+                                wallet?.isShared ?? false,
+                          ),
+                          const SizedBox(height: 28),
+                          _SectionTitle(
+                            title: 'Últimas movimentações',
+                            actionLabel: 'Ver todas',
+                            onAction: wallet == null
+                                ? null
+                                : _openHistoryPage,
+                          ),
+                          const SizedBox(height: 14),
+                          TransactionsPreview(
+                            transactions:
+                                controller.transactions,
+                            onViewAll: wallet == null
+                                ? null
+                                : _openHistoryPage,
                           ),
                         ],
-                        if (controller.hasPendingSharedConfirmations) ...[
-                          const SizedBox(height: 20),
-                          _PendingConfirmationsCard(
-                            count: pendingConfirmationCount,
-                            onTap: _openHistoryPage,
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        BalanceCard(
-                          balance: wallet?.balance ?? 0,
-                        ),
-                        const SizedBox(height: 20),
-                        SummaryCard(
-                          income: controller.totalIncome,
-                          expense: controller.totalExpense,
-                        ),
-                        if (controller.balanceSummary != null) ...[
-                          const SizedBox(height: 20),
-                          SharedBalanceCard(
-                            summary: controller.balanceSummary!,
-                          ),
-                        ],
-                        const SizedBox(height: 20),
-                        WalletCard(
-                          walletName: wallet?.name ?? 'Nenhuma carteira',
-                          balance: wallet?.balance ?? 0,
-                          isShared: wallet?.isShared ?? false,
-                        ),
-                        const SizedBox(height: 20),
-                        TransactionsPreview(
-                          transactions: controller.transactions,
-                          onViewAll: wallet == null
-                              ? null
-                              : _openHistoryPage,
-                        ),
-                        const SizedBox(height: 20),
-                        OutlinedButton.icon(
-                          onPressed: _testShoppingKnowledgeEngine,
-                          icon: const Icon(
-                            Icons.psychology_alt_outlined,
-                          ),
-                          label: const Text(
-                            'Testar inteligência de produtos',
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
         );
       },
+    );
+  }
+}
+
+class _HomeTopBar extends StatelessWidget {
+  final bool isSharedSelected;
+  final bool hasConnectedPartner;
+  final VoidCallback onToggleWallet;
+
+  const _HomeTopBar({
+    required this.isSharedSelected,
+    required this.hasConnectedPartner,
+    required this.onToggleWallet,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'DuoSpend',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: DuoColors.textPrimary,
+              letterSpacing: -.6,
+            ),
+          ),
+        ),
+        if (hasConnectedPartner)
+          _WalletContextChip(
+            label: isSharedSelected ? 'Eu' : 'Nós',
+            icon: isSharedSelected
+                ? Icons.person_rounded
+                : Icons.group_rounded,
+            onTap: onToggleWallet,
+          ),
+      ],
+    );
+  }
+}
+
+class _WalletContextChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _WalletContextChip({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 11,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: DuoColors.surface,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: DuoColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: DuoColors.primaryLight,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: DuoColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GreetingBlock extends StatelessWidget {
+  final String greeting;
+  final String userName;
+  final String emoji;
+  final String date;
+
+  const _GreetingBlock({
+    required this.greeting,
+    required this.userName,
+    required this.emoji,
+    required this.date,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$greeting, $userName $emoji',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: DuoColors.textPrimary,
+            letterSpacing: -.35,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          date,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: DuoColors.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -536,99 +457,193 @@ class _PendingConfirmationsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     final description = count == 1
-        ? 'Uma despesa compartilhada precisa da sua resposta.'
-        : '$count despesas compartilhadas precisam da sua resposta.';
+        ? 'Uma despesa precisa da sua resposta.'
+        : '$count despesas precisam da sua resposta.';
 
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.pending_actions_rounded,
-                  color: colorScheme.onPrimaryContainer,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return DuoCard(
+      onTap: onTap,
+      borderRadius: 22,
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: DuoColors.warning.withValues(alpha: .13),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.pending_actions_rounded,
+              color: DuoColors.warning,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Aguardando sua confirmação',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                    const Expanded(
+                      child: Text(
+                        'Aguardando confirmação',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: DuoColors.textPrimary,
                         ),
-                        Container(
-                          constraints: const BoxConstraints(
-                            minWidth: 28,
-                            minHeight: 28,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            count.toString(),
-                            style: TextStyle(
-                              color: colorScheme.onPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Toque para revisar',
-                      style: TextStyle(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w600,
+                    Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 26,
+                        minHeight: 26,
+                      ),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: DuoColors.warning,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        count.toString(),
+                        style: const TextStyle(
+                          color: DuoColors.background,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ],
+                const SizedBox(height: 5),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: DuoColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: DuoColors.textHint,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const _SectionTitle({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: DuoColors.textPrimary,
+              letterSpacing: -.35,
+            ),
           ),
         ),
+        if (actionLabel != null)
+          TextButton(
+            onPressed: onAction,
+            child: Text(
+              actionLabel!,
+              style: const TextStyle(
+                color: DuoColors.primaryLight,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _NewTransactionButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _NewTransactionButton({
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: DuoColors.primaryGradient,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: DuoColors.primaryGlow,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onPressed,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 14,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.add_rounded,
+                  size: 21,
+                  color: DuoColors.textPrimary,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Nova transação',
+                  style: TextStyle(
+                    color: DuoColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumLoadingState extends StatelessWidget {
+  const _PremiumLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: DuoColors.primary,
       ),
     );
   }

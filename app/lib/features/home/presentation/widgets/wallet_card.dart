@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/design_system/duo_card.dart';
+import '../../../../core/design_system/duo_colors.dart';
+
 class WalletCard extends StatelessWidget {
   final String walletName;
   final double balance;
@@ -17,79 +20,97 @@ class WalletCard extends StatelessWidget {
   String get _walletTypeLabel {
     return isShared
         ? 'Carteira compartilhada'
-        : 'Carteira individual';
+        : 'Carteira pessoal';
   }
 
   IconData get _walletIcon {
-    return isShared ? Icons.groups_rounded : Icons.person_rounded;
+    return isShared
+        ? Icons.groups_rounded
+        : Icons.person_rounded;
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      elevation: 2,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
+    return DuoCard(
+      onTap: onTap,
+      borderRadius: 20,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: DuoColors.primaryGradient,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              _walletIcon,
+              color: DuoColors.textPrimary,
+              size: 26,
+            ),
           ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: const Color(0xFF4F46E5),
-                child: Icon(
-                  _walletIcon,
-                  color: Colors.white,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  walletName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: DuoColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      walletName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _walletTypeLabel,
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Saldo: R\$ ${balance.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  _walletTypeLabel,
+                  style: const TextStyle(
+                    color: DuoColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ],
+                const SizedBox(height: 10),
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      const TextSpan(
+                        text: 'Saldo ',
+                        style: TextStyle(
+                          color: DuoColors.textHint,
+                          fontSize: 12,
+                        ),
+                      ),
+                      TextSpan(
+                        text: 'R\$ ${balance.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: DuoColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: DuoColors.surfaceLight,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: DuoColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

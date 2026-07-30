@@ -7,10 +7,19 @@ class PurchaseItemCard extends StatelessWidget {
   final PurchaseItemModel item;
   final VoidCallback? onTap;
 
+  final String? selectedConsumer;
+  final ValueChanged<String>? onConsumerChanged;
+  final String currentMemberLabel;
+  final String partnerMemberLabel;
+
   const PurchaseItemCard({
     super.key,
     required this.item,
     this.onTap,
+    this.selectedConsumer,
+    this.onConsumerChanged,
+    this.currentMemberLabel = 'Eu',
+    this.partnerMemberLabel = 'Parceiro',
   });
 
   String _formatMoney(double value) {
@@ -55,14 +64,18 @@ class PurchaseItemCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      margin: const EdgeInsets.only(
+        bottom: AppSpacing.sm,
+      ),
       clipBehavior: Clip.antiAlias,
       elevation: 0,
       color: colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+          color: colorScheme.outlineVariant.withValues(
+            alpha: 0.7,
+          ),
         ),
       ),
       child: InkWell(
@@ -74,70 +87,102 @@ class PurchaseItemCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   Container(
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(14),
+                      color:
+                          colorScheme.primaryContainer,
+                      borderRadius:
+                          BorderRadius.circular(14),
                     ),
                     child: Icon(
                       Icons.shopping_basket_outlined,
-                      color: colorScheme.onPrimaryContainer,
+                      color:
+                          colorScheme.onPrimaryContainer,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.md),
+                  const SizedBox(
+                    width: AppSpacing.md,
+                  ),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Text(
                           item.name,
                           maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: colorScheme.onSurface,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style: theme
+                              .textTheme.titleMedium
+                              ?.copyWith(
+                            fontWeight:
+                                FontWeight.w700,
+                            color:
+                                colorScheme.onSurface,
                           ),
                         ),
-                        const SizedBox(height: AppSpacing.xs),
+                        const SizedBox(
+                          height: AppSpacing.xs,
+                        ),
                         Text(
                           _brandLabel,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style: theme
+                              .textTheme.bodyMedium
+                              ?.copyWith(
+                            color: colorScheme
+                                .onSurfaceVariant,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
+                  const SizedBox(
+                    width: AppSpacing.sm,
+                  ),
                   Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.end,
                     children: [
                       Text(
-                        _formatMoney(item.totalPrice),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: colorScheme.onSurface,
+                        _formatMoney(
+                          item.totalPrice,
+                        ),
+                        style: theme
+                            .textTheme.titleMedium
+                            ?.copyWith(
+                          fontWeight:
+                              FontWeight.w800,
+                          color:
+                              colorScheme.onSurface,
                         ),
                       ),
                       if (onTap != null) ...[
-                        const SizedBox(height: AppSpacing.xs),
+                        const SizedBox(
+                          height: AppSpacing.xs,
+                        ),
                         Icon(
                           Icons.edit_outlined,
                           size: 18,
-                          color: colorScheme.onSurfaceVariant,
+                          color: colorScheme
+                              .onSurfaceVariant,
                         ),
                       ],
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(
+                height: AppSpacing.md,
+              ),
               Wrap(
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
@@ -147,35 +192,99 @@ class PurchaseItemCard extends StatelessWidget {
                     label: _categoryLabel,
                   ),
                   _InformationChip(
-                    icon: Icons.inventory_2_outlined,
+                    icon:
+                        Icons.inventory_2_outlined,
                     label:
                         '${_formatQuantity(item.quantity)} ${item.unit.trim()}',
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(
+                height: AppSpacing.md,
+              ),
               Divider(
                 height: 1,
                 color: colorScheme.outlineVariant,
               ),
-              const SizedBox(height: AppSpacing.md),
+              if (onConsumerChanged != null) ...[
+                const SizedBox(
+                  height: AppSpacing.md,
+                ),
+                Text(
+                  'Consumido por',
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(
+                  height: AppSpacing.sm,
+                ),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    _ConsumerChip(
+                      label: currentMemberLabel,
+                      value: 'me',
+                      selected:
+                          selectedConsumer == 'me',
+                      onSelected:
+                          onConsumerChanged,
+                    ),
+                    _ConsumerChip(
+                      label: partnerMemberLabel,
+                      value: 'partner',
+                      selected: selectedConsumer ==
+                          'partner',
+                      onSelected:
+                          onConsumerChanged,
+                    ),
+                    _ConsumerChip(
+                      label: 'Ambos',
+                      value: 'both',
+                      selected:
+                          selectedConsumer == 'both',
+                      onSelected:
+                          onConsumerChanged,
+                    ),
+                  ],
+                ),
+                const SizedBox(
+                  height: AppSpacing.md,
+                ),
+                Divider(
+                  height: 1,
+                  color:
+                      colorScheme.outlineVariant,
+                ),
+              ],
+              const SizedBox(
+                height: AppSpacing.md,
+              ),
               Row(
                 children: [
                   Expanded(
                     child: _PriceInformation(
                       label: 'Preço unitário',
-                      value: _formatMoney(item.unitPrice),
+                      value: _formatMoney(
+                        item.unitPrice,
+                      ),
                     ),
                   ),
                   Container(
                     width: 1,
                     height: 36,
-                    color: colorScheme.outlineVariant,
+                    color:
+                        colorScheme.outlineVariant,
                   ),
                   Expanded(
                     child: _PriceInformation(
                       label: 'Subtotal',
-                      value: _formatMoney(item.totalPrice),
+                      value: _formatMoney(
+                        item.totalPrice,
+                      ),
                       alignEnd: true,
                       emphasized: true,
                     ),
@@ -186,6 +295,34 @@ class PurchaseItemCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ConsumerChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool selected;
+  final ValueChanged<String>? onSelected;
+
+  const _ConsumerChip({
+    required this.label,
+    required this.value,
+    required this.selected,
+    this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      showCheckmark: true,
+      onSelected: onSelected == null
+          ? null
+          : (_) {
+              onSelected!(value);
+            },
     );
   }
 }
@@ -210,7 +347,8 @@ class _InformationChip extends StatelessWidget {
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer.withValues(alpha: 0.65),
+        color: colorScheme.secondaryContainer
+            .withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -219,17 +357,22 @@ class _InformationChip extends StatelessWidget {
           Icon(
             icon,
             size: 15,
-            color: colorScheme.onSecondaryContainer,
+            color:
+                colorScheme.onSecondaryContainer,
           ),
-          const SizedBox(width: AppSpacing.xs),
+          const SizedBox(
+            width: AppSpacing.xs,
+          ),
           Flexible(
             child: Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(
+              style:
+                  theme.textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: colorScheme.onSecondaryContainer,
+                color: colorScheme
+                    .onSecondaryContainer,
               ),
             ),
           ),
@@ -258,8 +401,9 @@ class _PriceInformation extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Column(
-      crossAxisAlignment:
-          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         Text(
           label,
@@ -267,12 +411,18 @@ class _PriceInformation extends StatelessWidget {
             color: colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: AppSpacing.xs),
+        const SizedBox(
+          height: AppSpacing.xs,
+        ),
         Text(
           value,
           style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: emphasized ? FontWeight.w800 : FontWeight.w600,
-            color: emphasized ? colorScheme.primary : colorScheme.onSurface,
+            fontWeight: emphasized
+                ? FontWeight.w800
+                : FontWeight.w600,
+            color: emphasized
+                ? colorScheme.primary
+                : colorScheme.onSurface,
           ),
         ),
       ],

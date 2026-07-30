@@ -1,3 +1,5 @@
+import '../../domain/purchase/models/item_consumption.dart';
+
 class TransactionItemModel {
   final String id;
   final String transactionId;
@@ -21,9 +23,11 @@ class TransactionItemModel {
   final String productCategoryId;
   final String productCategoryName;
 
+  final List<ItemConsumption> consumptions;
+
   final DateTime createdAt;
 
-  TransactionItemModel({
+  const TransactionItemModel({
     required this.id,
     required this.transactionId,
     this.productId,
@@ -39,13 +43,23 @@ class TransactionItemModel {
     required this.subcategory,
     required this.productCategoryId,
     required this.productCategoryName,
+    this.consumptions = const [],
     required this.createdAt,
   });
+
+  bool get hasConsumptionData => consumptions.isNotEmpty;
+
+  List<String> get consumerIds => consumptions
+      .map((consumption) => consumption.consumerId)
+      .where((id) => id.isNotEmpty)
+      .toSet()
+      .toList();
 
   TransactionItemModel copyWith({
     String? transactionId,
     String? productId,
     String? merchantId,
+    List<ItemConsumption>? consumptions,
   }) {
     return TransactionItemModel(
       id: id,
@@ -63,6 +77,7 @@ class TransactionItemModel {
       subcategory: subcategory,
       productCategoryId: productCategoryId,
       productCategoryName: productCategoryName,
+      consumptions: consumptions ?? this.consumptions,
       createdAt: createdAt,
     );
   }
@@ -84,6 +99,8 @@ class TransactionItemModel {
       'subcategory': subcategory,
       'productCategoryId': productCategoryId,
       'productCategoryName': productCategoryName,
+      'consumptions':
+          consumptions.map((consumption) => consumption.toMap()).toList(),
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -105,6 +122,15 @@ class TransactionItemModel {
       subcategory: map['subcategory'] ?? 'Sem subcategoria',
       productCategoryId: map['productCategoryId'] ?? '',
       productCategoryName: map['productCategoryName'] ?? '',
+      consumptions: (map['consumptions'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map(
+                (consumption) => ItemConsumption.fromMap(
+                  Map<String, dynamic>.from(consumption),
+                ),
+              )
+              .toList() ??
+          const [],
       createdAt: DateTime.parse(map['createdAt']),
     );
   }

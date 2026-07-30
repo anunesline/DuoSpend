@@ -22,7 +22,7 @@ class DefaultConsumerIntelligenceEngine
   }) async {
     var currentMemory = memory;
 
-    for (final item in payload.purchase.items) {
+    for (final item in payload.consumedItems) {
       final existingHabit = analyzer.findHabit(
         productName: item.name,
         habits: currentMemory.habits,
@@ -41,8 +41,8 @@ class DefaultConsumerIntelligenceEngine
           variant: null,
           packageDescription: '${item.quantity} ${item.unit}',
           occurrences: 1,
-          firstSeenAt: payload.purchase.purchaseDate,
-          lastSeenAt: payload.purchase.purchaseDate,
+          firstSeenAt: item.createdAt,
+          lastSeenAt: item.createdAt,
           confidence: 0.2,
           averageIntervalInDays: null,
         );
@@ -57,7 +57,7 @@ class DefaultConsumerIntelligenceEngine
 
       final updatedHabit = existingHabit.copyWith(
         occurrences: existingHabit.occurrences + 1,
-        lastSeenAt: payload.purchase.purchaseDate,
+        lastSeenAt: item.createdAt,
         confidence: (existingHabit.confidence + 0.1).clamp(0.0, 1.0),
       );
 

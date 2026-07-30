@@ -99,6 +99,28 @@ class HomeController extends ChangeNotifier {
 
   bool get hasSharedWallet => sharedWallets.isNotEmpty;
 
+  /// Carteira compartilhada que já possui um parceiro conectado.
+  ///
+  /// Uma carteira compartilhada criada apenas pelo proprietário não
+  /// representa, por si só, um casal conectado.
+  WalletModel? get connectedSharedWallet {
+    for (final currentWallet in sharedWallets) {
+      if (currentWallet.hasPartner) {
+        return currentWallet;
+      }
+    }
+
+    return null;
+  }
+
+  /// Indica se existe uma carteira compartilhada com parceiro conectado.
+  ///
+  /// Esta propriedade deve ser usada pela interface para decidir quando
+  /// mostrar o contexto "Nós", confirmações e acertos compartilhados.
+  bool get hasConnectedPartner {
+    return connectedSharedWallet != null;
+  }
+
   bool get isSoloMode => _walletContext.isSoloMode;
 
   bool get isCoupleMode => _walletContext.isCoupleMode;
@@ -124,6 +146,7 @@ class HomeController extends ChangeNotifier {
 
     if (currentUserId == null ||
         currentUserId.isEmpty ||
+        !hasConnectedPartner ||
         !isSharedWalletSelected) {
       return const [];
     }
@@ -159,6 +182,7 @@ class HomeController extends ChangeNotifier {
   ///
   /// Retorna nulo quando:
   /// - não existe usuário autenticado;
+  /// - não existe parceiro conectado;
   /// - a carteira selecionada não é compartilhada;
   /// - o Balance Engine ainda não foi calculado.
   BalanceSummary? get balanceSummary {
@@ -168,6 +192,7 @@ class HomeController extends ChangeNotifier {
     if (currentUserId == null ||
         currentUserId.isEmpty ||
         currentResult == null ||
+        !hasConnectedPartner ||
         !isSharedWalletSelected) {
       return null;
     }
@@ -181,7 +206,9 @@ class HomeController extends ChangeNotifier {
   /// Indica se existe algum acerto pendente
   /// na carteira compartilhada selecionada.
   bool get hasPendingBalance {
-    return balanceResult?.hasPendingTransfers ?? false;
+    return hasConnectedPartner &&
+        isSharedWalletSelected &&
+        (balanceResult?.hasPendingTransfers ?? false);
   }
 
   bool get canInvitePartner {
@@ -684,7 +711,9 @@ class HomeController extends ChangeNotifier {
   void _calculateSharedBalance() {
     final selectedWallet = wallet;
 
-    if (selectedWallet == null || !selectedWallet.isShared) {
+    if (selectedWallet == null ||
+        !selectedWallet.isShared ||
+        !hasConnectedPartner) {
       balanceResult = null;
       return;
     }

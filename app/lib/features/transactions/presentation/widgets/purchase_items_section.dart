@@ -9,6 +9,14 @@ class PurchaseItemsSection extends StatelessWidget {
   final VoidCallback onAddItem;
   final void Function(PurchaseItemModel item) onRemoveItem;
   final void Function(PurchaseItemModel item)? onEditItem;
+  final String? Function(PurchaseItemModel item)?
+      selectedConsumerForItem;
+  final void Function(
+    PurchaseItemModel item,
+    String selection,
+  )? onConsumerChanged;
+  final String currentMemberLabel;
+  final String partnerMemberLabel;
   final double total;
 
   const PurchaseItemsSection({
@@ -18,6 +26,10 @@ class PurchaseItemsSection extends StatelessWidget {
     required this.onRemoveItem,
     required this.total,
     this.onEditItem,
+    this.selectedConsumerForItem,
+    this.onConsumerChanged,
+    this.currentMemberLabel = 'Eu',
+    this.partnerMemberLabel = 'Parceiro',
   });
 
   String _formatMoney(double value) {
@@ -76,7 +88,9 @@ class PurchaseItemsSection extends StatelessWidget {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text('${item.name} removido da compra.'),
+          content: Text(
+            '${item.name} removido da compra.',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -107,7 +121,9 @@ class PurchaseItemsSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.xs),
+        const SizedBox(
+          height: AppSpacing.xs,
+        ),
         Text(
           items.isEmpty
               ? 'Adicione os produtos que fazem parte desta compra.'
@@ -116,12 +132,19 @@ class PurchaseItemsSection extends StatelessWidget {
             color: colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(
+          height: AppSpacing.md,
+        ),
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
+          duration: const Duration(
+            milliseconds: 300,
+          ),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, animation) {
+          transitionBuilder: (
+            child,
+            animation,
+          ) {
             return FadeTransition(
               opacity: animation,
               child: SizeTransition(
@@ -133,7 +156,9 @@ class PurchaseItemsSection extends StatelessWidget {
           },
           child: items.isEmpty
               ? _EmptyItemsCard(
-                  key: const ValueKey('empty-purchase-items'),
+                  key: const ValueKey(
+                    'empty-purchase-items',
+                  ),
                   onAddItem: onAddItem,
                 )
               : Column(
@@ -141,15 +166,22 @@ class PurchaseItemsSection extends StatelessWidget {
                     'purchase-items-${items.length}-${items.map((item) => item.hashCode).join('-')}',
                   ),
                   children: [
-                    for (var index = 0; index < items.length; index++)
+                    for (
+                      var index = 0;
+                      index < items.length;
+                      index++
+                    )
                       _AnimatedPurchaseItem(
-                        key: ValueKey(items[index]),
+                        key: ValueKey(
+                          items[index],
+                        ),
                         index: index,
                         child: Dismissible(
                           key: ValueKey(
                             'purchase-item-${items[index].hashCode}-$index',
                           ),
-                          direction: DismissDirection.endToStart,
+                          direction:
+                              DismissDirection.endToStart,
                           confirmDismiss: (_) {
                             return _confirmRemoveItem(
                               context,
@@ -157,9 +189,13 @@ class PurchaseItemsSection extends StatelessWidget {
                             );
                           },
                           onDismissed: (_) {
-                            final removedItem = items[index];
+                            final removedItem =
+                                items[index];
 
-                            onRemoveItem(removedItem);
+                            onRemoveItem(
+                              removedItem,
+                            );
+
                             _showRemovedMessage(
                               context,
                               removedItem,
@@ -170,10 +206,30 @@ class PurchaseItemsSection extends StatelessWidget {
                           ),
                           child: PurchaseItemCard(
                             item: items[index],
+                            currentMemberLabel:
+                                currentMemberLabel,
+                            partnerMemberLabel:
+                                partnerMemberLabel,
+                            selectedConsumer:
+                                selectedConsumerForItem
+                                    ?.call(
+                              items[index],
+                            ),
+                            onConsumerChanged:
+                                onConsumerChanged == null
+                                    ? null
+                                    : (selection) {
+                                        onConsumerChanged!(
+                                          items[index],
+                                          selection,
+                                        );
+                                      },
                             onTap: onEditItem == null
                                 ? null
                                 : () {
-                                    onEditItem!(items[index]);
+                                    onEditItem!(
+                                      items[index],
+                                    );
                                   },
                           ),
                         ),
@@ -182,10 +238,14 @@ class PurchaseItemsSection extends StatelessWidget {
                 ),
         ),
         if (items.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(
+            height: AppSpacing.sm,
+          ),
           _ItemsTotalCard(
             total: total,
-            formattedTotal: _formatMoney(total),
+            formattedTotal: _formatMoney(
+              total,
+            ),
           ),
         ],
       ],
@@ -205,16 +265,24 @@ class _AnimatedPurchaseItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final delay = index > 5 ? 250 : index * 50;
+    final delay = index > 5
+        ? 250
+        : index * 50;
 
     return TweenAnimationBuilder<double>(
-      duration: Duration(milliseconds: 260 + delay),
+      duration: Duration(
+        milliseconds: 260 + delay,
+      ),
       curve: Curves.easeOutCubic,
       tween: Tween<double>(
         begin: 0,
         end: 1,
       ),
-      builder: (context, value, animatedChild) {
+      builder: (
+        context,
+        value,
+        animatedChild,
+      ) {
         return Opacity(
           opacity: value,
           child: Transform.translate(
@@ -246,7 +314,9 @@ class _EmptyItemsCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(
+        AppSpacing.lg,
+      ),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
@@ -269,7 +339,9 @@ class _EmptyItemsCard extends StatelessWidget {
               size: 28,
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(
+            height: AppSpacing.md,
+          ),
           Text(
             'Nenhum item adicionado',
             textAlign: TextAlign.center,
@@ -277,7 +349,9 @@ class _EmptyItemsCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: AppSpacing.xs),
+          const SizedBox(
+            height: AppSpacing.xs,
+          ),
           Text(
             'Detalhe compras de mercado, farmácia, casa e outros consumos.',
             textAlign: TextAlign.center,
@@ -285,11 +359,15 @@ class _EmptyItemsCard extends StatelessWidget {
               color: colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(
+            height: AppSpacing.md,
+          ),
           OutlinedButton.icon(
             onPressed: onAddItem,
             icon: const Icon(Icons.add),
-            label: const Text('Adicionar primeiro item'),
+            label: const Text(
+              'Adicionar primeiro item',
+            ),
           ),
         ],
       ),
@@ -307,7 +385,9 @@ class _DeleteBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      margin: const EdgeInsets.only(
+        bottom: AppSpacing.sm,
+      ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
       ),
@@ -323,11 +403,17 @@ class _DeleteBackground extends StatelessWidget {
             Icons.delete_outline,
             color: colorScheme.onErrorContainer,
           ),
-          const SizedBox(height: AppSpacing.xs),
+          const SizedBox(
+            height: AppSpacing.xs,
+          ),
           Text(
             'Excluir',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onErrorContainer,
+            style: Theme.of(context)
+                .textTheme
+                .labelMedium
+                ?.copyWith(
+                  color:
+                      colorScheme.onErrorContainer,
                   fontWeight: FontWeight.w700,
                 ),
           ),
@@ -353,9 +439,13 @@ class _ItemsTotalCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(
+        AppSpacing.md,
+      ),
       decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withValues(alpha: 0.55),
+        color: colorScheme.primaryContainer.withValues(
+          alpha: 0.55,
+        ),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -372,24 +462,34 @@ class _ItemsTotalCard extends StatelessWidget {
               color: colorScheme.onPrimary,
             ),
           ),
-          const SizedBox(width: AppSpacing.md),
+          const SizedBox(
+            width: AppSpacing.md,
+          ),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   'Total dos itens',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onPrimaryContainer,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(
+                    color: colorScheme
+                        .onPrimaryContainer,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
+                const SizedBox(
+                  height: AppSpacing.xs,
+                ),
                 Text(
                   total > 0
                       ? 'Soma dos subtotais da compra'
                       : 'Preencha os valores dos itens',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onPrimaryContainer.withValues(
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(
+                    color: colorScheme
+                        .onPrimaryContainer
+                        .withValues(
                       alpha: 0.75,
                     ),
                   ),
@@ -397,11 +497,15 @@ class _ItemsTotalCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
+          const SizedBox(
+            width: AppSpacing.sm,
+          ),
           Text(
             formattedTotal,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: colorScheme.onPrimaryContainer,
+            style:
+                theme.textTheme.titleLarge?.copyWith(
+              color:
+                  colorScheme.onPrimaryContainer,
               fontWeight: FontWeight.w900,
             ),
           ),

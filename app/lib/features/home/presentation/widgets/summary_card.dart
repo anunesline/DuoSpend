@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/design_system/duo_amount.dart';
+import '../../../../core/design_system/duo_card.dart';
+import '../../../../core/design_system/duo_colors.dart';
+
 class SummaryCard extends StatelessWidget {
   final double income;
   final double expense;
@@ -15,22 +19,20 @@ class SummaryCard extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _InfoCard(
-            title: "Receitas",
-            value: "R\$ ${income.toStringAsFixed(2)}",
-            icon: Icons.arrow_downward,
-            color: Colors.green,
+          child: _SummaryItem(
+            title: 'Receitas',
+            value: income,
+            icon: Icons.south_west_rounded,
+            accent: DuoColors.success,
           ),
         ),
-
         const SizedBox(width: 16),
-
         Expanded(
-          child: _InfoCard(
-            title: "Despesas",
-            value: "R\$ ${expense.toStringAsFixed(2)}",
-            icon: Icons.arrow_upward,
-            color: Colors.red,
+          child: _SummaryItem(
+            title: 'Despesas',
+            value: expense,
+            icon: Icons.north_east_rounded,
+            accent: DuoColors.error,
           ),
         ),
       ],
@@ -38,57 +40,60 @@ class SummaryCard extends StatelessWidget {
   }
 }
 
-class _InfoCard extends StatelessWidget {
+class _SummaryItem extends StatelessWidget {
   final String title;
-  final String value;
+  final double value;
   final IconData icon;
-  final Color color;
+  final Color accent;
 
-  const _InfoCard({
+  const _SummaryItem({
     required this.title,
     required this.value,
     required this.icon,
-    required this.color,
+    required this.accent,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          children: [
-            Icon(
+    return DuoCard(
+      borderRadius: 24,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
               icon,
-              color: color,
-              size: 30,
+              color: accent,
+              size: 22,
             ),
+          ),
 
-            const SizedBox(height: 10),
+          const SizedBox(height: 18),
 
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              color: DuoColors.textSecondary,
+              fontWeight: FontWeight.w600,
             ),
+          ),
 
-            const SizedBox(height: 6),
+          const SizedBox(height: 8),
 
-            Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: color,
-              ),
-            ),
-          ],
-        ),
+          DuoAmount(
+            value: value,
+            compact: true,
+            color: accent,
+          ),
+        ],
       ),
     );
   }

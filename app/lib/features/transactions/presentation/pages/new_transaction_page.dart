@@ -369,8 +369,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     purchaseController.addTransactionItem(result);
     transactionController.addItem(result);
 
-    _syncCategoryFromPurchaseItems();
-    _syncValueWithPurchaseTotal();
+    _refreshPurchaseState();
+    _showMessage('${result.name} adicionado.');
   }
 
   Future<void> _openEditItemPage(
@@ -407,9 +407,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       updatedItem: updatedItem,
     );
 
-    _syncCategoryFromPurchaseItems();
-    _syncValueWithPurchaseTotal();
-
+    _refreshPurchaseState();
     _showMessage('${updatedItem.name} atualizado.');
   }
 
@@ -423,6 +421,11 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     purchaseController.removeItem(item.id);
     transactionController.removeItem(transactionItem);
 
+    _refreshPurchaseState();
+    _showMessage('${item.name} removido.');
+  }
+
+  void _refreshPurchaseState() {
     _syncCategoryFromPurchaseItems();
     _syncValueWithPurchaseTotal();
   }
@@ -453,6 +456,11 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   Future<void> _saveTransaction() async {
+    if (purchaseController.isSaving ||
+        transactionController.isSaving) {
+      return;
+    }
+
     final description =
         descriptionController.text.trim();
 
@@ -463,6 +471,24 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     if (description.isEmpty || value == null) {
       _showMessage('Preencha todos os campos.');
       return;
+    }
+
+    if (value <= 0) {
+      _showMessage('Informe um valor maior que zero.');
+      return;
+    }
+
+    if (purchaseController.hasItems) {
+      final purchaseTotal = purchaseController.total;
+      final difference = (purchaseTotal - value).abs();
+
+      if (difference > 0.009) {
+        _syncValueWithPurchaseTotal();
+        _showMessage(
+          'O valor foi ajustado para o total dos itens.',
+        );
+        return;
+      }
     }
 
     final user = FirebaseAuth.instance.currentUser;

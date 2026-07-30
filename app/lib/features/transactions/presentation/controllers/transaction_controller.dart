@@ -6,6 +6,7 @@ import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../domain/financial_split/financial_split_service.dart';
+import '../../domain/purchase/models/item_consumption.dart';
 import '../../domain/purchase/services/balance_settlement_synchronizer.dart';
 import '../../transaction/usecases/accept_shared_transaction_usecase.dart';
 import '../../transaction/usecases/create_transaction_usecase.dart';
@@ -96,6 +97,37 @@ class TransactionController extends ChangeNotifier {
 
     _clearError();
     notifyListeners();
+  }
+
+  void updateItemConsumptions({
+    required String itemId,
+    required List<ItemConsumption> consumptions,
+  }) {
+    final index = _items.indexWhere(
+      (item) => item.id == itemId,
+    );
+
+    if (index == -1) {
+      return;
+    }
+
+    _items[index] = _items[index].copyWith(
+      consumptions: List<ItemConsumption>.unmodifiable(
+        consumptions,
+      ),
+    );
+
+    _clearError();
+    notifyListeners();
+  }
+
+  void clearItemConsumptions({
+    required String itemId,
+  }) {
+    updateItemConsumptions(
+      itemId: itemId,
+      consumptions: const [],
+    );
   }
 
   void removeItem(TransactionItemModel item) {

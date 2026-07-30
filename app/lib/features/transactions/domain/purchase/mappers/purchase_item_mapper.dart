@@ -24,6 +24,7 @@ class PurchaseItemMapper {
       financialSubcategory: item.subcategory,
       productCategoryId: item.productCategoryId,
       productCategoryName: item.productCategoryName,
+      consumptions: List.of(item.consumptions),
       createdAt: item.createdAt,
     );
   }
@@ -62,6 +63,7 @@ class PurchaseItemMapper {
       subcategory: item.financialSubcategory,
       productCategoryId: item.productCategoryId,
       productCategoryName: item.productCategoryName,
+      consumptions: List.of(item.consumptions),
       createdAt: item.createdAt,
     );
   }

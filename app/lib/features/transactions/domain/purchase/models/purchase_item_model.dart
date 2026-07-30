@@ -1,3 +1,5 @@
+import 'item_consumption.dart';
+
 class PurchaseItemModel {
   final String id;
   final String purchaseId;
@@ -19,6 +21,8 @@ class PurchaseItemModel {
   final String productCategoryId;
   final String productCategoryName;
 
+  final List<ItemConsumption> consumptions;
+
   final DateTime createdAt;
 
   const PurchaseItemModel({
@@ -37,8 +41,19 @@ class PurchaseItemModel {
     required this.financialSubcategory,
     required this.productCategoryId,
     required this.productCategoryName,
+    this.consumptions = const [],
     required this.createdAt,
   });
+
+  bool get hasConsumptionData => consumptions.isNotEmpty;
+
+  List<String> get consumerIds {
+    return consumptions
+        .map((consumption) => consumption.consumerId)
+        .where((consumerId) => consumerId.isNotEmpty)
+        .toSet()
+        .toList();
+  }
 
   PurchaseItemModel copyWith({
     String? id,
@@ -56,6 +71,7 @@ class PurchaseItemModel {
     String? financialSubcategory,
     String? productCategoryId,
     String? productCategoryName,
+    List<ItemConsumption>? consumptions,
     DateTime? createdAt,
   }) {
     return PurchaseItemModel(
@@ -71,9 +87,12 @@ class PurchaseItemModel {
       totalPrice: totalPrice ?? this.totalPrice,
       taxonomyId: taxonomyId ?? this.taxonomyId,
       financialCategory: financialCategory ?? this.financialCategory,
-      financialSubcategory: financialSubcategory ?? this.financialSubcategory,
+      financialSubcategory:
+          financialSubcategory ?? this.financialSubcategory,
       productCategoryId: productCategoryId ?? this.productCategoryId,
-      productCategoryName: productCategoryName ?? this.productCategoryName,
+      productCategoryName:
+          productCategoryName ?? this.productCategoryName,
+      consumptions: consumptions ?? this.consumptions,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -95,6 +114,9 @@ class PurchaseItemModel {
       'financialSubcategory': financialSubcategory,
       'productCategoryId': productCategoryId,
       'productCategoryName': productCategoryName,
+      'consumptions': consumptions
+          .map((consumption) => consumption.toMap())
+          .toList(),
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -112,12 +134,25 @@ class PurchaseItemModel {
       unitPrice: (map['unitPrice'] ?? 0).toDouble(),
       totalPrice: (map['totalPrice'] ?? 0).toDouble(),
       taxonomyId: map['taxonomyId'] ?? '',
-      financialCategory: map['financialCategory'] ?? 'Sem categoria',
+      financialCategory:
+          map['financialCategory'] ?? 'Sem categoria',
       financialSubcategory:
           map['financialSubcategory'] ?? 'Sem subcategoria',
       productCategoryId: map['productCategoryId'] ?? '',
       productCategoryName: map['productCategoryName'] ?? '',
-      createdAt: DateTime.parse(map['createdAt']),
+      consumptions: (map['consumptions'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map(
+                (consumption) => ItemConsumption.fromMap(
+                  Map<String, dynamic>.from(consumption),
+                ),
+              )
+              .toList() ??
+          const [],
+      createdAt: DateTime.tryParse(
+            map['createdAt']?.toString() ?? '',
+          ) ??
+          DateTime.now(),
     );
   }
 }
