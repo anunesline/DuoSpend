@@ -129,6 +129,158 @@ class TransactionRepository {
     );
   }
 
+  /// Retorna todas as transações recorrentes do usuário autenticado.
+  Future<List<TransactionModel>> getRecurringTransactions() async {
+    final transactions = await getTransactions();
+
+    return List<TransactionModel>.unmodifiable(
+      transactions.where(
+        (transaction) => transaction.isRecurring,
+      ),
+    );
+  }
+
+  /// Retorna as transações recorrentes de uma carteira específica.
+  Future<List<TransactionModel>> getRecurringTransactionsByWallet(
+    String walletId, {
+    WalletModel? wallet,
+  }) async {
+    final transactions = await getTransactionsByWallet(
+      walletId,
+      wallet: wallet,
+    );
+
+    return List<TransactionModel>.unmodifiable(
+      transactions.where(
+        (transaction) => transaction.isRecurring,
+      ),
+    );
+  }
+
+  /// Busca todas as transações pertencentes a uma série recorrente.
+  Future<List<TransactionModel>> getTransactionsByRecurringId(
+    String recurringId, {
+    String? walletId,
+    WalletModel? wallet,
+  }) async {
+    final normalizedRecurringId = recurringId.trim();
+
+    if (normalizedRecurringId.isEmpty) {
+      throw ArgumentError.value(
+        recurringId,
+        'recurringId',
+        'O ID da recorrência não pode ficar vazio.',
+      );
+    }
+
+    final transactions = walletId == null
+        ? await getTransactions()
+        : await getTransactionsByWallet(
+            walletId,
+            wallet: wallet,
+          );
+
+    return List<TransactionModel>.unmodifiable(
+      transactions.where(
+        (transaction) =>
+            transaction.recurringId?.trim() ==
+            normalizedRecurringId,
+      ),
+    );
+  }
+
+  /// Atualiza uma transação recorrente existente.
+  Future<void> updateRecurringTransaction(
+    TransactionModel transaction, {
+    WalletModel? wallet,
+  }) async {
+    if (!transaction.isRecurring) {
+      throw ArgumentError(
+        'A transação informada não está marcada como recorrente.',
+      );
+    }
+
+    final recurringId = transaction.recurringId?.trim();
+
+    if (recurringId == null || recurringId.isEmpty) {
+      throw ArgumentError(
+        'A transação recorrente precisa possuir um recurringId.',
+      );
+    }
+
+    await updateTransaction(
+      transaction,
+      wallet: wallet,
+    );
+  }
+
+  /// Exclui todas as transações pertencentes a uma série recorrente.
+  Future<void> deleteRecurringSeries({
+    required String recurringId,
+    required String walletId,
+    WalletModel? wallet,
+  }) async {
+    final user = _requireAuthenticatedUser();
+    final normalizedRecurringId = recurringId.trim();
+    final normalizedWalletId = walletId.trim();
+
+    if (normalizedRecurringId.isEmpty) {
+      throw ArgumentError.value(
+        recurringId,
+        'recurringId',
+        'O ID da recorrência não pode ficar vazio.',
+      );
+    }
+
+    if (normalizedWalletId.isEmpty) {
+      throw ArgumentError.value(
+        walletId,
+        'walletId',
+        'O ID da carteira não pode ficar vazio.',
+      );
+    }
+
+    late CollectionReference<Map<String, dynamic>> reference;
+
+    if (wallet != null && wallet.isShared) {
+      _validateSharedWalletAccess(
+        wallet: wallet,
+        userId: user.uid,
+      );
+
+      if (wallet.id.trim() != normalizedWalletId) {
+        throw Exception(
+          'A carteira informada não corresponde ao walletId solicitado.',
+        );
+      }
+
+      reference = _sharedTransactionsReference(
+        normalizedWalletId,
+      );
+    } else {
+      reference = _individualTransactionsReference(user.uid);
+    }
+
+    final snapshot = await reference
+        .where(
+          'recurringId',
+          isEqualTo: normalizedRecurringId,
+        )
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return;
+    }
+
+    final batch = _firestore.batch();
+
+    for (final document in snapshot.docs) {
+      batch.delete(document.reference);
+    }
+
+    await batch.commit();
+  }
+
   /// Procura a transação criada para representar
   /// o pagamento de um acerto financeiro.
   ///

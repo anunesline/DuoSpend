@@ -64,6 +64,17 @@ class DuoColors {
     ],
   );
 
+  // Hero card (balance) — deeper, more saturated purple than
+  // the neutral cardGradient used by list/summary cards below it.
+  static const heroGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF2E2358),
+      Color(0xFF15111F),
+    ],
+  );
+
   // Shadows
   static List<BoxShadow> get softShadow => [
         BoxShadow(

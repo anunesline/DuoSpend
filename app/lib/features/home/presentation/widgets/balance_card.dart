@@ -6,10 +6,14 @@ import '../../../../core/design_system/duo_colors.dart';
 
 class BalanceCard extends StatelessWidget {
   final double balance;
+  final double income;
+  final double expense;
 
   const BalanceCard({
     super.key,
     required this.balance,
+    required this.income,
+    required this.expense,
   });
 
   @override
@@ -17,16 +21,21 @@ class BalanceCard extends StatelessWidget {
     return DuoCard(
       glow: true,
       borderRadius: 28,
+      gradient: DuoColors.heroGradient,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Expanded(
+                child: _AvailableLabel(),
+              ),
               Container(
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: DuoColors.glass,
+                  gradient: DuoColors.primaryGradient,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
@@ -34,39 +43,17 @@ class BalanceCard extends StatelessWidget {
                   color: DuoColors.textPrimary,
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: DuoColors.glass,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: DuoColors.border,
-                  ),
-                ),
-                child: const Text(
-                  'Disponível',
-                  style: TextStyle(
-                    color: DuoColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
             ],
           ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 14),
 
           DuoAmount(
-            label: 'Saldo disponível',
             value: balance,
+            amountFontSize: 34,
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
           Container(
             height: 1,
@@ -76,31 +63,109 @@ class BalanceCard extends StatelessWidget {
           const SizedBox(height: 18),
 
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.trending_up_rounded,
-                color: DuoColors.success,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Seu saldo está atualizado.',
-                  style: TextStyle(
-                    color: DuoColors.textSecondary,
-                    fontSize: 13,
-                  ),
+              Expanded(
+                child: _FlowStat(
+                  icon: Icons.arrow_upward_rounded,
+                  label: 'Entradas',
+                  value: income,
+                  accentColor: DuoColors.success,
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 15,
-                color: DuoColors.textHint,
+              Container(
+                width: 1,
+                height: 34,
+                margin: const EdgeInsets.symmetric(horizontal: 18),
+                color: DuoColors.divider,
+              ),
+              Expanded(
+                child: _FlowStat(
+                  icon: Icons.arrow_downward_rounded,
+                  label: 'Saídas',
+                  value: expense,
+                  accentColor: DuoColors.error,
+                  amountColor: DuoColors.textPrimary,
+                ),
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AvailableLabel extends StatelessWidget {
+  const _AvailableLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Saldo disponível',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: DuoColors.textSecondary,
+            letterSpacing: .1,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Icon(
+          Icons.visibility_off_rounded,
+          size: 15,
+          color: DuoColors.textHint,
+        ),
+      ],
+    );
+  }
+}
+
+class _FlowStat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final double value;
+  final Color accentColor;
+  final Color? amountColor;
+
+  const _FlowStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.accentColor,
+    this.amountColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: accentColor),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: accentColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        DuoAmount(
+          value: value,
+          compact: true,
+          amountFontSize: 16,
+          color: amountColor ?? accentColor,
+        ),
+      ],
     );
   }
 }

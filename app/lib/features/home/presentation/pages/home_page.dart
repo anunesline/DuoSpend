@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/context/wallet_context.dart';
 import '../../../../core/design_system/duo_card.dart';
@@ -6,14 +7,13 @@ import '../../../../core/design_system/duo_colors.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
+import '../../../transactions/domain/purchase/services/balance_summary.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
 import '../../../transactions/presentation/pages/history_page.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/balance_card.dart';
-import '../widgets/shared_balance_card.dart';
-import '../widgets/summary_card.dart';
 import '../widgets/transactions_preview.dart';
 import '../widgets/wallet_card.dart';
 
@@ -189,6 +189,46 @@ class _HomePageState extends State<HomePage> {
     controller.selectWalletById(sharedWallet.id);
   }
 
+  Widget _buildSharedBalanceRow(BalanceSummary summary) {
+    IconData icon;
+    Color color;
+    String subtitle;
+
+    if (summary.hasCredit) {
+      icon = Icons.call_received_rounded;
+      color = DuoColors.success;
+      subtitle =
+          'Você tem ${_formatMoney(summary.amountToReceive)} para receber';
+    } else if (summary.hasDebt) {
+      icon = Icons.call_made_rounded;
+      color = DuoColors.error;
+      subtitle =
+          'Você deve ${_formatMoney(summary.amountToPay)} ao parceiro';
+    } else {
+      icon = Icons.check_circle_rounded;
+      color = DuoColors.primaryLight;
+      subtitle = 'Nenhum acerto pendente';
+    }
+
+    return _QuickAccessRow(
+      icon: icon,
+      iconColor: color,
+      title: 'Saldo entre vocês',
+      subtitle: subtitle,
+      onTap: _openHistoryPage,
+    );
+  }
+
+  String _formatMoney(double value) {
+    final formatter = NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: 'R\$',
+      decimalDigits: 2,
+    );
+
+    return formatter.format(value);
+  }
+
   @override
   void dispose() {
     transactionController.dispose();
@@ -206,6 +246,22 @@ class _HomePageState extends State<HomePage> {
         final hasConnectedPartner = controller.hasConnectedPartner;
         final pendingConfirmationCount =
             controller.pendingSharedConfirmationCount;
+
+        final quickAccessRows = <Widget>[
+          if (hasConnectedPartner &&
+              controller.hasPendingSharedConfirmations)
+            _QuickAccessRow(
+              icon: Icons.pending_actions_rounded,
+              iconColor: DuoColors.warning,
+              title: 'Pendências',
+              subtitle: pendingConfirmationCount == 1
+                  ? '1 confirmação aguardando'
+                  : '$pendingConfirmationCount confirmações aguardando',
+              onTap: _openHistoryPage,
+            ),
+          if (hasConnectedPartner && controller.balanceSummary != null)
+            _buildSharedBalanceRow(controller.balanceSummary!),
+        ];
 
         return Scaffold(
           backgroundColor: DuoColors.background,
@@ -250,27 +306,12 @@ class _HomePageState extends State<HomePage> {
                           const SizedBox(height: 22),
                           BalanceCard(
                             balance: wallet?.balance ?? 0,
-                          ),
-                          const SizedBox(height: 16),
-                          SummaryCard(
                             income: controller.totalIncome,
                             expense: controller.totalExpense,
                           ),
-                          if (hasConnectedPartner &&
-                              controller
-                                  .hasPendingSharedConfirmations) ...[
+                          if (quickAccessRows.isNotEmpty) ...[
                             const SizedBox(height: 20),
-                            _PendingConfirmationsCard(
-                              count: pendingConfirmationCount,
-                              onTap: _openHistoryPage,
-                            ),
-                          ],
-                          if (hasConnectedPartner &&
-                              controller.balanceSummary != null) ...[
-                            const SizedBox(height: 20),
-                            SharedBalanceCard(
-                              summary: controller.balanceSummary!,
-                            ),
+                            _QuickAccessCard(rows: quickAccessRows),
                           ],
                           const SizedBox(height: 28),
                           const _SectionTitle(
@@ -327,13 +368,28 @@ class _HomeTopBar extends StatelessWidget {
     return Row(
       children: [
         const Expanded(
-          child: Text(
-            'DuoSpend',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: DuoColors.textPrimary,
-              letterSpacing: -.6,
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Duo',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    color: DuoColors.textPrimary,
+                    letterSpacing: -.6,
+                  ),
+                ),
+                TextSpan(
+                  text: 'Spend',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    color: DuoColors.primaryLight,
+                    letterSpacing: -.6,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -446,97 +502,111 @@ class _GreetingBlock extends StatelessWidget {
   }
 }
 
-class _PendingConfirmationsCard extends StatelessWidget {
-  final int count;
-  final VoidCallback onTap;
+class _QuickAccessCard extends StatelessWidget {
+  final List<Widget> rows;
 
-  const _PendingConfirmationsCard({
-    required this.count,
-    required this.onTap,
+  const _QuickAccessCard({
+    required this.rows,
   });
 
   @override
   Widget build(BuildContext context) {
-    final description = count == 1
-        ? 'Uma despesa precisa da sua resposta.'
-        : '$count despesas precisam da sua resposta.';
-
     return DuoCard(
-      onTap: onTap,
-      borderRadius: 22,
-      padding: const EdgeInsets.all(18),
-      child: Row(
+      borderRadius: 20,
+      padding: EdgeInsets.zero,
+      child: Column(
         children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: DuoColors.warning.withValues(alpha: .13),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.pending_actions_rounded,
-              color: DuoColors.warning,
-            ),
+          for (var i = 0; i < rows.length; i++) ...[
+            rows[i],
+            if (i != rows.length - 1)
+              Container(
+                height: 1,
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                color: DuoColors.divider,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickAccessRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  const _QuickAccessRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Expanded(
-                      child: Text(
-                        'Aguardando confirmação',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: DuoColors.textPrimary,
-                        ),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: DuoColors.textPrimary,
                       ),
                     ),
-                    Container(
-                      constraints: const BoxConstraints(
-                        minWidth: 26,
-                        minHeight: 26,
-                      ),
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: DuoColors.warning,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        count.toString(),
-                        style: const TextStyle(
-                          color: DuoColors.background,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: DuoColors.textSecondary,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: DuoColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: DuoColors.textHint,
+                size: 20,
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: DuoColors.textHint,
-          ),
-        ],
+        ),
       ),
     );
   }

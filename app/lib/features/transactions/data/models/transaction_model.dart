@@ -91,6 +91,42 @@ class TransactionModel {
   /// acerto gere mais de uma transação.
   final String? settlementId;
 
+  /// Indica se esta transação pertence a uma série recorrente.
+  ///
+  /// Transações antigas recebem false por padrão.
+  final bool isRecurring;
+
+  /// Identificador da série recorrente.
+  ///
+  /// Todas as ocorrências geradas a partir da mesma
+  /// configuração compartilham este identificador.
+  final String? recurringId;
+
+  /// Frequência configurada para a recorrência.
+  ///
+  /// Valores esperados:
+  /// - daily: diária;
+  /// - weekly: semanal;
+  /// - monthly: mensal;
+  /// - yearly: anual.
+  final String? recurringFrequency;
+
+  /// Data de início da recorrência.
+  ///
+  /// Representa a primeira data válida para geração
+  /// das ocorrências da série.
+  final DateTime? recurringStartDate;
+
+  /// Data final da recorrência.
+  ///
+  /// Pode ser nula quando a recorrência nunca expira.
+  final DateTime? recurringEndDate;
+
+  /// Indica que a recorrência não possui data final.
+  ///
+  /// Quando verdadeiro, recurringEndDate deve ser ignorada.
+  final bool recurringNeverEnds;
+
   final String category;
   final String subcategory;
   final List<TransactionItemModel> items;
@@ -114,6 +150,12 @@ class TransactionModel {
     this.confirmationRespondedByMemberId,
     this.isSettlement = false,
     this.settlementId,
+    this.isRecurring = false,
+    this.recurringId,
+    this.recurringFrequency,
+    this.recurringStartDate,
+    this.recurringEndDate,
+    this.recurringNeverEnds = true,
     required this.category,
     required this.subcategory,
     this.items = const [],
@@ -232,6 +274,14 @@ class TransactionModel {
           confirmationRespondedByMemberId,
       'isSettlement': isSettlement,
       'settlementId': settlementId,
+      'isRecurring': isRecurring,
+      'recurringId': recurringId,
+      'recurringFrequency': recurringFrequency,
+      'recurringStartDate':
+          recurringStartDate?.toIso8601String(),
+      'recurringEndDate':
+          recurringEndDate?.toIso8601String(),
+      'recurringNeverEnds': recurringNeverEnds,
       'category': category,
       'subcategory': subcategory,
       'items': items.map((item) => item.toMap()).toList(),
@@ -268,6 +318,18 @@ class TransactionModel {
           map['confirmationRespondedByMemberId']?.toString(),
       isSettlement: _parseBool(map['isSettlement']),
       settlementId: map['settlementId']?.toString(),
+      isRecurring: _parseBool(map['isRecurring']),
+      recurringId: map['recurringId']?.toString(),
+      recurringFrequency:
+          map['recurringFrequency']?.toString(),
+      recurringStartDate:
+          _parseDateTime(map['recurringStartDate']),
+      recurringEndDate:
+          _parseDateTime(map['recurringEndDate']),
+      recurringNeverEnds:
+          map['recurringNeverEnds'] == null
+              ? true
+              : _parseBool(map['recurringNeverEnds']),
       category: map['category']?.toString() ?? 'Sem categoria',
       subcategory:
           map['subcategory']?.toString() ?? 'Sem subcategoria',
@@ -298,6 +360,12 @@ class TransactionModel {
     String? confirmationRespondedByMemberId,
     bool? isSettlement,
     String? settlementId,
+    bool? isRecurring,
+    String? recurringId,
+    String? recurringFrequency,
+    DateTime? recurringStartDate,
+    DateTime? recurringEndDate,
+    bool? recurringNeverEnds,
     String? category,
     String? subcategory,
     List<TransactionItemModel>? items,
@@ -325,6 +393,16 @@ class TransactionModel {
               this.confirmationRespondedByMemberId,
       isSettlement: isSettlement ?? this.isSettlement,
       settlementId: settlementId ?? this.settlementId,
+      isRecurring: isRecurring ?? this.isRecurring,
+      recurringId: recurringId ?? this.recurringId,
+      recurringFrequency:
+          recurringFrequency ?? this.recurringFrequency,
+      recurringStartDate:
+          recurringStartDate ?? this.recurringStartDate,
+      recurringEndDate:
+          recurringEndDate ?? this.recurringEndDate,
+      recurringNeverEnds:
+          recurringNeverEnds ?? this.recurringNeverEnds,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
       items: items ?? this.items,

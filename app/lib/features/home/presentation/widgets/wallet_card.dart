@@ -18,9 +18,7 @@ class WalletCard extends StatelessWidget {
   });
 
   String get _walletTypeLabel {
-    return isShared
-        ? 'Carteira compartilhada'
-        : 'Carteira pessoal';
+    return isShared ? 'Compartilhada' : 'Pessoal';
   }
 
   IconData get _walletIcon {
@@ -38,19 +36,19 @@ class WalletCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 52,
-            height: 52,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               gradient: DuoColors.primaryGradient,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               _walletIcon,
               color: DuoColors.textPrimary,
-              size: 26,
+              size: 24,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,7 +63,7 @@ class WalletCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   _walletTypeLabel,
                   style: const TextStyle(
@@ -73,42 +71,23 @@ class WalletCard extends StatelessWidget {
                     fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 10),
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      const TextSpan(
-                        text: 'Saldo ',
-                        style: TextStyle(
-                          color: DuoColors.textHint,
-                          fontSize: 12,
-                        ),
-                      ),
-                      TextSpan(
-                        text: 'R\$ ${balance.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          color: DuoColors.textPrimary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: DuoColors.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
+          const SizedBox(width: 10),
+          Text(
+            'R\$ ${balance.toStringAsFixed(2).replaceAll('.', ',')}',
+            style: const TextStyle(
+              color: DuoColors.primaryLight,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
             ),
-            child: const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: DuoColors.textSecondary,
-            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: DuoColors.textHint,
+            size: 22,
           ),
         ],
       ),
