@@ -365,6 +365,7 @@ class TransactionModel {
     String? recurringFrequency,
     DateTime? recurringStartDate,
     DateTime? recurringEndDate,
+    bool clearRecurringEndDate = false,
     bool? recurringNeverEnds,
     String? category,
     String? subcategory,
@@ -399,8 +400,9 @@ class TransactionModel {
           recurringFrequency ?? this.recurringFrequency,
       recurringStartDate:
           recurringStartDate ?? this.recurringStartDate,
-      recurringEndDate:
-          recurringEndDate ?? this.recurringEndDate,
+      recurringEndDate: clearRecurringEndDate
+          ? null
+          : recurringEndDate ?? this.recurringEndDate,
       recurringNeverEnds:
           recurringNeverEnds ?? this.recurringNeverEnds,
       category: category ?? this.category,

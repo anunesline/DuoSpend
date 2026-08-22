@@ -56,6 +56,7 @@ class CreateRecurringTransactionUseCase {
       recurringEndDate: transaction.recurringNeverEnds
           ? null
           : endDate,
+      clearRecurringEndDate: transaction.recurringNeverEnds,
       recurringNeverEnds: transaction.recurringNeverEnds,
       isRecurring: true,
     );
