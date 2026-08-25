@@ -95,3 +95,34 @@ class MonthlyFinancialPoint {
 
   double get balance => report.balance;
 }
+
+
+class MemberFinancialSummary {
+  final String memberId;
+  final double amountPaid;
+  final double responsibility;
+
+  const MemberFinancialSummary({
+    required this.memberId,
+    required this.amountPaid,
+    required this.responsibility,
+  });
+
+  double get netPosition => amountPaid - responsibility;
+
+  bool get hasCredit => netPosition > 0;
+
+  bool get hasDebt => netPosition < 0;
+}
+
+class SharedFinancialReport {
+  final double totalSharedExpense;
+  final List<MemberFinancialSummary> members;
+
+  const SharedFinancialReport({
+    required this.totalSharedExpense,
+    required this.members,
+  });
+
+  bool get isEmpty => totalSharedExpense == 0;
+}
