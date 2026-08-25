@@ -4,6 +4,7 @@ enum FinancialInsightType {
   projectedBalance,
   goal,
   spendingTrend,
+  recurring,
   cardInvoice,
 }
 
