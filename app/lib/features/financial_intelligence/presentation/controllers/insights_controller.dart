@@ -117,7 +117,6 @@ class InsightsController extends ChangeNotifier {
         goals: goals,
         currentInvoices: currentInvoices,
         previousInvoices: previousInvoices,
-        recurringTransactions: transactions.where((item) => item.isRecurring).toList(),
         now: reference,
       ));
     } catch (_) {
