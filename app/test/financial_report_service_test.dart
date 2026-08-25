@@ -15,6 +15,7 @@ void main() {
     String category = 'Outros',
     String financialStatus = 'settled',
     bool isSettlement = false,
+    String? paidByMemberId,
     String splitType = 'none',
     Map<String, double> memberShares = const {},
     SharedTransactionConfirmationStatus confirmationStatus =
@@ -31,6 +32,7 @@ void main() {
       subcategory: 'Geral',
       financialStatus: financialStatus,
       isSettlement: isSettlement,
+      paidByMemberId: paidByMemberId,
       splitType: splitType,
       memberShares: memberShares,
       purchaseFor: splitType == 'none' ? 'self' : 'both',
@@ -387,6 +389,99 @@ void main() {
           transactionType: 'transfer',
         ),
         throwsArgumentError,
+      );
+    });
+
+    test('calcula quanto cada membro pagou e sua responsabilidade', () {
+      final report = service.buildMonthly(
+        year: 2026,
+        month: 8,
+        transactions: [
+          transaction(
+            id: 'shared',
+            value: 200,
+            type: 'expense',
+            date: DateTime(2026, 8, 5),
+            paidByMemberId: 'user-1',
+            splitType: 'equal',
+            memberShares: const {
+              'user-1': 100,
+              'user-2': 100,
+            },
+          ),
+        ],
+      );
+
+      final shared = service.buildSharedResponsibility(
+        report: report,
+        memberIds: const ['user-1', 'user-2'],
+      );
+
+      expect(shared.totalSharedExpense, 200);
+      expect(shared.members, hasLength(2));
+      expect(shared.members.first.amountPaid, 200);
+      expect(shared.members.first.responsibility, 100);
+      expect(shared.members.first.netPosition, 100);
+      expect(shared.members.last.amountPaid, 0);
+      expect(shared.members.last.responsibility, 100);
+      expect(shared.members.last.netPosition, -100);
+    });
+
+    test('despesa sem divisão pertence integralmente ao pagador', () {
+      final report = service.buildMonthly(
+        year: 2026,
+        month: 8,
+        transactions: [
+          transaction(
+            id: 'individual-in-shared-wallet',
+            value: 90,
+            type: 'expense',
+            date: DateTime(2026, 8, 8),
+            paidByMemberId: 'user-2',
+          ),
+        ],
+      );
+
+      final shared = service.buildSharedResponsibility(
+        report: report,
+        memberIds: const ['user-1', 'user-2'],
+      );
+
+      final payer = shared.members.last;
+
+      expect(payer.amountPaid, 90);
+      expect(payer.responsibility, 90);
+      expect(payer.netPosition, 0);
+      expect(shared.members.first.responsibility, 0);
+    });
+
+    test('receitas não alteram responsabilidade compartilhada', () {
+      final report = service.buildMonthly(
+        year: 2026,
+        month: 8,
+        transactions: [
+          transaction(
+            id: 'income',
+            value: 500,
+            type: 'income',
+            date: DateTime(2026, 8, 1),
+            paidByMemberId: 'user-1',
+          ),
+        ],
+      );
+
+      final shared = service.buildSharedResponsibility(
+        report: report,
+        memberIds: const ['user-1', 'user-2'],
+      );
+
+      expect(shared.totalSharedExpense, 0);
+      expect(
+        shared.members.every(
+          (member) =>
+              member.amountPaid == 0 && member.responsibility == 0,
+        ),
+        isTrue,
       );
     });
 
