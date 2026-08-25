@@ -113,8 +113,8 @@ class FinancialCalendarService {
 
     for (final occurrence in occurrences) {
       final normalizedOccurrence = _dateOnly(occurrence);
-      final isOriginalOccurrence =
-          normalizedOccurrence == _dateOnly(transaction.date);
+      final isOriginalOccurrence = normalizedOccurrence
+          .isAtSameMomentAs(_dateOnly(transaction.date));
       final isDeferred = _isDeferred(transaction);
       final isProjected = normalizedOccurrence.isAfter(referenceDate) ||
           (isDeferred && !normalizedOccurrence.isBefore(referenceDate));
