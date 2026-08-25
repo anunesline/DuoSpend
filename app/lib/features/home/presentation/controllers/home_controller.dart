@@ -72,6 +72,7 @@ class HomeController extends ChangeNotifier {
   BalanceResult? balanceResult;
 
   bool isLoading = true;
+  bool isCreatingIndividualWallet = false;
   bool isCreatingSharedWallet = false;
   bool isSendingPartnerInvite = false;
 
@@ -322,6 +323,61 @@ class HomeController extends ChangeNotifier {
 
   void useCoupleMode() {
     _walletContext.useCoupleMode();
+  }
+
+  Future<WalletModel?> createIndividualWallet({
+    required String name,
+    double initialBalance = 0,
+  }) async {
+    if (isCreatingIndividualWallet) {
+      return null;
+    }
+
+    if (_auth.currentUser == null) {
+      errorMessage = 'Usuário não autenticado.';
+      notifyListeners();
+      return null;
+    }
+
+    final normalizedName = name.trim();
+
+    if (normalizedName.isEmpty) {
+      errorMessage = 'Informe um nome para a carteira.';
+      notifyListeners();
+      return null;
+    }
+
+    if (!initialBalance.isFinite) {
+      errorMessage = 'Informe um saldo inicial válido.';
+      notifyListeners();
+      return null;
+    }
+
+    isCreatingIndividualWallet = true;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      final createdWallet = await _walletRepository.createWallet(
+        name: normalizedName,
+        type: WalletType.individual,
+        initialBalance: initialBalance,
+      );
+
+      _walletContext.updateSelectedWallet(createdWallet);
+
+      return createdWallet;
+    } catch (error, stackTrace) {
+      debugPrint('Erro ao criar carteira individual: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      errorMessage = 'Não foi possível criar a carteira.';
+
+      return null;
+    } finally {
+      isCreatingIndividualWallet = false;
+      notifyListeners();
+    }
   }
 
   Future<WalletModel?> createSharedWallet({
