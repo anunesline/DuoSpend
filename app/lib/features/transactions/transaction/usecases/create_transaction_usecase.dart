@@ -227,12 +227,16 @@ class CreateTransactionUseCase {
         : <TransactionModel>[
             recurringUseCase.execute(baseTransaction),
           ];
-    final transactions = isInstallment
+    final transactionsWithShares = isInstallment
         ? _applyInstallmentShares(
             transactions: generatedTransactions,
             totalShares: financialSplit.memberShares,
           )
         : generatedTransactions;
+    final transactions = _applyFinancialStatuses(
+      transactions: transactionsWithShares,
+      paymentMethod: paymentMethod,
+    );
     final transaction = transactions.first;
 
     if (paymentMethod?.isCreditCard ?? false) {
@@ -253,16 +257,7 @@ class CreateTransactionUseCase {
       );
     }
 
-    final now = DateTime.now();
-    final firstInstallmentIsDue =
-        !isInstallment ||
-        !DateTime(
-          transaction.date.year,
-          transaction.date.month,
-          transaction.date.day,
-        ).isAfter(DateTime(now.year, now.month, now.day));
-
-    if (firstInstallmentIsDue) {
+    if (transaction.isFinanciallySettled) {
       await _applyImmediateFinancialImpact(
         paymentMethod: paymentMethod,
         financialWallet: financialWallet,
@@ -284,6 +279,48 @@ class CreateTransactionUseCase {
       financialWallet: financialWallet,
       financialSplit: financialSplit,
       transactions: List<TransactionModel>.unmodifiable(transactions),
+    );
+  }
+
+  List<TransactionModel> _applyFinancialStatuses({
+    required List<TransactionModel> transactions,
+    required PaymentMethod? paymentMethod,
+  }) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return List<TransactionModel>.unmodifiable(
+      transactions.map((transaction) {
+        if (paymentMethod?.isCreditCard ?? false) {
+          return transaction.copyWith(
+            financialStatus: 'invoice',
+            clearFinancialSettledAt: true,
+          );
+        }
+
+        final transactionDay = DateTime(
+          transaction.date.year,
+          transaction.date.month,
+          transaction.date.day,
+        );
+        final isDeferred = paymentMethod == PaymentMethod.boleto ||
+            paymentMethod == PaymentMethod.carne;
+        final isFuture = transactionDay.isAfter(today);
+        final isLaterInstallment = transaction.isInstallment &&
+            (transaction.installmentNumber ?? 1) > 1;
+
+        if (isDeferred || isFuture || isLaterInstallment) {
+          return transaction.copyWith(
+            financialStatus: 'pending',
+            clearFinancialSettledAt: true,
+          );
+        }
+
+        return transaction.copyWith(
+          financialStatus: 'settled',
+          financialSettledAt: now,
+        );
+      }),
     );
   }
 
