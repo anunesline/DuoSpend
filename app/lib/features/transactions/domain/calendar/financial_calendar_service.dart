@@ -142,8 +142,11 @@ class FinancialCalendarService {
     final normalizedDate = _dateOnly(transaction.date);
     final isDeferred = _isDeferred(transaction);
     final isCreditCard = transaction.paymentMethod == 'creditCard';
+    final isUnpaidInstallment = transaction.isInstallment &&
+        (transaction.installmentNumber ?? 1) > 1;
     final isProjected = !isCreditCard &&
         (normalizedDate.isAfter(referenceDate) ||
+            isUnpaidInstallment ||
             (isDeferred && !normalizedDate.isBefore(referenceDate)));
 
     return FinancialCalendarEntry(
