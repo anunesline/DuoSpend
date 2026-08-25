@@ -45,8 +45,8 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     _selectedMonth = DateTime(now.year, now.month);
   }
 
-  FinancialReport get _report {
-    return _reportService.buildMonthly(
+  FinancialReportComparison get _comparison {
+    return _reportService.compareMonthly(
       transactions: widget.transactions,
       year: _selectedMonth.year,
       month: _selectedMonth.month,
@@ -78,7 +78,8 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final report = _report;
+    final comparison = _comparison;
+    final report = comparison.current;
 
     return Scaffold(
       backgroundColor: DuoColors.background,
@@ -130,6 +131,11 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 20),
+            _MonthlyComparisonCard(
+              comparison: comparison,
+              formatMoney: _formatMoney,
             ),
             const SizedBox(height: 28),
             const _SectionTitle(
@@ -404,6 +410,171 @@ class _ValueCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MonthlyComparisonCard extends StatelessWidget {
+  final FinancialReportComparison comparison;
+  final String Function(double) formatMoney;
+
+  const _MonthlyComparisonCard({
+    required this.comparison,
+    required this.formatMoney,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final previousMonth = DateFormat(
+      'MMMM',
+      'pt_BR',
+    ).format(comparison.previous.startDate);
+
+    return DuoCard(
+      borderRadius: 20,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Comparativo mensal',
+            style: TextStyle(
+              color: DuoColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Em relação a $previousMonth',
+            style: const TextStyle(
+              color: DuoColors.textSecondary,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 18),
+          _ComparisonMetricRow(
+            label: 'Receitas',
+            metric: comparison.income,
+            formatMoney: formatMoney,
+            positiveWhenIncrease: true,
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 13),
+            child: Divider(height: 1, color: DuoColors.divider),
+          ),
+          _ComparisonMetricRow(
+            label: 'Despesas',
+            metric: comparison.expense,
+            formatMoney: formatMoney,
+            positiveWhenIncrease: false,
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 13),
+            child: Divider(height: 1, color: DuoColors.divider),
+          ),
+          _ComparisonMetricRow(
+            label: 'Resultado',
+            metric: comparison.balance,
+            formatMoney: formatMoney,
+            positiveWhenIncrease: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComparisonMetricRow extends StatelessWidget {
+  final String label;
+  final FinancialMetricComparison metric;
+  final String Function(double) formatMoney;
+  final bool positiveWhenIncrease;
+
+  const _ComparisonMetricRow({
+    required this.label,
+    required this.metric,
+    required this.formatMoney,
+    required this.positiveWhenIncrease,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isPositive = metric.unchanged ||
+        (metric.increased && positiveWhenIncrease) ||
+        (metric.decreased && !positiveWhenIncrease);
+    final color = metric.unchanged
+        ? DuoColors.textSecondary
+        : isPositive
+            ? DuoColors.success
+            : DuoColors.error;
+    final icon = metric.unchanged
+        ? Icons.remove_rounded
+        : metric.increased
+            ? Icons.trending_up_rounded
+            : Icons.trending_down_rounded;
+    final percentage = metric.percentageChange;
+    final changeLabel = percentage == null
+        ? 'Sem base anterior'
+        : '${percentage.abs().toStringAsFixed(1).replaceAll('.', ',')}%';
+    final differencePrefix = metric.difference > 0 ? '+' : '';
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: DuoColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                formatMoney(metric.currentValue),
+                style: const TextStyle(
+                  color: DuoColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: color, size: 17),
+                const SizedBox(width: 4),
+                Text(
+                  changeLabel,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$differencePrefix${formatMoney(metric.difference)}',
+              style: const TextStyle(
+                color: DuoColors.textHint,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
