@@ -5,6 +5,37 @@ import '../models/financial_intelligence_input.dart';
 class FinancialIntelligenceService {
   const FinancialIntelligenceService();
 
+  FinancialInsight buildPurchaseImpact({
+    required double purchaseAmount,
+    required double projectedBalance,
+  }) {
+    if (!purchaseAmount.isFinite || purchaseAmount <= 0) {
+      throw ArgumentError.value(
+        purchaseAmount,
+        'purchaseAmount',
+        'O valor da compra deve ser maior que zero.',
+      );
+    }
+
+    final balanceAfterPurchase = projectedBalance - purchaseAmount;
+    final causesNegativeBalance = balanceAfterPurchase < 0;
+    return FinancialInsight(
+      id: 'purchase-impact',
+      type: FinancialInsightType.purchaseImpact,
+      severity: causesNegativeBalance
+          ? FinancialInsightSeverity.warning
+          : FinancialInsightSeverity.info,
+      title: causesNegativeBalance
+          ? 'Esta compra pode deixar o saldo negativo'
+          : 'Impacto da compra no saldo previsto',
+      message: causesNegativeBalance
+          ? 'Considerando os compromissos já lançados, a compra ultrapassa o saldo previsto.'
+          : 'Considerando os compromissos já lançados, a compra cabe no saldo previsto.',
+      source: 'Saldo previsto atual − valor da compra simulada',
+      amount: balanceAfterPurchase,
+    );
+  }
+
   List<FinancialInsight> build(FinancialIntelligenceInput input) {
     final insights = <FinancialInsight>[];
     _addBudgetInsights(input.budgets, insights);
