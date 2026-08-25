@@ -10,9 +10,13 @@ class FinancialReportService {
     required DateTime endDate,
     String? category,
     String? transactionType,
+    DateTime? referenceDate,
   }) {
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
+    final normalizedReferenceDate = _dateOnly(
+      referenceDate ?? DateTime.now(),
+    );
 
     if (normalizedEnd.isBefore(normalizedStart)) {
       throw ArgumentError(
@@ -39,7 +43,10 @@ class FinancialReportService {
 
       return !transactionDate.isBefore(normalizedStart) &&
           !transactionDate.isAfter(normalizedEnd) &&
-          transaction.isFinanciallySettled &&
+          _isRecognizedExpenseOrIncome(
+            transaction,
+            referenceDate: normalizedReferenceDate,
+          ) &&
           !transaction.isSettlement &&
           transaction.canAffectSharedBalance &&
           (normalizedCategory == null ||
@@ -193,6 +200,7 @@ class FinancialReportService {
     int monthCount = 6,
     String? category,
     String? transactionType,
+    DateTime? referenceDate,
   }) {
     if (endMonth < DateTime.january ||
         endMonth > DateTime.december) {
@@ -222,6 +230,7 @@ class FinancialReportService {
         month: month.month,
         category: category,
         transactionType: transactionType,
+        referenceDate: referenceDate,
       );
 
       points.add(
@@ -241,6 +250,7 @@ class FinancialReportService {
     required int month,
     String? category,
     String? transactionType,
+    DateTime? referenceDate,
   }) {
     final selectedMonth = DateTime(year, month);
     final previousMonth = DateTime(year, month - 1);
@@ -251,6 +261,7 @@ class FinancialReportService {
       month: selectedMonth.month,
       category: category,
       transactionType: transactionType,
+      referenceDate: referenceDate,
     );
     final previous = buildMonthly(
       transactions: transactions,
@@ -258,6 +269,7 @@ class FinancialReportService {
       month: previousMonth.month,
       category: category,
       transactionType: transactionType,
+      referenceDate: referenceDate,
     );
 
     return FinancialReportComparison(
@@ -284,6 +296,7 @@ class FinancialReportService {
     required int month,
     String? category,
     String? transactionType,
+    DateTime? referenceDate,
   }) {
     if (month < DateTime.january || month > DateTime.december) {
       throw ArgumentError.value(
@@ -302,7 +315,29 @@ class FinancialReportService {
       endDate: endDate,
       category: category,
       transactionType: transactionType,
+      referenceDate: referenceDate,
     );
+  }
+
+  bool _isRecognizedExpenseOrIncome(
+    TransactionModel transaction, {
+    required DateTime referenceDate,
+  }) {
+    if (transaction.isInstallment &&
+        _dateOnly(transaction.date).isAfter(referenceDate)) {
+      return false;
+    }
+
+    final isCreditCardPurchase =
+        transaction.type == 'expense' &&
+        transaction.paymentMethod == 'creditCard';
+
+    if (isCreditCardPurchase) {
+      return transaction.isSettledByInvoice ||
+          transaction.isFinanciallySettled;
+    }
+
+    return transaction.isFinanciallySettled;
   }
 
   DateTime _dateOnly(DateTime date) {
