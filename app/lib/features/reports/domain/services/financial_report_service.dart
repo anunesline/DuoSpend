@@ -84,6 +84,43 @@ class FinancialReportService {
     );
   }
 
+  FinancialReportComparison compareMonthly({
+    required List<TransactionModel> transactions,
+    required int year,
+    required int month,
+  }) {
+    final selectedMonth = DateTime(year, month);
+    final previousMonth = DateTime(year, month - 1);
+
+    final current = buildMonthly(
+      transactions: transactions,
+      year: selectedMonth.year,
+      month: selectedMonth.month,
+    );
+    final previous = buildMonthly(
+      transactions: transactions,
+      year: previousMonth.year,
+      month: previousMonth.month,
+    );
+
+    return FinancialReportComparison(
+      current: current,
+      previous: previous,
+      income: FinancialMetricComparison(
+        currentValue: current.totalIncome,
+        previousValue: previous.totalIncome,
+      ),
+      expense: FinancialMetricComparison(
+        currentValue: current.totalExpense,
+        previousValue: previous.totalExpense,
+      ),
+      balance: FinancialMetricComparison(
+        currentValue: current.balance,
+        previousValue: previous.balance,
+      ),
+    );
+  }
+
   FinancialReport buildMonthly({
     required List<TransactionModel> transactions,
     required int year,
