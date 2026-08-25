@@ -37,11 +37,13 @@ String _reportMonthName(DateTime date, {bool abbreviated = false}) {
 class MonthlyReportPage extends StatefulWidget {
   final WalletModel wallet;
   final List<TransactionModel> transactions;
+  final String? currentUserId;
 
   const MonthlyReportPage({
     super.key,
     required this.wallet,
     required this.transactions,
+    this.currentUserId,
   });
 
   @override
@@ -349,6 +351,12 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     final comparison = _comparison;
     final evolution = _evolution;
     final report = _filteredReport;
+    final sharedReport = widget.wallet.isShared
+        ? _reportService.buildSharedResponsibility(
+            report: report,
+            memberIds: widget.wallet.memberIds,
+          )
+        : null;
 
     return Scaffold(
       backgroundColor: DuoColors.background,
@@ -410,6 +418,15 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 ),
               ],
             ),
+            if (sharedReport != null) ...[
+              const SizedBox(height: 20),
+              _SharedResponsibilityCard(
+                report: sharedReport,
+                wallet: widget.wallet,
+                currentUserId: widget.currentUserId,
+                formatMoney: _formatMoney,
+              ),
+            ],
             if (_customPeriod == null) ...[
               const SizedBox(height: 20),
               _MonthlyComparisonCard(
@@ -786,6 +803,265 @@ class _ValueCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SharedResponsibilityCard extends StatelessWidget {
+  final SharedFinancialReport report;
+  final WalletModel wallet;
+  final String? currentUserId;
+  final String Function(double) formatMoney;
+
+  const _SharedResponsibilityCard({
+    required this.report,
+    required this.wallet,
+    required this.currentUserId,
+    required this.formatMoney,
+  });
+
+  String _memberLabel(MemberFinancialSummary member) {
+    if (member.memberId == currentUserId) {
+      return 'Você';
+    }
+
+    if (member.memberId == wallet.ownerId) {
+      return 'Responsável da carteira';
+    }
+
+    return 'Parceiro(a)';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DuoCard(
+      borderRadius: 20,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.groups_rounded,
+                color: DuoColors.primaryLight,
+                size: 20,
+              ),
+              SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'Responsabilidade compartilhada',
+                  style: TextStyle(
+                    color: DuoColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'Compara o que cada pessoa pagou com sua parte financeira.',
+            style: TextStyle(
+              color: DuoColors.textSecondary,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (report.isEmpty)
+            const _SharedReportEmpty()
+          else
+            for (var index = 0;
+                index < report.members.length;
+                index++) ...[
+              _MemberResponsibilityRow(
+                label: _memberLabel(report.members[index]),
+                member: report.members[index],
+                formatMoney: formatMoney,
+              ),
+              if (index != report.members.length - 1)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  child: Divider(
+                    height: 1,
+                    color: DuoColors.divider,
+                  ),
+                ),
+            ],
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: DuoColors.surfaceLight,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: DuoColors.textHint,
+                  size: 16,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'O consumo por item não altera esta divisão. '
+                    'Sem divisão financeira, a despesa pertence a quem pagou.',
+                    style: TextStyle(
+                      color: DuoColors.textSecondary,
+                      fontSize: 10,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemberResponsibilityRow extends StatelessWidget {
+  final String label;
+  final MemberFinancialSummary member;
+  final String Function(double) formatMoney;
+
+  const _MemberResponsibilityRow({
+    required this.label,
+    required this.member,
+    required this.formatMoney,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final net = member.netPosition;
+    final netColor = net > 0
+        ? DuoColors.success
+        : net < 0
+            ? DuoColors.error
+            : DuoColors.textSecondary;
+    final netLabel = net > 0
+        ? 'Adiantou'
+        : net < 0
+            ? 'Ficou responsável'
+            : 'Equilibrado';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: DuoColors.textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _MemberValue(
+                label: 'Pagou',
+                value: formatMoney(member.amountPaid),
+              ),
+            ),
+            Expanded(
+              child: _MemberValue(
+                label: 'Responsabilidade',
+                value: formatMoney(member.responsibility),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        Row(
+          children: [
+            Icon(
+              net == 0
+                  ? Icons.check_circle_outline_rounded
+                  : net > 0
+                      ? Icons.south_west_rounded
+                      : Icons.north_east_rounded,
+              color: netColor,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                '$netLabel: ${formatMoney(net.abs())}',
+                style: TextStyle(
+                  color: netColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _MemberValue extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MemberValue({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: DuoColors.textHint,
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: DuoColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SharedReportEmpty extends StatelessWidget {
+  const _SharedReportEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        'Nenhuma despesa compartilhada neste período.',
+        style: TextStyle(
+          color: DuoColors.textSecondary,
+          fontSize: 12,
+        ),
       ),
     );
   }
