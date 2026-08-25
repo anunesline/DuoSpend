@@ -96,35 +96,6 @@ class TransactionRepository {
       );
     }
 
-    if (obligation.paidByMemberId?.trim() != user.uid) {
-      throw StateError(
-        'Somente o responsável financeiro pode liquidar esta obrigação.',
-      );
-    }
-
-    if (obligation.isSettledByInvoice ||
-        obligation.paymentMethod == 'creditCard') {
-      throw StateError(
-        'Compras no crédito são liquidadas pelo pagamento da fatura.',
-      );
-    }
-
-    final sourceId = obligation.paymentSourceId?.trim();
-
-    if (sourceId != null &&
-        sourceId.isNotEmpty &&
-        sourceId != financialWallet.id) {
-      throw StateError(
-        'A carteira escolhida não corresponde à origem da obrigação.',
-      );
-    }
-
-    _validateTransactionWalletForSettlement(
-      wallet: transactionWallet,
-      userId: user.uid,
-      obligation: obligation,
-    );
-
     final transactionReference = transactionWallet.isShared
         ? _sharedTransactionsReference(transactionWallet.id)
             .doc(obligation.id)
@@ -156,6 +127,36 @@ class TransactionRepository {
         obligationDocument.data()!,
       );
 
+      _validateTransactionWalletForSettlement(
+        wallet: transactionWallet,
+        userId: user.uid,
+        obligation: persistedObligation,
+      );
+
+      if (persistedObligation.paidByMemberId?.trim() != user.uid) {
+        throw StateError(
+          'Somente o responsável financeiro pode liquidar esta obrigação.',
+        );
+      }
+
+      if (persistedObligation.isSettledByInvoice ||
+          persistedObligation.paymentMethod == 'creditCard') {
+        throw StateError(
+          'Compras no crédito são liquidadas pelo pagamento da fatura.',
+        );
+      }
+
+      final persistedSourceId =
+          persistedObligation.paymentSourceId?.trim();
+
+      if (persistedSourceId != null &&
+          persistedSourceId.isNotEmpty &&
+          persistedSourceId != financialWallet.id.trim()) {
+        throw StateError(
+          'A carteira escolhida não corresponde à origem da obrigação.',
+        );
+      }
+
       if (persistedObligation.isFinanciallySettled) {
         return persistedObligation;
       }
@@ -166,12 +167,20 @@ class TransactionRepository {
         );
       }
 
+      if (persistedObligation.type != 'income' &&
+          persistedObligation.type != 'expense') {
+        throw StateError('Tipo de obrigação financeira inválido.');
+      }
+
       final walletData = walletDocument.data()!;
       final ownerId = walletData['ownerId']?.toString().trim();
+      final walletType = walletData['type']?.toString().trim();
       final isLegacyWallet = financialWalletReference.path ==
           'users/${user.uid}/wallets/principal';
 
-      if ((ownerId ?? (isLegacyWallet ? user.uid : '')) != user.uid) {
+      if ((ownerId ?? (isLegacyWallet ? user.uid : '')) != user.uid ||
+          (walletType ?? (isLegacyWallet ? 'individual' : '')) !=
+              'individual') {
         throw StateError('Usuário sem acesso à carteira financeira.');
       }
 
@@ -182,11 +191,6 @@ class TransactionRepository {
       final balanceDelta = persistedObligation.type == 'income'
           ? persistedObligation.value
           : -persistedObligation.value;
-
-      if (persistedObligation.type != 'income' &&
-          persistedObligation.type != 'expense') {
-        throw StateError('Tipo de obrigação financeira inválido.');
-      }
 
       firestoreTransaction.update(financialWalletReference, {
         'balance': FieldValue.increment(balanceDelta),
