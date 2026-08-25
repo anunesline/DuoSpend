@@ -6,6 +6,7 @@ import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../domain/financial_split/financial_split_service.dart';
+import '../../domain/models/payment_method.dart';
 import '../../domain/purchase/models/item_consumption.dart';
 import '../../domain/purchase/services/balance_settlement_synchronizer.dart';
 import '../../transaction/usecases/accept_shared_transaction_usecase.dart';
@@ -164,6 +165,8 @@ class TransactionController extends ChangeNotifier {
     bool recurringNeverEnds = true,
     String? notes,
     String? financialWalletId,
+    PaymentMethod? paymentMethod,
+    String? paymentSourceId,
 
     // Compatibilidade temporária com a NewTransactionPage antiga.
     // O split agora é calculado pelo CreateTransactionUseCase.
@@ -202,6 +205,8 @@ class TransactionController extends ChangeNotifier {
         recurringNeverEnds: recurringNeverEnds,
         notes: notes,
         financialWalletId: financialWalletId,
+        paymentMethod: paymentMethod,
+        paymentSourceId: paymentSourceId,
       );
 
       _lastResult = result;
