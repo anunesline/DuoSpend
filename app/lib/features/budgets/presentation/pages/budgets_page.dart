@@ -82,6 +82,6 @@ class _BudgetCard extends StatelessWidget {
       const SizedBox(height: 14), LinearProgressIndicator(value: progress, color: color, minHeight: 8, borderRadius: BorderRadius.circular(99)), const SizedBox(height: 10),
       Text('${money.format(consumption.spentAmount)} de ${money.format(budget.limitAmount)}'),
       const SizedBox(height: 4), Text(consumption.remainingAmount >= 0 ? '${money.format(consumption.remainingAmount)} restantes · $label' : '${money.format(-consumption.remainingAmount)} acima do limite · $label', style: TextStyle(color: color, fontWeight: FontWeight.w700)),
-    ]));
+    ])));
   }
 }
