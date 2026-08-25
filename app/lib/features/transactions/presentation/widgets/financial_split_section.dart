@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/design_system/duo_card.dart';
 import '../../../../core/design_system/duo_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
 import '../../domain/financial_split/financial_split_configuration.dart';
 import '../../domain/financial_split/financial_split_rules.dart';
 
