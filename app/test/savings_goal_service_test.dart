@@ -141,6 +141,60 @@ void main() {
       );
     });
 
+    test('edição mantém valor reservado e recalcula o status', () {
+      final completed = createGoal(
+        targetAmount: 500,
+        initialAmount: 500,
+      );
+
+      final updated = service.update(
+        goal: completed,
+        name: 'Reserva ampliada',
+        targetAmount: 800,
+        deadline: DateTime(2026, 12, 20, 18),
+        now: now.add(const Duration(days: 1)),
+      );
+
+      expect(updated.name, 'Reserva ampliada');
+      expect(updated.targetAmount, 800);
+      expect(updated.savedAmount, 500);
+      expect(updated.status, SavingsGoalStatus.active);
+      expect(updated.deadline, DateTime(2026, 12, 20));
+    });
+
+    test('edição não reduz alvo abaixo do valor reservado', () {
+      final goal = createGoal(
+        targetAmount: 1000,
+        initialAmount: 600,
+      );
+
+      expect(
+        () => service.update(
+          goal: goal,
+          name: goal.name,
+          targetAmount: 599.99,
+          now: now,
+        ),
+        throwsStateError,
+      );
+    });
+
+    test('edição preserva prazo legado no passado', () {
+      final goal = createGoal(
+        deadline: DateTime(2026, 8, 25),
+      ).copyWith(deadline: DateTime(2026, 8, 20));
+
+      final updated = service.update(
+        goal: goal,
+        name: 'Meta antiga',
+        targetAmount: goal.targetAmount,
+        deadline: DateTime(2026, 8, 20),
+        now: now,
+      );
+
+      expect(updated.deadline, DateTime(2026, 8, 20));
+    });
+
     test('arquivamento bloqueia novos movimentos', () {
       final archived = service.archive(goal: createGoal());
 
