@@ -10,6 +10,7 @@ import '../../../shopping/presentation/controllers/shopping_controller.dart';
 import '../../../reports/presentation/pages/monthly_report_page.dart';
 import '../../../goals/presentation/pages/savings_goals_page.dart';
 import '../../../budgets/presentation/pages/budgets_page.dart';
+import '../../../financial_intelligence/presentation/pages/insights_page.dart';
 import '../../../transactions/domain/purchase/services/balance_summary.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
@@ -427,6 +428,15 @@ class _HomePageState extends State<HomePage> {
     await _loadHome();
   }
 
+  Future<void> _openInsightsPage() async {
+    final wallet = controller.wallet;
+    if (wallet == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => InsightsPage(wallet: wallet)),
+    );
+  }
+
   Future<void> _openFinancialCalendarPage() async {
     final wallet = controller.wallet;
 
@@ -554,6 +564,14 @@ class _HomePageState extends State<HomePage> {
             controller.pendingSharedConfirmationCount;
 
         final quickAccessRows = <Widget>[
+          if (wallet != null)
+            _QuickAccessRow(
+              icon: Icons.auto_awesome_rounded,
+              iconColor: DuoColors.primaryLight,
+              title: 'Insights',
+              subtitle: 'Leituras do seu cenário financeiro',
+              onTap: _openInsightsPage,
+            ),
           if (wallet != null)
             _QuickAccessRow(
               icon: Icons.savings_rounded,
