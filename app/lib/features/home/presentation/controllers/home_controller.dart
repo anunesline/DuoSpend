@@ -756,16 +756,8 @@ class HomeController extends ChangeNotifier {
         transaction.date.month,
         transaction.date.day,
       );
-      final method = transaction.paymentMethod;
-      final isDeferred = method == 'creditCard' ||
-          method == 'boleto' ||
-          method == 'carne';
-      final isUnpaidInstallment = transaction.isInstallment &&
-          (transaction.installmentNumber ?? 1) > 1;
-
       if (transactionDate.isAfter(today) ||
-          isDeferred ||
-          isUnpaidInstallment) {
+          !transaction.isFinanciallySettled) {
         continue;
       }
 
