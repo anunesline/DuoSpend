@@ -63,6 +63,10 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
 
   late DateTime _selectedMonth;
 
+  DateTimeRange? _customPeriod;
+  String? _selectedCategory;
+  String? _selectedType;
+
   @override
   void initState() {
     super.initState();
@@ -71,11 +75,35 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     _selectedMonth = DateTime(now.year, now.month);
   }
 
+  FinancialReport get _filteredReport {
+    final customPeriod = _customPeriod;
+
+    if (customPeriod != null) {
+      return _reportService.build(
+        transactions: widget.transactions,
+        startDate: customPeriod.start,
+        endDate: customPeriod.end,
+        category: _selectedCategory,
+        transactionType: _selectedType,
+      );
+    }
+
+    return _reportService.buildMonthly(
+      transactions: widget.transactions,
+      year: _selectedMonth.year,
+      month: _selectedMonth.month,
+      category: _selectedCategory,
+      transactionType: _selectedType,
+    );
+  }
+
   FinancialReportComparison get _comparison {
     return _reportService.compareMonthly(
       transactions: widget.transactions,
       year: _selectedMonth.year,
       month: _selectedMonth.month,
+      category: _selectedCategory,
+      transactionType: _selectedType,
     );
   }
 
@@ -84,10 +112,49 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
       transactions: widget.transactions,
       endYear: _selectedMonth.year,
       endMonth: _selectedMonth.month,
+      category: _selectedCategory,
+      transactionType: _selectedType,
     );
   }
 
+  List<String> get _availableCategories {
+    final categories = widget.transactions
+        .map((transaction) => transaction.category.trim())
+        .where((category) => category.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    return List.unmodifiable(categories);
+  }
+
+  int get _activeFilterCount {
+    var count = 0;
+
+    if (_customPeriod != null) {
+      count++;
+    }
+
+    if (_selectedCategory != null) {
+      count++;
+    }
+
+    if (_selectedType != null) {
+      count++;
+    }
+
+    return count;
+  }
+
   String get _monthLabel {
+    final customPeriod = _customPeriod;
+
+    if (customPeriod != null) {
+      return '${DateFormat('dd/MM/yyyy').format(customPeriod.start)}'
+          ' – '
+          '${DateFormat('dd/MM/yyyy').format(customPeriod.end)}';
+    }
+
     final month = _reportMonthName(_selectedMonth);
     final label = '$month ${_selectedMonth.year}';
 
@@ -96,10 +163,176 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
 
   void _changeMonth(int offset) {
     setState(() {
+      _customPeriod = null;
       _selectedMonth = DateTime(
         _selectedMonth.year,
         _selectedMonth.month + offset,
       );
+    });
+  }
+
+  Future<void> _showFilters() async {
+    var draftPeriod = _customPeriod;
+    var draftCategory = _selectedCategory;
+    var draftType = _selectedType;
+
+    final shouldApply = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final periodLabel = draftPeriod == null
+                ? 'Mês selecionado'
+                : '${DateFormat('dd/MM/yyyy').format(draftPeriod!.start)}'
+                    ' – '
+                    '${DateFormat('dd/MM/yyyy').format(draftPeriod!.end)}';
+
+            return AlertDialog(
+              title: const Text('Filtrar relatório'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Período',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final pickedPeriod = await showDateRangePicker(
+                          context: dialogContext,
+                          initialDateRange: draftPeriod,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                          helpText: 'Selecione o período',
+                          cancelText: 'Cancelar',
+                          confirmText: 'Aplicar',
+                        );
+
+                        if (pickedPeriod == null) {
+                          return;
+                        }
+
+                        setDialogState(() {
+                          draftPeriod = pickedPeriod;
+                        });
+                      },
+                      icon: const Icon(Icons.date_range_rounded),
+                      label: Text(periodLabel),
+                    ),
+                    if (draftPeriod != null)
+                      TextButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            draftPeriod = null;
+                          });
+                        },
+                        child: const Text('Usar mês selecionado'),
+                      ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: draftCategory ?? '',
+                      decoration: const InputDecoration(
+                        labelText: 'Categoria',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: '',
+                          child: Text('Todas as categorias'),
+                        ),
+                        for (final category in _availableCategories)
+                          DropdownMenuItem(
+                            value: category,
+                            child: Text(category),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        setDialogState(() {
+                          draftCategory =
+                              value == null || value.isEmpty ? null : value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: draftType ?? '',
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: '',
+                          child: Text('Receitas e despesas'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'income',
+                          child: Text('Somente receitas'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'expense',
+                          child: Text('Somente despesas'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setDialogState(() {
+                          draftType =
+                              value == null || value.isEmpty ? null : value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setDialogState(() {
+                      draftPeriod = null;
+                      draftCategory = null;
+                      draftType = null;
+                    });
+                  },
+                  child: const Text('Limpar'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext, false);
+                  },
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext, true);
+                  },
+                  child: const Text('Aplicar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (shouldApply != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _customPeriod = draftPeriod;
+      _selectedCategory = draftCategory;
+      _selectedType = draftType;
+    });
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _customPeriod = null;
+      _selectedCategory = null;
+      _selectedType = null;
     });
   }
 
@@ -115,7 +348,7 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
   Widget build(BuildContext context) {
     final comparison = _comparison;
     final evolution = _evolution;
-    final report = comparison.current;
+    final report = _filteredReport;
 
     return Scaffold(
       backgroundColor: DuoColors.background,
@@ -140,6 +373,15 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
               label: _monthLabel,
               onPrevious: () => _changeMonth(-1),
               onNext: () => _changeMonth(1),
+            ),
+            const SizedBox(height: 12),
+            _FilterToolbar(
+              activeFilterCount: _activeFilterCount,
+              selectedCategory: _selectedCategory,
+              selectedType: _selectedType,
+              hasCustomPeriod: _customPeriod != null,
+              onFilter: _showFilters,
+              onClear: _clearFilters,
             ),
             const SizedBox(height: 20),
             _BalanceSummaryCard(
@@ -168,16 +410,18 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            _MonthlyComparisonCard(
-              comparison: comparison,
-              formatMoney: _formatMoney,
-            ),
-            const SizedBox(height: 20),
-            _FinancialEvolutionCard(
-              points: evolution,
-              formatMoney: _formatMoney,
-            ),
+            if (_customPeriod == null) ...[
+              const SizedBox(height: 20),
+              _MonthlyComparisonCard(
+                comparison: comparison,
+                formatMoney: _formatMoney,
+              ),
+              const SizedBox(height: 20),
+              _FinancialEvolutionCard(
+                points: evolution,
+                formatMoney: _formatMoney,
+              ),
+            ],
             const SizedBox(height: 28),
             const _SectionTitle(
               title: 'Gastos por categoria',
@@ -341,6 +585,98 @@ class _MonthSelector extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FilterToolbar extends StatelessWidget {
+  final int activeFilterCount;
+  final String? selectedCategory;
+  final String? selectedType;
+  final bool hasCustomPeriod;
+  final VoidCallback onFilter;
+  final VoidCallback onClear;
+
+  const _FilterToolbar({
+    required this.activeFilterCount,
+    required this.selectedCategory,
+    required this.selectedType,
+    required this.hasCustomPeriod,
+    required this.onFilter,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final labels = <String>[
+      if (hasCustomPeriod) 'Período personalizado',
+      if (selectedCategory != null) selectedCategory!,
+      if (selectedType == 'income') 'Receitas',
+      if (selectedType == 'expense') 'Despesas',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onFilter,
+                icon: const Icon(Icons.tune_rounded),
+                label: Text(
+                  activeFilterCount == 0
+                      ? 'Filtros'
+                      : 'Filtros ($activeFilterCount)',
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: DuoColors.primaryLight,
+                  side: const BorderSide(color: DuoColors.border),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            if (activeFilterCount > 0) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Limpar filtros',
+                onPressed: onClear,
+                icon: const Icon(Icons.filter_alt_off_rounded),
+                color: DuoColors.textSecondary,
+              ),
+            ],
+          ],
+        ),
+        if (labels.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final label in labels)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: DuoColors.primary.withValues(alpha: .14),
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(color: DuoColors.border),
+                  ),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: DuoColors.primaryLight,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
