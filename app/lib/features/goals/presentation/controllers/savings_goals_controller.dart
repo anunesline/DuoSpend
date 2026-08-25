@@ -136,6 +136,52 @@ class SavingsGoalsController extends ChangeNotifier {
     );
   }
 
+  Future<SavingsGoal?> archiveGoal(SavingsGoal goal) async {
+    if (isProcessing) {
+      return null;
+    }
+
+    isProcessing = true;
+    processingGoalId = goal.id;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      final archivedGoal = await _repository.archive(
+        goalId: goal.id,
+      );
+      final updatedGoals = goals.map(
+        (currentGoal) => currentGoal.id == archivedGoal.id
+            ? archivedGoal
+            : currentGoal,
+      ).toList()
+        ..sort((first, second) {
+          if (first.isArchived != second.isArchived) {
+            return first.isArchived ? 1 : -1;
+          }
+
+          return second.updatedAt.compareTo(first.updatedAt);
+        });
+
+      goals = List.unmodifiable(updatedGoals);
+
+      return archivedGoal;
+    } catch (error, stackTrace) {
+      debugPrint('Erro ao arquivar meta: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      errorMessage = _friendlyError(
+        error,
+        fallback: 'Não foi possível arquivar a meta.',
+      );
+
+      return null;
+    } finally {
+      isProcessing = false;
+      processingGoalId = null;
+      notifyListeners();
+    }
+  }
+
   Future<SavingsGoal?> _move({
     required SavingsGoal goal,
     required WalletModel financialWallet,
@@ -222,6 +268,10 @@ class SavingsGoalsController extends ChangeNotifier {
 
     if (message.contains('ultrapassa o valor reservado')) {
       return 'O valor ultrapassa o total reservado na meta.';
+    }
+
+    if (message.contains('Retire o valor reservado')) {
+      return 'Retire todo o valor reservado antes de arquivar.';
     }
 
     if (error is ArgumentError || error is StateError) {
