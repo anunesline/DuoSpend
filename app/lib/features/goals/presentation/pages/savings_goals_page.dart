@@ -852,10 +852,10 @@ class _GoalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = goal.isCompleted
-        ? DuoColors.success
-        : goal.isArchived
-            ? DuoColors.textHint
+    final statusColor = goal.isArchived
+        ? DuoColors.textHint
+        : goal.isCompleted
+            ? DuoColors.success
             : DuoColors.primaryLight;
 
     return DuoCard(
@@ -874,9 +874,11 @@ class _GoalCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(
-                  goal.isCompleted
-                      ? Icons.flag_rounded
-                      : Icons.savings_rounded,
+                  goal.isArchived
+                      ? Icons.inventory_2_outlined
+                      : goal.isCompleted
+                          ? Icons.flag_rounded
+                          : Icons.savings_rounded,
                   color: statusColor,
                   size: 21,
                 ),
@@ -969,9 +971,11 @@ class _GoalCard extends StatelessWidget {
                     ? 'Meta concluída!'
                     : 'Faltam $formattedRemaining',
             style: TextStyle(
-              color: goal.isCompleted
-                  ? DuoColors.success
-                  : DuoColors.textSecondary,
+              color: goal.isArchived
+                  ? DuoColors.textHint
+                  : goal.isCompleted
+                      ? DuoColors.success
+                      : DuoColors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
