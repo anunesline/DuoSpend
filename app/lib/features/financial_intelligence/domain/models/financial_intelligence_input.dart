@@ -7,6 +7,7 @@ import '../../../transactions/domain/calendar/financial_projection.dart';
 class FinancialIntelligenceInput {
   final FinancialReport currentMonth;
   final FinancialReport? previousMonth;
+  final List<FinancialReport> historicalMonths;
   final FinancialProjection projection;
   final List<BudgetConsumption> budgets;
   final List<SavingsGoal> goals;
@@ -18,6 +19,7 @@ class FinancialIntelligenceInput {
     required this.currentMonth,
     required this.projection,
     this.previousMonth,
+    this.historicalMonths = const [],
     this.budgets = const [],
     this.goals = const [],
     this.currentInvoices = const [],
