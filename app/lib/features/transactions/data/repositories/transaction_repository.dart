@@ -44,6 +44,43 @@ class TransactionRepository {
         .set(transaction.toMap());
   }
 
+  Future<void> addTransactions(
+    List<TransactionModel> transactions, {
+    WalletModel? wallet,
+  }) async {
+    if (transactions.isEmpty) {
+      return;
+    }
+
+    final user = _requireAuthenticatedUser();
+    final batch = _firestore.batch();
+
+    if (wallet != null && wallet.isShared) {
+      _validateSharedWalletAccess(
+        wallet: wallet,
+        userId: user.uid,
+      );
+    }
+
+    for (final transaction in transactions) {
+      if (wallet != null &&
+          wallet.isShared &&
+          transaction.walletId.trim() != wallet.id.trim()) {
+        throw Exception(
+          'Uma das parcelas não pertence à carteira compartilhada informada.',
+        );
+      }
+
+      final reference = wallet != null && wallet.isShared
+          ? _sharedTransactionsReference(wallet.id).doc(transaction.id)
+          : _individualTransactionsReference(user.uid).doc(transaction.id);
+
+      batch.set(reference, transaction.toMap());
+    }
+
+    await batch.commit();
+  }
+
   Future<void> updateTransaction(
     TransactionModel transaction, {
     WalletModel? wallet,
