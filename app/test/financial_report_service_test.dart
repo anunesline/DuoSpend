@@ -16,6 +16,10 @@ void main() {
     String financialStatus = 'settled',
     bool isSettlement = false,
     String? paidByMemberId,
+    String? paymentMethod,
+    String? paymentSourceId,
+    bool isInstallment = false,
+    int? installmentNumber,
     String splitType = 'none',
     Map<String, double> memberShares = const {},
     SharedTransactionConfirmationStatus confirmationStatus =
@@ -33,6 +37,10 @@ void main() {
       financialStatus: financialStatus,
       isSettlement: isSettlement,
       paidByMemberId: paidByMemberId,
+      paymentMethod: paymentMethod,
+      paymentSourceId: paymentSourceId,
+      isInstallment: isInstallment,
+      installmentNumber: installmentNumber,
       splitType: splitType,
       memberShares: memberShares,
       purchaseFor: splitType == 'none' ? 'self' : 'both',
@@ -483,6 +491,97 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    test(
+      'compra no cartão entra no gasto sem depender do pagamento da fatura',
+      () {
+        final report = service.buildMonthly(
+          year: 2026,
+          month: DateTime.august,
+          referenceDate: DateTime(2026, 8, 15),
+          transactions: [
+            transaction(
+              id: 'credit-purchase',
+              value: 120,
+              type: 'expense',
+              date: DateTime(2026, 8, 10),
+              financialStatus: 'invoice',
+              paymentMethod: 'creditCard',
+              paymentSourceId: 'card-1',
+            ),
+          ],
+        );
+
+        expect(report.totalExpense, 120);
+        expect(report.transactions.single.id, 'credit-purchase');
+      },
+    );
+
+    test('parcela futura não entra no realizado', () {
+      final report = service.buildMonthly(
+        year: 2026,
+        month: DateTime.august,
+        referenceDate: DateTime(2026, 8, 15),
+        transactions: [
+          transaction(
+            id: 'current-installment',
+            value: 100,
+            type: 'expense',
+            date: DateTime(2026, 8, 10),
+            financialStatus: 'invoice',
+            paymentMethod: 'creditCard',
+            paymentSourceId: 'card-1',
+            isInstallment: true,
+            installmentNumber: 1,
+          ),
+          transaction(
+            id: 'future-installment',
+            value: 100,
+            type: 'expense',
+            date: DateTime(2026, 8, 20),
+            financialStatus: 'invoice',
+            paymentMethod: 'creditCard',
+            paymentSourceId: 'card-1',
+            isInstallment: true,
+            installmentNumber: 2,
+          ),
+        ],
+      );
+
+      expect(report.totalExpense, 100);
+      expect(report.transactions.single.id, 'current-installment');
+    });
+
+    test('pagamento da fatura não duplica o gasto das compras', () {
+      final report = service.buildMonthly(
+        year: 2026,
+        month: DateTime.august,
+        referenceDate: DateTime(2026, 8, 31),
+        transactions: [
+          transaction(
+            id: 'credit-purchase',
+            value: 120,
+            type: 'expense',
+            date: DateTime(2026, 8, 10),
+            financialStatus: 'invoice',
+            paymentMethod: 'creditCard',
+            paymentSourceId: 'card-1',
+          ),
+          transaction(
+            id: 'invoice-payment',
+            value: 120,
+            type: 'expense',
+            date: DateTime(2026, 8, 15),
+            isSettlement: true,
+            paymentMethod: 'pix',
+            paymentSourceId: 'wallet-1',
+          ),
+        ],
+      );
+
+      expect(report.totalExpense, 120);
+      expect(report.transactions.single.id, 'credit-purchase');
     });
 
   });
