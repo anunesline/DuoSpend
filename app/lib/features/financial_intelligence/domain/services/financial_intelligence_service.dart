@@ -11,6 +11,7 @@ class FinancialIntelligenceService {
     _addProjectionInsight(input, insights);
     _addGoalInsights(input, insights);
     _addTrendInsights(input, insights);
+    _addRecurringInsights(input, insights);
     _addCardInsights(input, insights);
 
     if (insights.isEmpty) {
@@ -27,7 +28,10 @@ class FinancialIntelligenceService {
     return List.unmodifiable(insights);
   }
 
-  void _addBudgetInsights(List<BudgetConsumption> budgets, List<FinancialInsight> insights) {
+  void _addBudgetInsights(
+    List<BudgetConsumption> budgets,
+    List<FinancialInsight> insights,
+  ) {
     for (final consumption in budgets) {
       if (consumption.health == BudgetHealth.healthy) continue;
       final exceeded = consumption.health == BudgetHealth.exceeded;
@@ -36,14 +40,18 @@ class FinancialIntelligenceService {
         type: FinancialInsightType.budget,
         severity: exceeded ? FinancialInsightSeverity.warning : FinancialInsightSeverity.attention,
         title: exceeded ? 'Orçamento estourado' : 'Orçamento em atenção',
-        message: '${consumption.budget.category} já consumiu ${consumption.percentageDisplay.round()}% do orçamento.',
+        message: '${consumption.budget.category} já consumiu '
+            '${consumption.percentageDisplay.round()}% do orçamento.',
         source: 'Orçamento de ${consumption.budget.category}: limite e transações do mês',
         amount: consumption.remainingAmount,
       ));
     }
   }
 
-  void _addProjectionInsight(FinancialIntelligenceInput input, List<FinancialInsight> insights) {
+  void _addProjectionInsight(
+    FinancialIntelligenceInput input,
+    List<FinancialInsight> insights,
+  ) {
     if (input.projection.entries.isEmpty) return;
     final negative = input.projection.projectedBalance < 0;
     insights.add(FinancialInsight(
@@ -59,46 +67,124 @@ class FinancialIntelligenceService {
     ));
   }
 
-  void _addGoalInsights(FinancialIntelligenceInput input, List<FinancialInsight> insights) {
-    for (final goal in input.goals.where((goal) => goal.isActive && goal.hasDeadline)) {
+  void _addGoalInsights(
+    FinancialIntelligenceInput input,
+    List<FinancialInsight> insights,
+  ) {
+    for (final goal in input.goals.where((goal) => goal.isActive)) {
+      if (!goal.hasDeadline) {
+        insights.add(FinancialInsight(
+          id: 'goal-no-deadline-${goal.id}',
+          type: FinancialInsightType.goal,
+          severity: FinancialInsightSeverity.info,
+          title: 'Meta sem prazo definido',
+          message: '${goal.name} não possui prazo; não é possível calcular uma reserva mensal.',
+          source: 'Meta e prazo cadastrados',
+        ));
+        continue;
+      }
       final deadline = goal.deadline!;
       final months = _monthsUntil(input.now, deadline);
       if (months <= 0 && goal.remainingAmount > 0) {
         insights.add(FinancialInsight(
-          id: 'goal-late-${goal.id}', type: FinancialInsightType.goal, severity: FinancialInsightSeverity.warning,
-          title: 'Meta atrasada', message: '${goal.name} ainda precisa de reserva para ser concluída.',
-          source: 'Meta, valor guardado e prazo', amount: goal.remainingAmount,
+          id: 'goal-late-${goal.id}',
+          type: FinancialInsightType.goal,
+          severity: FinancialInsightSeverity.warning,
+          title: 'Meta atrasada',
+          message: '${goal.name} ainda precisa de reserva para ser concluída.',
+          source: 'Meta, valor guardado e prazo',
+          amount: goal.remainingAmount,
         ));
       } else if (months > 0) {
         insights.add(FinancialInsight(
-          id: 'goal-monthly-${goal.id}', type: FinancialInsightType.goal, severity: FinancialInsightSeverity.info,
-          title: 'Reserva mensal para ${goal.name}', message: 'Para atingir a meta no prazo, reserve o valor mensal indicado.',
-          source: 'Valor restante da meta dividido pelos meses até o prazo', amount: goal.remainingAmount / months,
+          id: 'goal-monthly-${goal.id}',
+          type: FinancialInsightType.goal,
+          severity: FinancialInsightSeverity.info,
+          title: 'Reserva mensal para ${goal.name}',
+          message: 'Para atingir a meta no prazo, reserve o valor mensal indicado.',
+          source: 'Valor restante da meta dividido pelos meses até o prazo',
+          amount: goal.remainingAmount / months,
         ));
       }
     }
   }
 
-  void _addTrendInsights(FinancialIntelligenceInput input, List<FinancialInsight> insights) {
+  void _addTrendInsights(
+    FinancialIntelligenceInput input,
+    List<FinancialInsight> insights,
+  ) {
     final previous = input.previousMonth;
     if (previous == null || previous.totalExpense <= 0 || input.currentMonth.totalExpense <= previous.totalExpense) return;
-    final increase = ((input.currentMonth.totalExpense - previous.totalExpense) / previous.totalExpense) * 100;
+    final increase = ((input.currentMonth.totalExpense - previous.totalExpense) /
+            previous.totalExpense) *
+        100;
     insights.add(FinancialInsight(
-      id: 'monthly-expense-trend', type: FinancialInsightType.spendingTrend, severity: FinancialInsightSeverity.attention,
-      title: 'Gastos acima do mês anterior', message: 'As despesas do mês estão ${increase.round()}% acima do período anterior.',
-      source: 'Comparação de despesas mensais', amount: input.currentMonth.totalExpense - previous.totalExpense,
+      id: 'monthly-expense-trend',
+      type: FinancialInsightType.spendingTrend,
+      severity: FinancialInsightSeverity.attention,
+      title: 'Gastos acima do mês anterior',
+      message: 'As despesas do mês estão ${increase.round()}% acima do período anterior.',
+      source: 'Comparação de despesas mensais',
+      amount: input.currentMonth.totalExpense - previous.totalExpense,
+    ));
+
+    final previousCategories = {
+      for (final total in previous.expenseByCategory) total.category: total.amount,
+    };
+    for (final total in input.currentMonth.expenseByCategory) {
+      final previousAmount = previousCategories[total.category];
+      if (previousAmount == null || previousAmount <= 0 ||
+          total.amount <= previousAmount) {
+        continue;
+      }
+      final categoryIncrease = ((total.amount - previousAmount) / previousAmount) * 100;
+      insights.add(FinancialInsight(
+        id: 'category-trend-${total.category}',
+        type: FinancialInsightType.spendingTrend,
+        severity: FinancialInsightSeverity.attention,
+        title: '${total.category} acima do padrão recente',
+        message: 'Os gastos em ${total.category} estão ${categoryIncrease.round()}% acima do mês anterior.',
+        source: 'Comparação da categoria entre os dois últimos meses',
+        amount: total.amount - previousAmount,
+      ));
+    }
+  }
+
+  void _addRecurringInsights(
+    FinancialIntelligenceInput input,
+    List<FinancialInsight> insights,
+  ) {
+    final monthlyExpense = input.recurringTransactions
+        .where((transaction) => transaction.type == 'expense')
+        .fold<double>(0, (sum, transaction) => sum + transaction.value);
+    if (monthlyExpense <= 0) return;
+    insights.add(FinancialInsight(
+      id: 'recurring-monthly-weight',
+      type: FinancialInsightType.recurring,
+      severity: FinancialInsightSeverity.info,
+      title: 'Recorrências do mês',
+      message: 'Há despesas recorrentes que pesam no planejamento mensal.',
+      source: 'Transações recorrentes ativas da carteira',
+      amount: monthlyExpense,
     ));
   }
 
-  void _addCardInsights(FinancialIntelligenceInput input, List<FinancialInsight> insights) {
+  void _addCardInsights(
+    FinancialIntelligenceInput input,
+    List<FinancialInsight> insights,
+  ) {
     if (input.currentInvoices.isEmpty || input.previousInvoices.isEmpty) return;
     final current = input.currentInvoices.fold<double>(0, (sum, invoice) => sum + invoice.total);
     final previous = input.previousInvoices.fold<double>(0, (sum, invoice) => sum + invoice.total);
     if (previous <= 0 || current <= previous) return;
     insights.add(FinancialInsight(
-      id: 'card-invoice-trend', type: FinancialInsightType.cardInvoice, severity: FinancialInsightSeverity.attention,
-      title: 'Fatura acima do mês passado', message: 'A fatura atual está acima da referência anterior.',
-      source: 'Soma das faturas atuais e do mês anterior', amount: current - previous,
+      id: 'card-invoice-trend',
+      type: FinancialInsightType.cardInvoice,
+      severity: FinancialInsightSeverity.attention,
+      title: 'Fatura acima do mês passado',
+      message: 'A fatura atual está acima da referência anterior.',
+      source: 'Soma das faturas atuais e do mês anterior',
+      amount: current - previous,
     ));
   }
 
