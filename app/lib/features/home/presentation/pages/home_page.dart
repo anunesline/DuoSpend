@@ -8,6 +8,7 @@ import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
 import '../../../reports/presentation/pages/monthly_report_page.dart';
+import '../../../goals/presentation/pages/savings_goals_page.dart';
 import '../../../transactions/domain/purchase/services/balance_summary.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
@@ -358,6 +359,30 @@ class _HomePageState extends State<HomePage> {
     await _loadHome();
   }
 
+  Future<void> _openSavingsGoalsPage() async {
+    final wallet = controller.wallet;
+    final currentUserId = controller.user?.uid;
+
+    if (wallet == null ||
+        currentUserId == null ||
+        currentUserId.isEmpty) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SavingsGoalsPage(
+          contextWallet: wallet,
+          individualWallets: controller.individualWallets,
+          currentUserId: currentUserId,
+        ),
+      ),
+    );
+
+    await _loadHome();
+  }
+
   Future<void> _openMonthlyReportPage() async {
     final wallet = controller.wallet;
 
@@ -506,6 +531,14 @@ class _HomePageState extends State<HomePage> {
             controller.pendingSharedConfirmationCount;
 
         final quickAccessRows = <Widget>[
+          if (wallet != null)
+            _QuickAccessRow(
+              icon: Icons.savings_rounded,
+              iconColor: DuoColors.success,
+              title: 'Metas',
+              subtitle: 'Reserve dinheiro para seus planos',
+              onTap: _openSavingsGoalsPage,
+            ),
           if (wallet != null)
             _QuickAccessRow(
               icon: Icons.insights_rounded,
