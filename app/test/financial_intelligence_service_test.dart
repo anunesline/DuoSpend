@@ -8,6 +8,7 @@ import 'package:app/features/goals/domain/models/savings_goal.dart';
 import 'package:app/features/reports/domain/models/financial_report.dart';
 import 'package:app/features/transactions/domain/calendar/financial_projection.dart';
 import 'package:app/features/transactions/domain/calendar/financial_calendar_entry.dart';
+import 'package:app/features/home/data/models/credit_card_invoice_model.dart';
 
 void main() {
   const service = FinancialIntelligenceService();
@@ -31,6 +32,8 @@ void main() {
     List<SavingsGoal> goals = const [],
     FinancialProjection? projection,
     List<FinancialReport> historicalMonths = const [],
+    List<CreditCardInvoiceModel> currentInvoices = const [],
+    List<CreditCardInvoiceModel> previousInvoices = const [],
   }) => FinancialIntelligenceInput(
     currentMonth: current ?? report(),
     previousMonth: previous,
@@ -38,6 +41,8 @@ void main() {
     budgets: budgets,
     goals: goals,
     historicalMonths: historicalMonths,
+    currentInvoices: currentInvoices,
+    previousInvoices: previousInvoices,
     now: now,
   );
 
@@ -203,5 +208,17 @@ void main() {
       ),
       throwsArgumentError,
     );
+  });
+
+  test('avisa fatura próxima e informa ausência de histórico', () {
+    final invoice = CreditCardInvoiceModel(
+      id: 'invoice', cardId: 'card', ownerMemberId: 'u',
+      referenceYear: 2026, referenceMonth: 8,
+      closingDate: DateTime(2026, 8, 10), dueDate: DateTime(2026, 8, 20),
+      total: 450, createdAt: now, updatedAt: now,
+    );
+    final insights = service.build(input(currentInvoices: [invoice]));
+    expect(insights.any((item) => item.id == 'card-invoice-due-invoice'), isTrue);
+    expect(insights.any((item) => item.id == 'card-invoice-insufficient-history'), isTrue);
   });
 }
