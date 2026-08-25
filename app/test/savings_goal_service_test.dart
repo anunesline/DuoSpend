@@ -18,6 +18,7 @@ void main() {
       targetAmount: targetAmount,
       walletId: 'wallet-1',
       createdByUserId: 'user-1',
+      memberIds: const ['user-1', 'user-2', 'user-2'],
       initialAmount: initialAmount,
       deadline: deadline,
       now: now,
@@ -36,6 +37,8 @@ void main() {
       expect(goal.remainingAmount, 750);
       expect(goal.progressPercentage, 25);
       expect(goal.deadline, DateTime(2026, 12, 20));
+      expect(goal.memberIds, ['user-1', 'user-2']);
+      expect(goal.hasMember('user-2'), isTrue);
     });
 
     test('conclui meta quando o aporte alcança o valor-alvo', () {
