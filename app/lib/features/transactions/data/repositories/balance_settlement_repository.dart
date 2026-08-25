@@ -207,20 +207,6 @@ class BalanceSettlementRepository {
     final settlementReference = _settlementsCollection(
       settlement.walletId,
     ).doc(settlement.id);
-    final payerWalletId = settlement.payerWalletId?.trim() ?? '';
-
-    if (payerWalletId.isEmpty) {
-      throw StateError(
-        'O pagamento não possui uma carteira de origem informada.',
-      );
-    }
-
-    final payerWalletReference = _firestore
-        .collection(_walletsCollection)
-        .doc(payerWalletId);
-    final receiverWalletReference = _firestore
-        .collection(_walletsCollection)
-        .doc(normalizedReceiverWalletId);
     final confirmationDate = confirmedAt ?? DateTime.now();
 
     return _firestore.runTransaction((transaction) async {
@@ -242,6 +228,21 @@ class BalanceSettlementRepository {
         return currentSettlement;
       }
 
+      final payerWalletId =
+          currentSettlement.payerWalletId?.trim() ?? '';
+
+      if (payerWalletId.isEmpty) {
+        throw StateError(
+          'O pagamento não possui uma carteira de origem informada.',
+        );
+      }
+
+      final payerWalletReference = _firestore
+          .collection(_walletsCollection)
+          .doc(payerWalletId);
+      final receiverWalletReference = _firestore
+          .collection(_walletsCollection)
+          .doc(normalizedReceiverWalletId);
       final payerWalletDocument = await transaction.get(
         payerWalletReference,
       );
