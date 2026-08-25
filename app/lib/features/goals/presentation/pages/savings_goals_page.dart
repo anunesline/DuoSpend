@@ -858,6 +858,177 @@ class _EmptyGoals extends StatelessWidget {
   }
 }
 
+class _GoalHistorySheet extends StatelessWidget {
+  final SavingsGoal goal;
+  final List<SavingsGoalMovement> movements;
+  final String currentUserId;
+  final List<WalletModel> wallets;
+  final String Function(double) formatMoney;
+
+  const _GoalHistorySheet({
+    required this.goal,
+    required this.movements,
+    required this.currentUserId,
+    required this.wallets,
+    required this.formatMoney,
+  });
+
+  String _walletName(String walletId) {
+    for (final wallet in wallets) {
+      if (wallet.id == walletId) {
+        return wallet.name;
+      }
+    }
+
+    return 'Carteira anterior';
+  }
+
+  String _formatDate(DateTime date) {
+    return DateFormat('dd/MM/yyyy • HH:mm').format(date);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * .72,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Histórico da meta',
+                    style: TextStyle(
+                      color: DuoColors.textPrimary,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    goal.name,
+                    style: const TextStyle(
+                      color: DuoColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: DuoColors.divider),
+            Expanded(
+              child: movements.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(28),
+                        child: Text(
+                          'Esta meta ainda não possui aportes ou retiradas.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: DuoColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(20),
+                      itemCount: movements.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final movement = movements[index];
+                        final isContribution =
+                            movement.isContribution;
+                        final color = isContribution
+                            ? DuoColors.success
+                            : DuoColors.warning;
+                        final memberLabel =
+                            movement.createdByUserId ==
+                                    currentUserId
+                                ? 'Você'
+                                : 'Outro membro';
+
+                        return DuoCard(
+                          borderRadius: 16,
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: .14),
+                                  borderRadius:
+                                      BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  isContribution
+                                      ? Icons.add_rounded
+                                      : Icons.remove_rounded,
+                                  color: color,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      isContribution
+                                          ? 'Aporte'
+                                          : 'Retirada',
+                                      style: const TextStyle(
+                                        color: DuoColors.textPrimary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${_formatDate(movement.occurredAt)}'
+                                      ' • ${_walletName(movement.walletId)}'
+                                      ' • $memberLabel',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color:
+                                            DuoColors.textSecondary,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${isContribution ? '+' : '-'} '
+                                '${formatMoney(movement.amount)}',
+                                style: TextStyle(
+                                  color: color,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NewGoalInput {
   final String name;
   final double targetAmount;
