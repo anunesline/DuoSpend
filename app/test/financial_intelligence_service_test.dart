@@ -30,12 +30,14 @@ void main() {
     List<BudgetConsumption> budgets = const [],
     List<SavingsGoal> goals = const [],
     FinancialProjection? projection,
+    List<FinancialReport> historicalMonths = const [],
   }) => FinancialIntelligenceInput(
     currentMonth: current ?? report(),
     previousMonth: previous,
     projection: projection ?? FinancialProjection.empty(100),
     budgets: budgets,
     goals: goals,
+    historicalMonths: historicalMonths,
     now: now,
   );
 
@@ -99,6 +101,22 @@ void main() {
     ));
     expect(insights.any((item) => item.id == 'monthly-expense-trend'), isTrue);
     expect(insights.any((item) => item.id == 'category-trend-Lazer'), isTrue);
+  });
+
+  test('compara categoria contra média de três meses sem persistir média', () {
+    final insights = service.build(input(
+      current: report(expense: 120, categories: const [
+        FinancialCategoryTotal(category: 'Lazer', amount: 120, percentage: 1),
+      ]),
+      historicalMonths: List.generate(
+        3,
+        (_) => report(categories: const [
+          FinancialCategoryTotal(category: 'Lazer', amount: 60, percentage: 1),
+        ]),
+      ),
+    ));
+    final insight = insights.firstWhere((item) => item.id == 'category-average-Lazer');
+    expect(insight.amount, 60);
   });
 
   test('calcula disponível e risco antes da próxima entrada pela ordem futura', () {
