@@ -9,6 +9,7 @@ class FinancialIntelligenceService {
     final insights = <FinancialInsight>[];
     _addBudgetInsights(input.budgets, insights);
     _addProjectionInsight(input, insights);
+    _addCashFlowRiskInsight(input, insights);
     _addGoalInsights(input, insights);
     _addTrendInsights(input, insights);
     _addRecurringInsights(input, insights);
@@ -65,6 +66,45 @@ class FinancialIntelligenceService {
       source: 'Saldo atual + lançamentos futuros e recorrências',
       amount: input.projection.projectedBalance,
     ));
+
+    if (!negative) {
+      insights.add(FinancialInsight(
+        id: 'available-to-spend',
+        type: FinancialInsightType.projectedBalance,
+        severity: FinancialInsightSeverity.info,
+        title: 'Disponível até o fim do mês',
+        message: 'Este é o saldo previsto depois dos compromissos já lançados.',
+        source: 'Saldo atual + receitas previstas − despesas previstas',
+        amount: input.projection.projectedBalance,
+      ));
+    }
+  }
+
+  void _addCashFlowRiskInsight(
+    FinancialIntelligenceInput input,
+    List<FinancialInsight> insights,
+  ) {
+    final projectedEntries = input.projection.entries
+        .where((entry) => entry.isProjected)
+        .toList()
+      ..sort((first, second) => first.date.compareTo(second.date));
+    if (projectedEntries.isEmpty) return;
+
+    var runningBalance = input.projection.currentBalance;
+    for (final entry in projectedEntries) {
+      runningBalance += entry.signedValue;
+      if (runningBalance >= 0 || !entry.isExpense) continue;
+      insights.add(FinancialInsight(
+        id: 'cash-flow-risk-${entry.id}',
+        type: FinancialInsightType.cashFlowRisk,
+        severity: FinancialInsightSeverity.warning,
+        title: 'Risco antes da próxima entrada',
+        message: 'O saldo pode ficar negativo em ${entry.date.day.toString().padLeft(2, '0')}/${entry.date.month.toString().padLeft(2, '0')} antes das próximas receitas previstas.',
+        source: 'Ordem cronológica dos lançamentos futuros da carteira',
+        amount: runningBalance,
+      ));
+      return;
+    }
   }
 
   void _addGoalInsights(
