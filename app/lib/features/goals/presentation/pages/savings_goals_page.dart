@@ -505,6 +505,11 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                                       isContribution: false,
                                     )
                                 : null,
+                            onArchive: !goal.isArchived &&
+                                    goal.createdByUserId ==
+                                        widget.currentUserId
+                                ? () => _archiveGoal(goal)
+                                : null,
                           ),
                           const SizedBox(height: 12),
                         ],
@@ -659,6 +664,19 @@ class _GoalCard extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
               ),
+              if (onArchive != null) ...[
+                const SizedBox(width: 2),
+                IconButton(
+                  onPressed: isProcessing ? null : onArchive,
+                  tooltip: 'Arquivar meta',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.archive_outlined,
+                    color: DuoColors.textHint,
+                    size: 20,
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 16),
@@ -682,9 +700,11 @@ class _GoalCard extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            goal.isCompleted
-                ? 'Meta concluída!'
-                : 'Faltam $formattedRemaining',
+            goal.isArchived
+                ? 'Meta arquivada'
+                : goal.isCompleted
+                    ? 'Meta concluída!'
+                    : 'Faltam $formattedRemaining',
             style: TextStyle(
               color: goal.isCompleted
                   ? DuoColors.success
