@@ -212,6 +212,113 @@ class SavingsGoalRepository {
     );
   }
 
+  Future<SavingsGoal> update({
+    required String goalId,
+    required String name,
+    required double targetAmount,
+    DateTime? deadline,
+    DateTime? updatedAt,
+  }) async {
+    final userId = _requireUserId();
+    final normalizedGoalId = goalId.trim();
+    final normalizedName = name.trim();
+
+    if (normalizedGoalId.isEmpty) {
+      throw ArgumentError.value(goalId, 'goalId', 'Informe a meta.');
+    }
+
+    if (normalizedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Informe o nome da meta.');
+    }
+
+    if (!targetAmount.isFinite || targetAmount <= 0) {
+      throw ArgumentError.value(
+        targetAmount,
+        'targetAmount',
+        'O valor-alvo deve ser maior que zero.',
+      );
+    }
+
+    final goalReference = _goalReference(normalizedGoalId);
+    final updateDate = updatedAt ?? DateTime.now();
+    final normalizedDeadline = deadline == null
+        ? null
+        : DateTime(deadline.year, deadline.month, deadline.day);
+
+    return _firestore.runTransaction((transaction) async {
+      final goalDocument = await transaction.get(goalReference);
+
+      if (!goalDocument.exists || goalDocument.data() == null) {
+        throw StateError('Meta não encontrada.');
+      }
+
+      final persistedGoal = SavingsGoalModel.fromMap(
+        goalDocument.data()!,
+        documentId: goalDocument.id,
+      );
+
+      if (!persistedGoal.hasMember(userId)) {
+        throw StateError('Usuário sem acesso à meta.');
+      }
+
+      if (persistedGoal.createdByUserId != userId) {
+        throw StateError(
+          'Somente o responsável pela meta pode editá-la.',
+        );
+      }
+
+      if (persistedGoal.isArchived) {
+        throw StateError('Metas arquivadas não podem ser editadas.');
+      }
+
+      if (targetAmount < persistedGoal.savedAmount) {
+        throw StateError(
+          'O valor-alvo não pode ser menor que o valor reservado.',
+        );
+      }
+
+      final today = DateTime(
+        updateDate.year,
+        updateDate.month,
+        updateDate.day,
+      );
+      final keepsLegacyDeadline = normalizedDeadline != null &&
+          persistedGoal.deadline != null &&
+          normalizedDeadline.year == persistedGoal.deadline!.year &&
+          normalizedDeadline.month == persistedGoal.deadline!.month &&
+          normalizedDeadline.day == persistedGoal.deadline!.day;
+
+      if (normalizedDeadline != null &&
+          normalizedDeadline.isBefore(today) &&
+          !keepsLegacyDeadline) {
+        throw ArgumentError.value(
+          deadline,
+          'deadline',
+          'O prazo da meta não pode estar no passado.',
+        );
+      }
+
+      final updatedGoal = persistedGoal.copyWith(
+        name: normalizedName,
+        targetAmount: targetAmount,
+        deadline: normalizedDeadline,
+        clearDeadline: normalizedDeadline == null,
+        status: persistedGoal.savedAmount >= targetAmount
+            ? SavingsGoalStatus.completed
+            : SavingsGoalStatus.active,
+        updatedAt: updateDate,
+      );
+
+      transaction.set(
+        goalReference,
+        SavingsGoalModel.toMap(updatedGoal),
+        SetOptions(merge: true),
+      );
+
+      return updatedGoal;
+    });
+  }
+
   Future<SavingsGoal> archive({
     required String goalId,
     DateTime? archivedAt,
