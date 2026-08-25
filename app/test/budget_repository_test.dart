@@ -39,4 +39,42 @@ void main() {
     expect(budgets, hasLength(1));
     expect(budgets.single.limitAmount, 500);
   });
+
+  test('atualização preserva campos imutáveis persistidos', () async {
+    final firestore = FakeFirebaseFirestore();
+    final repository = BudgetRepository(
+      firestore: firestore,
+      auth: auth(owner),
+    );
+    final original = budget();
+    await repository.create(budget: original, wallet: wallet());
+
+    final tamperedUpdate = Budget(
+      id: original.id,
+      walletId: 'wallet-alterada',
+      category: 'Lazer',
+      month: DateTime(2026, 9),
+      limitAmount: 500,
+      createdByUserId: 'outro-usuario',
+      status: BudgetStatus.paused,
+      createdAt: DateTime(2020, 1, 1),
+      updatedAt: DateTime(2026, 8, 25),
+    );
+
+    final updated = await repository.update(
+      budget: tamperedUpdate,
+      wallet: wallet(),
+    );
+    final persisted = (await repository.getByWallet(wallet: wallet())).single;
+
+    expect(updated.id, original.id);
+    expect(persisted.id, original.id);
+    expect(persisted.walletId, original.walletId);
+    expect(persisted.createdByUserId, original.createdByUserId);
+    expect(persisted.createdAt, original.createdAt);
+    expect(persisted.category, 'Lazer');
+    expect(persisted.month, DateTime(2026, 9));
+    expect(persisted.limitAmount, 500);
+    expect(persisted.status, BudgetStatus.paused);
+  });
 }

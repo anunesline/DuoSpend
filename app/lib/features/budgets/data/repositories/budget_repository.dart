@@ -44,8 +44,20 @@ class BudgetRepository {
       final persisted = BudgetModel.fromMap(document.data()!, documentId: document.id);
       if (persisted.createdByUserId != userId) throw StateError('Somente o responsável pelo orçamento pode alterá-lo.');
       if (persisted.walletId != wallet.id) throw StateError('O orçamento não pertence à carteira.');
-      transaction.set(reference, BudgetModel.toMap(budget), SetOptions(merge: true));
-      return budget;
+      final updatedBudget = persisted.copyWith(
+        category: budget.category,
+        month: budget.month,
+        limitAmount: budget.limitAmount,
+        status: budget.status,
+        updatedAt: budget.updatedAt,
+      );
+
+      transaction.set(
+        reference,
+        BudgetModel.toMap(updatedBudget),
+        SetOptions(merge: true),
+      );
+      return updatedBudget;
     });
   }
 
