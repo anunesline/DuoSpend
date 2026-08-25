@@ -330,5 +330,65 @@ void main() {
       );
     });
 
+    test('filtra por categoria e tipo de movimentação', () {
+      final transactions = [
+        transaction(
+          id: 'market-expense',
+          value: 200,
+          type: 'expense',
+          category: 'Mercado',
+          date: DateTime(2026, 8, 5),
+        ),
+        transaction(
+          id: 'home-expense',
+          value: 300,
+          type: 'expense',
+          category: 'Casa',
+          date: DateTime(2026, 8, 6),
+        ),
+        transaction(
+          id: 'market-income',
+          value: 50,
+          type: 'income',
+          category: 'Mercado',
+          date: DateTime(2026, 8, 7),
+        ),
+      ];
+
+      final expenses = service.buildMonthly(
+        transactions: transactions,
+        year: 2026,
+        month: 8,
+        category: 'Mercado',
+        transactionType: 'expense',
+      );
+
+      expect(expenses.transactions.single.id, 'market-expense');
+      expect(expenses.totalExpense, 200);
+      expect(expenses.totalIncome, 0);
+
+      final income = service.build(
+        transactions: transactions,
+        startDate: DateTime(2026, 8, 1),
+        endDate: DateTime(2026, 8, 31),
+        transactionType: 'income',
+      );
+
+      expect(income.transactions.single.id, 'market-income');
+      expect(income.totalIncome, 50);
+    });
+
+    test('rejeita tipo de filtro financeiro inválido', () {
+      expect(
+        () => service.build(
+          transactions: const [],
+          startDate: DateTime(2026, 8, 1),
+          endDate: DateTime(2026, 8, 31),
+          transactionType: 'transfer',
+        ),
+        throwsArgumentError,
+      );
+    });
+
   });
 }
