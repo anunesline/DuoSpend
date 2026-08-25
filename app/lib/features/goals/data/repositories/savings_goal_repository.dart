@@ -212,6 +212,41 @@ class SavingsGoalRepository {
     );
   }
 
+  Future<WalletModel> getFinancialWallet({
+    required String walletId,
+  }) async {
+    final userId = _requireUserId();
+    final normalizedWalletId = walletId.trim();
+
+    if (normalizedWalletId.isEmpty) {
+      throw ArgumentError.value(walletId, 'walletId', 'Informe a carteira.');
+    }
+
+    final walletReference = _financialWalletReference(
+      userId: userId,
+      walletId: normalizedWalletId,
+    );
+    final walletDocument = await walletReference.get();
+
+    if (!walletDocument.exists || walletDocument.data() == null) {
+      throw StateError('Carteira financeira não encontrada.');
+    }
+
+    final data = walletDocument.data()!;
+    _validateFinancialWalletDocument(
+      data: data,
+      userId: userId,
+      walletId: normalizedWalletId,
+    );
+
+    return WalletModel.fromMap({
+      ...data,
+      'id': data['id']?.toString().trim().isNotEmpty == true
+          ? data['id']
+          : walletDocument.id,
+    });
+  }
+
   Future<SavingsGoal> update({
     required String goalId,
     required String name,
@@ -449,6 +484,13 @@ class SavingsGoalRepository {
 
       if (!goal.hasMember(userId)) {
         throw StateError('Usuário sem acesso à meta.');
+      }
+
+      if (movementType == 'withdrawal' &&
+          goal.createdByUserId != userId) {
+        throw StateError(
+          'Somente o responsável pela meta pode retirar valores.',
+        );
       }
 
       if (movementDocument.exists) {
