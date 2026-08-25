@@ -25,6 +25,15 @@ class SavingsGoalModel {
   }) {
     final id = map['id']?.toString().trim();
 
+    final createdByUserId =
+        map['createdByUserId']?.toString().trim() ?? '';
+    final memberIds = _parseMemberIds(map['memberIds']).toList();
+
+    if (createdByUserId.isNotEmpty &&
+        !memberIds.contains(createdByUserId)) {
+      memberIds.insert(0, createdByUserId);
+    }
+
     return SavingsGoal(
       id: id == null || id.isEmpty ? documentId ?? '' : id,
       name: map['name']?.toString() ?? '',
@@ -32,8 +41,8 @@ class SavingsGoalModel {
       savedAmount: _parseDouble(map['savedAmount']),
       deadline: _parseDate(map['deadline']),
       walletId: map['walletId']?.toString() ?? '',
-      createdByUserId: map['createdByUserId']?.toString() ?? '',
-      memberIds: _parseMemberIds(map['memberIds']),
+      createdByUserId: createdByUserId,
+      memberIds: List.unmodifiable(memberIds),
       status: SavingsGoalStatus.fromValue(map['status']?.toString()),
       createdAt: _parseDate(map['createdAt']) ?? DateTime.now(),
       updatedAt: _parseDate(map['updatedAt']) ?? DateTime.now(),
