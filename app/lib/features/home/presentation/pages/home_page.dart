@@ -118,6 +118,196 @@ class _HomePageState extends State<HomePage> {
     await controller.loadHome();
   }
 
+  Future<void> _openWalletSelector() async {
+    if (!controller.hasWallets) {
+      await _showCreateIndividualWalletDialog();
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final wallets = controller.wallets;
+        final selectedWalletId = controller.selectedWalletId;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ListTile(
+                  title: Text(
+                    'Suas carteiras',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    'Escolha qual carteira deseja visualizar.',
+                  ),
+                ),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: wallets.length,
+                    itemBuilder: (context, index) {
+                      final wallet = wallets[index];
+                      final isSelected =
+                          wallet.id == selectedWalletId;
+
+                      return ListTile(
+                        leading: Icon(
+                          wallet.isShared
+                              ? Icons.groups_rounded
+                              : Icons.account_balance_wallet_rounded,
+                        ),
+                        title: Text(wallet.name),
+                        subtitle: Text(
+                          wallet.isShared
+                              ? 'Compartilhada'
+                              : 'Individual',
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle_rounded)
+                            : null,
+                        onTap: () {
+                          controller.selectWallet(wallet);
+                          Navigator.pop(sheetContext);
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.add_rounded),
+                  title: const Text('Nova carteira'),
+                  subtitle: const Text(
+                    'Adicione outra conta ou carteira individual.',
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _showCreateIndividualWalletDialog();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showCreateIndividualWalletDialog() async {
+    final nameController = TextEditingController();
+    final balanceController = TextEditingController(text: '0,00');
+
+    final shouldCreate = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nova carteira'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Nome',
+                  hintText: 'Ex.: Banco Inter',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: balanceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Saldo atual',
+                  prefixText: 'R\$ ',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Criar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldCreate != true || !mounted) {
+      nameController.dispose();
+      balanceController.dispose();
+      return;
+    }
+
+    final name = nameController.text.trim();
+    final balance = double.tryParse(
+      balanceController.text
+          .trim()
+          .replaceAll('.', '')
+          .replaceAll(',', '.'),
+    );
+
+    nameController.dispose();
+    balanceController.dispose();
+
+    if (name.isEmpty || balance == null) {
+      _showMessage('Informe um nome e um saldo válido.');
+      return;
+    }
+
+    final createdWallet = await controller.createIndividualWallet(
+      name: name,
+      initialBalance: balance,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (createdWallet == null) {
+      _showMessage(
+        controller.errorMessage ??
+            'Não foi possível criar a carteira.',
+      );
+      return;
+    }
+
+    _showMessage('Carteira criada.');
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
   Future<void> _openNewTransactionPage() async {
     final wallet = controller.wallet;
 
@@ -324,6 +514,7 @@ class _HomePageState extends State<HomePage> {
                             balance: wallet?.balance ?? 0,
                             isShared:
                                 wallet?.isShared ?? false,
+                            onTap: _openWalletSelector,
                           ),
                           const SizedBox(height: 28),
                           _SectionTitle(
