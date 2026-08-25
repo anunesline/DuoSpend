@@ -186,6 +186,7 @@ class BalanceSettlementRepository {
   }) async {
     final userId = _requireAuthenticatedUserId();
     final normalizedTransactionId = transactionId.trim();
+    final normalizedReceiverWalletId = receiverWalletId.trim();
 
     if (normalizedTransactionId.isEmpty) {
       throw ArgumentError.value(
@@ -195,27 +196,99 @@ class BalanceSettlementRepository {
       );
     }
 
-    await _validateWalletAccess(
-      walletId: settlement.walletId,
-      userId: userId,
-    );
+    if (normalizedReceiverWalletId.isEmpty) {
+      throw ArgumentError.value(
+        receiverWalletId,
+        'receiverWalletId',
+        'A carteira que recebeu o pagamento não pode ficar vazia.',
+      );
+    }
 
-    final updatedSettlement = settlement.confirmReceipt(
-      confirmedByMemberId: userId,
-      confirmedAt: confirmedAt ?? DateTime.now(),
-      transactionId: normalizedTransactionId,
-      receiverWalletId: receiverWalletId,
-      notes: notes,
-    );
+    final settlementReference = _settlementsCollection(
+      settlement.walletId,
+    ).doc(settlement.id);
+    final payerWalletId = settlement.payerWalletId?.trim() ?? '';
 
-    await _settlementsCollection(updatedSettlement.walletId)
-        .doc(updatedSettlement.id)
-        .set(
-          updatedSettlement.toMap(),
-          SetOptions(merge: true),
-        );
+    if (payerWalletId.isEmpty) {
+      throw StateError(
+        'O pagamento não possui uma carteira de origem informada.',
+      );
+    }
 
-    return updatedSettlement;
+    final payerWalletReference = _firestore
+        .collection(_walletsCollection)
+        .doc(payerWalletId);
+    final receiverWalletReference = _firestore
+        .collection(_walletsCollection)
+        .doc(normalizedReceiverWalletId);
+    final confirmationDate = confirmedAt ?? DateTime.now();
+
+    return _firestore.runTransaction((transaction) async {
+      final settlementDocument = await transaction.get(
+        settlementReference,
+      );
+
+      if (!settlementDocument.exists ||
+          settlementDocument.data() == null) {
+        throw StateError('Acerto financeiro não encontrado.');
+      }
+
+      final currentSettlement =
+          BalanceSettlementModel.fromMap(
+            settlementDocument.data()!,
+          );
+
+      if (currentSettlement.isSettled) {
+        return currentSettlement;
+      }
+
+      final payerWalletDocument = await transaction.get(
+        payerWalletReference,
+      );
+      final receiverWalletDocument = await transaction.get(
+        receiverWalletReference,
+      );
+
+      _validateIndividualWalletOwnership(
+        document: payerWalletDocument,
+        expectedOwnerId: currentSettlement.fromMemberId,
+        role: 'origem',
+      );
+      _validateIndividualWalletOwnership(
+        document: receiverWalletDocument,
+        expectedOwnerId: currentSettlement.toMemberId,
+        role: 'destino',
+      );
+
+      final updatedSettlement = currentSettlement.confirmReceipt(
+        confirmedByMemberId: userId,
+        confirmedAt: confirmationDate,
+        transactionId: normalizedTransactionId,
+        receiverWalletId: normalizedReceiverWalletId,
+        notes: notes,
+      );
+      final updatedAt = confirmationDate.toIso8601String();
+
+      transaction.update(payerWalletReference, {
+        'balance': FieldValue.increment(
+          -updatedSettlement.amount,
+        ),
+        'updatedAt': updatedAt,
+      });
+      transaction.update(receiverWalletReference, {
+        'balance': FieldValue.increment(
+          updatedSettlement.amount,
+        ),
+        'updatedAt': updatedAt,
+      });
+      transaction.set(
+        settlementReference,
+        updatedSettlement.toMap(),
+        SetOptions(merge: true),
+      );
+
+      return updatedSettlement;
+    });
   }
 
   /// Mantido temporariamente para compatibilidade
@@ -300,6 +373,34 @@ class BalanceSettlementRepository {
         .collection(_walletsCollection)
         .doc(normalizedWalletId)
         .collection(_settlementsCollectionName);
+  }
+
+  void _validateIndividualWalletOwnership({
+    required DocumentSnapshot<Map<String, dynamic>> document,
+    required String expectedOwnerId,
+    required String role,
+  }) {
+    if (!document.exists || document.data() == null) {
+      throw StateError(
+        'Carteira individual de $role não encontrada.',
+      );
+    }
+
+    final data = document.data()!;
+    final ownerId = data['ownerId']?.toString().trim() ?? '';
+    final type = data['type']?.toString().trim() ?? '';
+
+    if (type != 'individual') {
+      throw StateError(
+        'A carteira de $role precisa ser individual.',
+      );
+    }
+
+    if (ownerId != expectedOwnerId.trim()) {
+      throw StateError(
+        'A carteira de $role não pertence ao membro esperado.',
+      );
+    }
   }
 
   Future<void> _validateWalletAccess({
