@@ -371,6 +371,7 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => MonthlyReportPage(
           wallet: wallet,
           transactions: controller.transactions,
+          currentUserId: controller.user?.uid,
         ),
       ),
     );
