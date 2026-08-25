@@ -7,6 +7,7 @@ import '../../../../core/design_system/duo_colors.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
+import '../../../reports/presentation/pages/monthly_report_page.dart';
 import '../../../transactions/domain/purchase/services/balance_summary.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
@@ -357,6 +358,26 @@ class _HomePageState extends State<HomePage> {
     await _loadHome();
   }
 
+  Future<void> _openMonthlyReportPage() async {
+    final wallet = controller.wallet;
+
+    if (wallet == null) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MonthlyReportPage(
+          wallet: wallet,
+          transactions: controller.transactions,
+        ),
+      ),
+    );
+
+    await _loadHome();
+  }
+
   Future<void> _openFinancialCalendarPage() async {
     final wallet = controller.wallet;
 
@@ -484,6 +505,14 @@ class _HomePageState extends State<HomePage> {
             controller.pendingSharedConfirmationCount;
 
         final quickAccessRows = <Widget>[
+          if (wallet != null)
+            _QuickAccessRow(
+              icon: Icons.insights_rounded,
+              iconColor: DuoColors.primaryLight,
+              title: 'Relatório mensal',
+              subtitle: 'Receitas, despesas e gastos por categoria',
+              onTap: _openMonthlyReportPage,
+            ),
           if (wallet != null)
             _QuickAccessRow(
               icon: Icons.calendar_month_rounded,
