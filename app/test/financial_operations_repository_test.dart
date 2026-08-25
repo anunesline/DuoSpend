@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/goals/data/models/savings_goal_model.dart';
 import 'package:app/features/goals/data/repositories/savings_goal_repository.dart';
 import 'package:app/features/goals/domain/models/savings_goal.dart';
+import 'package:app/features/goals/presentation/controllers/savings_goals_controller.dart';
 import 'package:app/features/home/data/models/credit_card_model.dart';
 import 'package:app/features/home/data/models/wallet_model.dart';
 import 'package:app/features/home/data/repositories/credit_card_repository.dart';
@@ -459,6 +460,105 @@ void main() {
 
       expect(savedWallet.data()!['balance'], 50);
       expect(savedGoal.data()!['savedAmount'], 0);
+    });
+
+    test('membro não responsável não retira de meta compartilhada', () async {
+      final firestore = FakeFirebaseFirestore();
+      final destinationWallet = wallet(id: 'goal-wallet');
+      final goal = SavingsGoal(
+        id: 'shared-goal',
+        name: 'Viagem',
+        targetAmount: 1000,
+        savedAmount: 300,
+        walletId: 'context-wallet',
+        createdByUserId: 'user-2',
+        memberIds: const [userId, 'user-2'],
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 1),
+      );
+
+      await firestore
+          .collection('wallets')
+          .doc(destinationWallet.id)
+          .set(destinationWallet.toMap());
+      await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .set(SavingsGoalModel.toMap(goal));
+
+      final repository = SavingsGoalRepository(
+        firestore: firestore,
+        auth: signedInAuth(),
+      );
+
+      expect(
+        repository.withdraw(
+          goalId: goal.id,
+          destinationWallet: destinationWallet,
+          amount: 100,
+          operationId: 'unauthorized-withdrawal',
+        ),
+        throwsStateError,
+      );
+
+      final savedWallet = await firestore
+          .collection('wallets')
+          .doc(destinationWallet.id)
+          .get();
+      final savedGoal = await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .get();
+
+      expect(savedWallet.data()!['balance'], 1000);
+      expect(savedGoal.data()!['savedAmount'], 300);
+    });
+
+    test('controller sincroniza carteira com saldo persistido após aporte',
+        () async {
+      final firestore = FakeFirebaseFirestore();
+      final staleWallet = wallet(id: 'goal-wallet', balance: 1000);
+      final persistedWallet = staleWallet.copyWith(balance: 700);
+      final goal = SavingsGoal(
+        id: 'goal-to-sync',
+        name: 'Reserva',
+        targetAmount: 1000,
+        walletId: 'context-wallet',
+        createdByUserId: userId,
+        memberIds: const [userId],
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 1),
+      );
+
+      await firestore
+          .collection('wallets')
+          .doc(persistedWallet.id)
+          .set(persistedWallet.toMap());
+      await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .set(SavingsGoalModel.toMap(goal));
+
+      final controller = SavingsGoalsController(
+        contextWallet: wallet(id: 'context-wallet'),
+        financialWallets: [staleWallet],
+        currentUserId: userId,
+        repository: SavingsGoalRepository(
+          firestore: firestore,
+          auth: signedInAuth(),
+        ),
+      );
+      controller.goals = [goal];
+
+      final updatedGoal = await controller.contribute(
+        goal: goal,
+        sourceWallet: staleWallet,
+        amount: 100,
+      );
+
+      expect(updatedGoal?.savedAmount, 100);
+      expect(controller.financialWallets.single.balance, 600);
+      controller.dispose();
     });
 
     test('edição usa saldo persistido e não reduz alvo abaixo dele', () async {
