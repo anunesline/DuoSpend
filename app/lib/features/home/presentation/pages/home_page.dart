@@ -9,6 +9,7 @@ import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
 import '../../../reports/presentation/pages/monthly_report_page.dart';
 import '../../../goals/presentation/pages/savings_goals_page.dart';
+import '../../../budgets/presentation/pages/budgets_page.dart';
 import '../../../transactions/domain/purchase/services/balance_summary.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
@@ -383,6 +384,28 @@ class _HomePageState extends State<HomePage> {
     await _loadHome();
   }
 
+  Future<void> _openBudgetsPage() async {
+    final wallet = controller.wallet;
+    final currentUserId = controller.user?.uid;
+
+    if (wallet == null || currentUserId == null || currentUserId.isEmpty) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BudgetsPage(
+          wallet: wallet,
+          transactions: controller.transactions,
+          currentUserId: currentUserId,
+        ),
+      ),
+    );
+
+    await _loadHome();
+  }
+
   Future<void> _openMonthlyReportPage() async {
     final wallet = controller.wallet;
 
@@ -538,6 +561,14 @@ class _HomePageState extends State<HomePage> {
               title: 'Metas',
               subtitle: 'Reserve dinheiro para seus planos',
               onTap: _openSavingsGoalsPage,
+            ),
+          if (wallet != null)
+            _QuickAccessRow(
+              icon: Icons.pie_chart_rounded,
+              iconColor: DuoColors.warning,
+              title: 'Orçamentos',
+              subtitle: 'Limites e gastos por categoria',
+              onTap: _openBudgetsPage,
             ),
           if (wallet != null)
             _QuickAccessRow(
