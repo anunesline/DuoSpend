@@ -425,7 +425,6 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
                       '${_money(card.creditLimit)}\n'
                       'Vinculado a ${_walletName(card.walletId)}',
                     ),
-                    isThreeLine: true,
                     children: [
                       Padding(
                         padding:
