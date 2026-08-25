@@ -298,13 +298,16 @@ class CreateTransactionUseCase {
           );
         }
 
+        final effectiveDate = transaction.isRecurring
+            ? transaction.recurringStartDate ?? transaction.date
+            : transaction.date;
         final transactionDay = DateTime(
-          transaction.date.year,
-          transaction.date.month,
-          transaction.date.day,
+          effectiveDate.year,
+          effectiveDate.month,
+          effectiveDate.day,
         );
-        final isDeferred = paymentMethod == PaymentMethod.boleto ||
-            paymentMethod == PaymentMethod.carne;
+        final isDeferred = paymentMethod != null &&
+            !paymentMethod.affectsBalanceImmediately;
         final isFuture = transactionDay.isAfter(today);
         final isLaterInstallment = transaction.isInstallment &&
             (transaction.installmentNumber ?? 1) > 1;
