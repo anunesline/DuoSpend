@@ -1,4 +1,5 @@
 import '../../../budgets/domain/models/budget_consumption.dart';
+import '../../../transactions/domain/calendar/financial_calendar_entry.dart';
 import '../models/financial_insight.dart';
 import '../models/financial_intelligence_input.dart';
 
@@ -225,9 +226,14 @@ class FinancialIntelligenceService {
     FinancialIntelligenceInput input,
     List<FinancialInsight> insights,
   ) {
-    final monthlyExpense = input.recurringTransactions
-        .where((transaction) => transaction.type == 'expense')
-        .fold<double>(0, (sum, transaction) => sum + transaction.value);
+    final monthlyExpense = input.projection.entries
+        .where(
+          (entry) =>
+              entry.isProjected &&
+              entry.isExpense &&
+              entry.kind == FinancialCalendarEntryKind.recurring,
+        )
+        .fold<double>(0, (sum, entry) => sum + entry.value);
     if (monthlyExpense <= 0) return;
     insights.add(FinancialInsight(
       id: 'recurring-monthly-weight',
@@ -235,7 +241,7 @@ class FinancialIntelligenceService {
       severity: FinancialInsightSeverity.info,
       title: 'Recorrências do mês',
       message: 'Há despesas recorrentes que pesam no planejamento mensal.',
-      source: 'Transações recorrentes ativas da carteira',
+      source: 'Ocorrências recorrentes previstas no calendário financeiro',
       amount: monthlyExpense,
     ));
   }
