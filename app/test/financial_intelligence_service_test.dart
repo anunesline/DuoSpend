@@ -57,6 +57,17 @@ void main() {
     expect(base.limitAmount, 100);
   });
 
+  test('não gera alerta para orçamento saudável', () {
+    final budget = Budget(
+      id: 'healthy', walletId: 'w', category: 'Mercado', month: now,
+      limitAmount: 100, createdByUserId: 'u', createdAt: now, updatedAt: now,
+    );
+    final insights = service.build(input(budgets: [
+      BudgetConsumption(budget: budget, spentAmount: 79),
+    ]));
+    expect(insights.any((item) => item.id == 'budget-healthy'), isFalse);
+  });
+
   test('calcula reserva mensal para meta com prazo e informa meta sem prazo', () {
     final goal = SavingsGoal(
       id: 'g', name: 'Viagem', targetAmount: 1000, savedAmount: 400,
@@ -67,6 +78,18 @@ void main() {
     final insights = service.build(input(goals: [goal, noDeadline]));
     expect(insights.firstWhere((item) => item.id == 'goal-monthly-g').amount, 200);
     expect(insights.any((item) => item.id == 'goal-no-deadline-g2'), isTrue);
+  });
+
+  test('alerta quando meta com prazo já venceu e ainda tem valor restante', () {
+    final goal = SavingsGoal(
+      id: 'late', name: 'Reforma', targetAmount: 1000, savedAmount: 100,
+      deadline: DateTime(2026, 7), walletId: 'w', createdByUserId: 'u',
+      createdAt: now, updatedAt: now,
+    );
+    final insights = service.build(input(goals: [goal]));
+    final insight = insights.firstWhere((item) => item.id == 'goal-late-late');
+    expect(insight.severity, FinancialInsightSeverity.warning);
+    expect(insight.amount, 900);
   });
 
   test('compara despesas e categorias apenas quando há histórico suficiente', () {
@@ -110,6 +133,26 @@ void main() {
     expect(impact.type, FinancialInsightType.purchaseImpact);
     expect(impact.severity, FinancialInsightSeverity.warning);
     expect(impact.amount, -20);
+  });
+
+  test('alerta saldo previsto negativo quando há compromissos futuros', () {
+    final projection = FinancialProjection(
+      currentBalance: 50,
+      projectedIncome: 0,
+      projectedExpense: 100,
+      projectedBalance: -50,
+      entries: [
+        FinancialCalendarEntry(
+          id: 'bill', title: 'Conta', value: 100, type: 'expense',
+          date: DateTime(2026, 8, 20),
+          kind: FinancialCalendarEntryKind.transaction, isProjected: true,
+        ),
+      ],
+    );
+    final insights = service.build(input(projection: projection));
+    final insight = insights.firstWhere((item) => item.id == 'projected-balance');
+    expect(insight.severity, FinancialInsightSeverity.warning);
+    expect(insights.any((item) => item.id == 'available-to-spend'), isFalse);
   });
 
   test('rejeita valor inválido na simulação de compra', () {
