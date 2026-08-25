@@ -237,9 +237,10 @@ class CreditCardRepository {
 
     if (transactionModel.paymentMethod != 'creditCard' ||
         transactionModel.paymentSourceId?.trim() !=
-            normalizedCardId) {
+            normalizedCardId ||
+        !transactionModel.isSettledByInvoice) {
       throw StateError(
-        'A transação não está vinculada ao cartão informado.',
+        'A transação não está vinculada a uma fatura do cartão informado.',
       );
     }
 
@@ -286,8 +287,23 @@ class CreditCardRepository {
 
       if (chargeDocument.exists &&
           chargeDocument.data() != null) {
+        final chargeData = chargeDocument.data()!;
         final invoiceId =
-            chargeDocument.data()!['invoiceId']?.toString() ?? '';
+            chargeData['invoiceId']?.toString().trim() ?? '';
+        final persistedTransactionId =
+            chargeData['transactionId']?.toString().trim() ?? '';
+        final persistedAmount = _parseDouble(
+          chargeData['amount'],
+        );
+
+        if (invoiceId.isEmpty ||
+            persistedTransactionId != normalizedTransactionId ||
+            !_amountsMatch(persistedAmount, amount)) {
+          throw StateError(
+            'O transactionId já pertence a outra cobrança.',
+          );
+        }
+
         final invoiceDocument =
             await firestoreTransaction.get(
           cardReference
@@ -302,7 +318,16 @@ class CreditCardRepository {
           );
         }
 
-        if (!savedTransactionDocument.exists) {
+        if (savedTransactionDocument.exists &&
+            savedTransactionDocument.data() != null) {
+          _validatePersistedCreditPurchase(
+            persisted: TransactionModel.fromMap(
+              savedTransactionDocument.data()!,
+            ),
+            requested: transactionModel,
+            cardId: normalizedCardId,
+          );
+        } else {
           firestoreTransaction.set(
             transactionReference,
             transactionModel.toMap(),
@@ -311,6 +336,17 @@ class CreditCardRepository {
 
         return CreditCardInvoiceModel.fromMap(
           invoiceDocument.data()!,
+        );
+      }
+
+      if (savedTransactionDocument.exists &&
+          savedTransactionDocument.data() != null) {
+        _validatePersistedCreditPurchase(
+          persisted: TransactionModel.fromMap(
+            savedTransactionDocument.data()!,
+          ),
+          requested: transactionModel,
+          cardId: normalizedCardId,
         );
       }
 
@@ -459,6 +495,19 @@ class CreditCardRepository {
         ownerMemberId: userId,
       );
 
+      final walletBalance = _parseDouble(
+        walletDocument.data()?['balance'],
+      );
+
+      if (!_hasSufficientBalance(
+        walletBalance,
+        invoice.total,
+      )) {
+        throw StateError(
+          'Saldo insuficiente para pagar esta fatura.',
+        );
+      }
+
       final paidInvoice = _paidInvoice(
         invoice,
         paymentDate: paymentDate,
@@ -570,6 +619,41 @@ class CreditCardRepository {
         'O cartão precisa estar vinculado a uma carteira individual do titular.',
       );
     }
+  }
+
+  void _validatePersistedCreditPurchase({
+    required TransactionModel persisted,
+    required TransactionModel requested,
+    required String cardId,
+  }) {
+    if (persisted.id.trim() != requested.id.trim() ||
+        persisted.type != 'expense' ||
+        persisted.paymentMethod != 'creditCard' ||
+        persisted.paymentSourceId?.trim() != cardId ||
+        persisted.walletId.trim() != requested.walletId.trim() ||
+        persisted.paidByMemberId?.trim() !=
+            requested.paidByMemberId?.trim() ||
+        !_amountsMatch(persisted.value, requested.value)) {
+      throw StateError(
+        'O transactionId já pertence a outra compra.',
+      );
+    }
+  }
+
+  bool _amountsMatch(double first, double second) {
+    return (first * 100).round() == (second * 100).round();
+  }
+
+  bool _hasSufficientBalance(double balance, double amount) {
+    return (balance * 100).round() >= (amount * 100).round();
+  }
+
+  double _parseDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   CreditCardInvoiceModel _buildInvoice({
