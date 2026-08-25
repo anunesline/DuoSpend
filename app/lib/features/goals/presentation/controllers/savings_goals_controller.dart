@@ -326,17 +326,11 @@ class SavingsGoalsController extends ChangeNotifier {
         ),
       );
 
-      final balanceDelta = isContribution ? -amount : amount;
-
+      final persistedWallet = await _repository.getFinancialWallet(
+        walletId: financialWallet.id,
+      );
       financialWallets = financialWallets.map((wallet) {
-        if (wallet.id != financialWallet.id) {
-          return wallet;
-        }
-
-        return wallet.copyWith(
-          balance: wallet.balance + balanceDelta,
-          updatedAt: DateTime.now(),
-        );
+        return wallet.id == persistedWallet.id ? persistedWallet : wallet;
       }).toList();
 
       return updatedGoal;
