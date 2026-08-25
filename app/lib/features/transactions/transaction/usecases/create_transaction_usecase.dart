@@ -77,6 +77,7 @@ class CreateTransactionUseCase {
     String? notes,
     PaymentMethod? paymentMethod,
     String? paymentSourceId,
+    String? financialWalletId,
   }) async {
     final normalizedTransactionId = transactionId.trim();
     final normalizedDescription = description.trim();
@@ -88,6 +89,8 @@ class CreateTransactionUseCase {
     final normalizedNotes = notes?.trim();
     final normalizedPaymentSourceId =
         paymentSourceId?.trim();
+    final normalizedFinancialWalletId =
+        financialWalletId?.trim();
 
     _validateInput(
       transactionId: normalizedTransactionId,
@@ -112,6 +115,7 @@ class CreateTransactionUseCase {
 
     final financialWallet = await _resolveFinancialWallet(
       paidByMemberId: normalizedPaidByMemberId,
+      financialWalletId: normalizedFinancialWalletId,
     );
 
     final resolvedSplitType = splitType ??
@@ -166,11 +170,10 @@ class CreateTransactionUseCase {
       recurringEndDate: recurringEndDate,
       recurringNeverEnds: recurringNeverEnds,
       paymentMethod: paymentMethod?.value,
-      paymentSourceId:
-          normalizedPaymentSourceId == null ||
-                  normalizedPaymentSourceId.isEmpty
-              ? null
-              : normalizedPaymentSourceId,
+      paymentSourceId: _resolvePersistedPaymentSourceId(
+        paymentSourceId: normalizedPaymentSourceId,
+        financialWalletId: normalizedFinancialWalletId,
+      ),
       notes: normalizedNotes == null || normalizedNotes.isEmpty
           ? null
           : normalizedNotes,
@@ -248,11 +251,19 @@ class CreateTransactionUseCase {
 
   Future<WalletModel> _resolveFinancialWallet({
     required String paidByMemberId,
+    required String? financialWalletId,
   }) async {
-    final financialWallet =
-        await _walletRepository.getFinancialWalletForMember(
-          paidByMemberId,
-        );
+    final hasSelectedWallet =
+        financialWalletId != null &&
+        financialWalletId.isNotEmpty;
+
+    final financialWallet = hasSelectedWallet
+        ? await _walletRepository.getWalletById(
+            financialWalletId,
+          )
+        : await _walletRepository.getFinancialWalletForMember(
+            paidByMemberId,
+          );
 
     if (financialWallet == null) {
       throw Exception(
@@ -266,7 +277,31 @@ class CreateTransactionUseCase {
       );
     }
 
+    if (hasSelectedWallet &&
+        financialWallet.ownerId.trim() !=
+            paidByMemberId.trim()) {
+      throw Exception(
+        'A carteira financeira selecionada não pertence ao pagador.',
+      );
+    }
+
     return financialWallet;
+  }
+
+  String? _resolvePersistedPaymentSourceId({
+    required String? paymentSourceId,
+    required String? financialWalletId,
+  }) {
+    if (paymentSourceId != null && paymentSourceId.isNotEmpty) {
+      return paymentSourceId;
+    }
+
+    if (financialWalletId != null &&
+        financialWalletId.isNotEmpty) {
+      return financialWalletId;
+    }
+
+    return null;
   }
 
   Future<void> _applyImmediateFinancialImpact({
