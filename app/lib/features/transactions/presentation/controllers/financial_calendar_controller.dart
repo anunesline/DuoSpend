@@ -88,6 +88,11 @@ class FinancialCalendarController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearDaySelection() {
+    selectedDay = null;
+    notifyListeners();
+  }
+
   List<FinancialCalendarEntry> get visibleEntries {
     final day = selectedDay;
     if (day == null) {
