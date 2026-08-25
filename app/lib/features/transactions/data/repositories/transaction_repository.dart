@@ -81,6 +81,127 @@ class TransactionRepository {
     await batch.commit();
   }
 
+  Future<TransactionModel> settleFinancialObligation({
+    required TransactionModel obligation,
+    required WalletModel transactionWallet,
+    required WalletModel financialWallet,
+    DateTime? settledAt,
+  }) async {
+    final user = _requireAuthenticatedUser();
+
+    if (!financialWallet.isIndividual ||
+        !financialWallet.isOwner(user.uid)) {
+      throw StateError(
+        'A movimentação precisa usar uma carteira individual do usuário.',
+      );
+    }
+
+    if (obligation.paidByMemberId?.trim() != user.uid) {
+      throw StateError(
+        'Somente o responsável financeiro pode liquidar esta obrigação.',
+      );
+    }
+
+    if (obligation.isSettledByInvoice ||
+        obligation.paymentMethod == 'creditCard') {
+      throw StateError(
+        'Compras no crédito são liquidadas pelo pagamento da fatura.',
+      );
+    }
+
+    final sourceId = obligation.paymentSourceId?.trim();
+
+    if (sourceId != null &&
+        sourceId.isNotEmpty &&
+        sourceId != financialWallet.id) {
+      throw StateError(
+        'A carteira escolhida não corresponde à origem da obrigação.',
+      );
+    }
+
+    _validateTransactionWalletForSettlement(
+      wallet: transactionWallet,
+      userId: user.uid,
+      obligation: obligation,
+    );
+
+    final transactionReference = transactionWallet.isShared
+        ? _sharedTransactionsReference(transactionWallet.id)
+            .doc(obligation.id)
+        : _individualTransactionsReference(user.uid)
+            .doc(obligation.id);
+    final financialWalletReference =
+        _financialWalletReference(
+      userId: user.uid,
+      walletId: financialWallet.id,
+    );
+    final settlementDate = settledAt ?? DateTime.now();
+
+    return _firestore.runTransaction((firestoreTransaction) async {
+      final obligationDocument =
+          await firestoreTransaction.get(transactionReference);
+      final walletDocument =
+          await firestoreTransaction.get(financialWalletReference);
+
+      if (!obligationDocument.exists ||
+          obligationDocument.data() == null) {
+        throw StateError('Obrigação financeira não encontrada.');
+      }
+
+      if (!walletDocument.exists || walletDocument.data() == null) {
+        throw StateError('Carteira financeira não encontrada.');
+      }
+
+      final persistedObligation = TransactionModel.fromMap(
+        obligationDocument.data()!,
+      );
+
+      if (persistedObligation.isFinanciallySettled) {
+        return persistedObligation;
+      }
+
+      if (!persistedObligation.isFinanciallyPending) {
+        throw StateError(
+          'Esta movimentação não pode ser liquidada diretamente.',
+        );
+      }
+
+      final walletData = walletDocument.data()!;
+      final ownerId = walletData['ownerId']?.toString().trim();
+      final isLegacyWallet = financialWalletReference.path ==
+          'users/${user.uid}/wallets/principal';
+
+      if ((ownerId ?? (isLegacyWallet ? user.uid : '')) != user.uid) {
+        throw StateError('Usuário sem acesso à carteira financeira.');
+      }
+
+      final settledObligation = persistedObligation.copyWith(
+        financialStatus: 'settled',
+        financialSettledAt: settlementDate,
+      );
+      final balanceDelta = persistedObligation.type == 'income'
+          ? persistedObligation.value
+          : -persistedObligation.value;
+
+      if (persistedObligation.type != 'income' &&
+          persistedObligation.type != 'expense') {
+        throw StateError('Tipo de obrigação financeira inválido.');
+      }
+
+      firestoreTransaction.update(financialWalletReference, {
+        'balance': FieldValue.increment(balanceDelta),
+        'updatedAt': settlementDate.toIso8601String(),
+      });
+      firestoreTransaction.set(
+        transactionReference,
+        settledObligation.toMap(),
+        SetOptions(merge: true),
+      );
+
+      return settledObligation;
+    });
+  }
+
   Future<void> updateTransaction(
     TransactionModel transaction, {
     WalletModel? wallet,
@@ -399,6 +520,46 @@ class TransactionRepository {
         ),
       ),
     );
+  }
+
+  DocumentReference<Map<String, dynamic>>
+      _financialWalletReference({
+    required String userId,
+    required String walletId,
+  }) {
+    if (walletId == 'principal') {
+      return _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('wallets')
+          .doc('principal');
+    }
+
+    return _firestore.collection('wallets').doc(walletId);
+  }
+
+  void _validateTransactionWalletForSettlement({
+    required WalletModel wallet,
+    required String userId,
+    required TransactionModel obligation,
+  }) {
+    if (wallet.id.trim() != obligation.walletId.trim()) {
+      throw StateError(
+        'A obrigação não pertence à carteira informada.',
+      );
+    }
+
+    if (wallet.isShared && !wallet.hasMember(userId)) {
+      throw StateError(
+        'O usuário não participa da carteira compartilhada.',
+      );
+    }
+
+    if (wallet.isIndividual && !wallet.isOwner(userId)) {
+      throw StateError(
+        'O usuário não é titular da carteira da transação.',
+      );
+    }
   }
 
   CollectionReference<Map<String, dynamic>>
