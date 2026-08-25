@@ -10,6 +10,7 @@ import '../../../shopping/presentation/controllers/shopping_controller.dart';
 import '../../../transactions/domain/purchase/services/balance_summary.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
+import '../../../transactions/presentation/pages/financial_calendar_page.dart';
 import '../../../transactions/presentation/pages/history_page.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../../../wallet/presentation/pages/credit_cards_page.dart';
@@ -356,6 +357,26 @@ class _HomePageState extends State<HomePage> {
     await _loadHome();
   }
 
+  Future<void> _openFinancialCalendarPage() async {
+    final wallet = controller.wallet;
+
+    if (wallet == null) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FinancialCalendarPage(
+          wallet: wallet,
+          transactions: controller.transactions,
+        ),
+      ),
+    );
+
+    await _loadHome();
+  }
+
   Future<void> _openHistoryPage() async {
     final wallet = controller.wallet;
     final currentUserId = controller.user?.uid;
@@ -463,6 +484,14 @@ class _HomePageState extends State<HomePage> {
             controller.pendingSharedConfirmationCount;
 
         final quickAccessRows = <Widget>[
+          if (wallet != null)
+            _QuickAccessRow(
+              icon: Icons.calendar_month_rounded,
+              iconColor: DuoColors.primaryLight,
+              title: 'Calendário financeiro',
+              subtitle: 'Saldo previsto e próximos compromissos',
+              onTap: _openFinancialCalendarPage,
+            ),
           if (hasConnectedPartner &&
               controller.hasPendingSharedConfirmations)
             _QuickAccessRow(
