@@ -529,5 +529,86 @@ void main() {
       expect(persisted.data()!['status'], 'active');
       expect(persisted.data()!['savedAmount'], 100);
     });
+
+    test('histórico de meta é ordenado do mais recente', () async {
+      final firestore = FakeFirebaseFirestore();
+      final goal = SavingsGoal(
+        id: 'goal-history',
+        name: 'Viagem',
+        targetAmount: 1000,
+        savedAmount: 150,
+        walletId: 'context-wallet',
+        createdByUserId: userId,
+        memberIds: const [userId, 'user-2'],
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 20),
+      );
+
+      final goalReference = firestore
+          .collection('savingsGoals')
+          .doc(goal.id);
+      await goalReference.set(SavingsGoalModel.toMap(goal));
+      await goalReference.collection('movements').doc('older').set({
+        'id': 'older',
+        'goalId': goal.id,
+        'walletId': 'wallet-1',
+        'type': 'contribution',
+        'amount': 200,
+        'createdByUserId': userId,
+        'occurredAt': DateTime(2026, 8, 10).toIso8601String(),
+      });
+      await goalReference.collection('movements').doc('newer').set({
+        'id': 'newer',
+        'goalId': goal.id,
+        'walletId': 'wallet-2',
+        'type': 'withdrawal',
+        'amount': 50,
+        'createdByUserId': 'user-2',
+        'occurredAt': DateTime(2026, 8, 20).toIso8601String(),
+      });
+
+      final repository = SavingsGoalRepository(
+        firestore: firestore,
+        auth: signedInAuth(),
+      );
+      final movements = await repository.getMovements(
+        goalId: goal.id,
+      );
+
+      expect(movements, hasLength(2));
+      expect(movements.first.id, 'newer');
+      expect(movements.first.isWithdrawal, isTrue);
+      expect(movements.last.id, 'older');
+      expect(movements.last.isContribution, isTrue);
+    });
+
+    test('histórico de meta respeita os membros persistidos', () async {
+      final firestore = FakeFirebaseFirestore();
+      final goal = SavingsGoal(
+        id: 'private-goal',
+        name: 'Meta privada',
+        targetAmount: 1000,
+        walletId: 'context-wallet',
+        createdByUserId: 'user-2',
+        memberIds: const ['user-2'],
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 1),
+      );
+
+      await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .set(SavingsGoalModel.toMap(goal));
+
+      final repository = SavingsGoalRepository(
+        firestore: firestore,
+        auth: signedInAuth(),
+      );
+
+      expect(
+        repository.getMovements(goalId: goal.id),
+        throwsStateError,
+      );
+    });
   });
 }
