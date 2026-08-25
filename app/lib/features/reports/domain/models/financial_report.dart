@@ -78,3 +78,20 @@ class FinancialReportComparison {
     required this.balance,
   });
 }
+
+
+class MonthlyFinancialPoint {
+  final DateTime month;
+  final FinancialReport report;
+
+  const MonthlyFinancialPoint({
+    required this.month,
+    required this.report,
+  });
+
+  double get income => report.totalIncome;
+
+  double get expense => report.totalExpense;
+
+  double get balance => report.balance;
+}
