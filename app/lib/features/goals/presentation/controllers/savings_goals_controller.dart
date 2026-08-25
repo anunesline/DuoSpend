@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../data/repositories/savings_goal_repository.dart';
 import '../../domain/models/savings_goal.dart';
+import '../../domain/models/savings_goal_movement.dart';
 import '../../domain/services/savings_goal_service.dart';
 
 class SavingsGoalsController extends ChangeNotifier {
@@ -13,6 +14,8 @@ class SavingsGoalsController extends ChangeNotifier {
 
   List<SavingsGoal> goals = const [];
   List<WalletModel> financialWallets;
+  Map<String, List<SavingsGoalMovement>> movementsByGoal = const {};
+  final Set<String> _loadingHistoryGoalIds = {};
 
   bool isLoading = false;
   bool isProcessing = false;
@@ -59,6 +62,46 @@ class SavingsGoalsController extends ChangeNotifier {
       goals = const [];
     } finally {
       isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  bool isLoadingHistoryFor(String goalId) {
+    return _loadingHistoryGoalIds.contains(goalId);
+  }
+
+  Future<List<SavingsGoalMovement>?> loadMovements(
+    SavingsGoal goal,
+  ) async {
+    if (_loadingHistoryGoalIds.contains(goal.id)) {
+      return movementsByGoal[goal.id];
+    }
+
+    _loadingHistoryGoalIds.add(goal.id);
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      final movements = await _repository.getMovements(
+        goalId: goal.id,
+      );
+      movementsByGoal = Map.unmodifiable({
+        ...movementsByGoal,
+        goal.id: movements,
+      });
+
+      return movements;
+    } catch (error, stackTrace) {
+      debugPrint('Erro ao carregar histórico da meta: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      errorMessage = _friendlyError(
+        error,
+        fallback: 'Não foi possível carregar o histórico da meta.',
+      );
+
+      return null;
+    } finally {
+      _loadingHistoryGoalIds.remove(goal.id);
       notifyListeners();
     }
   }
