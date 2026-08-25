@@ -19,6 +19,23 @@ class SavingsGoalRepository {
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _auth = auth ?? FirebaseAuth.instance;
 
+  String createGoalId() {
+    return _firestore.collection(_goalsCollection).doc().id;
+  }
+
+  String createMovementId(String goalId) {
+    final normalizedGoalId = goalId.trim();
+
+    if (normalizedGoalId.isEmpty) {
+      throw ArgumentError.value(goalId, 'goalId', 'Informe a meta.');
+    }
+
+    return _goalReference(normalizedGoalId)
+        .collection(_movementsCollection)
+        .doc()
+        .id;
+  }
+
   Future<void> createGoal({
     required SavingsGoal goal,
     required WalletModel contextWallet,
