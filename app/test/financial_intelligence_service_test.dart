@@ -101,4 +101,24 @@ void main() {
     expect(insights.any((item) => item.id == 'available-to-spend'), isTrue);
     expect(insights.any((item) => item.id == 'cash-flow-risk-expense'), isTrue);
   });
+
+  test('simula impacto da compra sem alterar a projeção', () {
+    final impact = service.buildPurchaseImpact(
+      purchaseAmount: 120,
+      projectedBalance: 100,
+    );
+    expect(impact.type, FinancialInsightType.purchaseImpact);
+    expect(impact.severity, FinancialInsightSeverity.warning);
+    expect(impact.amount, -20);
+  });
+
+  test('rejeita valor inválido na simulação de compra', () {
+    expect(
+      () => service.buildPurchaseImpact(
+        purchaseAmount: 0,
+        projectedBalance: 100,
+      ),
+      throwsArgumentError,
+    );
+  });
 }
