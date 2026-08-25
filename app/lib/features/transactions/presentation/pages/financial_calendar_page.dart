@@ -68,6 +68,59 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
     return '${months[month.month - 1]} ${month.year}';
   }
 
+  Future<void> _settleEntry(FinancialCalendarEntry entry) async {
+    final isIncome = entry.isIncome;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(isIncome ? 'Confirmar recebimento' : 'Confirmar pagamento'),
+          content: Text(
+            isIncome
+                ? 'O valor será creditado na carteira vinculada.'
+                : 'O valor será debitado da carteira vinculada.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(isIncome ? 'Recebi' : 'Paguei'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final settled = await controller.settleEntry(
+      entry: entry,
+      transactionWallet: widget.wallet,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    final message = settled
+        ? (isIncome ? 'Recebimento confirmado.' : 'Pagamento confirmado.')
+        : controller.errorMessage ?? 'Não foi possível confirmar.';
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
   String _entryLabel(FinancialCalendarEntry entry) {
     switch (entry.kind) {
       case FinancialCalendarEntryKind.installment:
@@ -126,11 +179,9 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
                         label: _monthLabel(controller.selectedMonth),
                         onPrevious: () => controller.previousMonth(
                           wallet: widget.wallet,
-                          transactions: widget.transactions,
                         ),
                         onNext: () => controller.nextMonth(
                           wallet: widget.wallet,
-                          transactions: widget.transactions,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -175,6 +226,12 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
                             entry: entry,
                             label: _entryLabel(entry),
                             formattedValue: _formatMoney(entry.value),
+                            isSettling: controller.isSettling,
+                            onSettle: entry.transaction
+                                        ?.isFinanciallyPending ==
+                                    true
+                                ? () => _settleEntry(entry)
+                                : null,
                           ),
                         ),
                     ],
@@ -481,11 +538,15 @@ class _EntryTile extends StatelessWidget {
   final FinancialCalendarEntry entry;
   final String label;
   final String formattedValue;
+  final bool isSettling;
+  final VoidCallback? onSettle;
 
   const _EntryTile({
     required this.entry,
     required this.label,
     required this.formattedValue,
+    required this.isSettling,
+    this.onSettle,
   });
 
   @override
@@ -536,6 +597,28 @@ class _EntryTile extends StatelessWidget {
                     fontSize: 12,
                   ),
                 ),
+                if (onSettle != null) ...[
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: isSettling ? null : onSettle,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: Icon(
+                      entry.isIncome
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.payments_outlined,
+                      size: 17,
+                    ),
+                    label: Text(
+                      entry.isIncome
+                          ? 'Marcar como recebido'
+                          : 'Marcar como pago',
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
