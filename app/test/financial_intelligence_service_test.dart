@@ -155,6 +155,28 @@ void main() {
     expect(insights.any((item) => item.id == 'available-to-spend'), isFalse);
   });
 
+  test('soma as ocorrências recorrentes previstas no mês', () {
+    final projection = FinancialProjection(
+      currentBalance: 500,
+      projectedIncome: 0,
+      projectedExpense: 100,
+      projectedBalance: 400,
+      entries: List.generate(
+        4,
+        (index) => FinancialCalendarEntry(
+          id: 'recurring-$index', title: 'Academia', value: 25,
+          type: 'expense', date: DateTime(2026, 8, 4 + index * 7),
+          kind: FinancialCalendarEntryKind.recurring, isProjected: true,
+        ),
+      ),
+    );
+    final insights = service.build(input(projection: projection));
+    expect(
+      insights.firstWhere((item) => item.id == 'recurring-monthly-weight').amount,
+      100,
+    );
+  });
+
   test('rejeita valor inválido na simulação de compra', () {
     expect(
       () => service.buildPurchaseImpact(
