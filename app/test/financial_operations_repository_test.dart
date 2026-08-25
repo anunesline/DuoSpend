@@ -461,6 +461,80 @@ void main() {
       expect(savedGoal.data()!['savedAmount'], 0);
     });
 
+    test('edição usa saldo persistido e não reduz alvo abaixo dele', () async {
+      final firestore = FakeFirebaseFirestore();
+      final goal = SavingsGoal(
+        id: 'funded-goal',
+        name: 'Reserva',
+        targetAmount: 1000,
+        savedAmount: 600,
+        walletId: 'context-wallet',
+        createdByUserId: userId,
+        memberIds: const [userId],
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 1),
+      );
+
+      await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .set(SavingsGoalModel.toMap(goal));
+
+      final repository = SavingsGoalRepository(
+        firestore: firestore,
+        auth: signedInAuth(),
+      );
+
+      expect(
+        repository.update(
+          goalId: goal.id,
+          name: 'Reserva atualizada',
+          targetAmount: 500,
+        ),
+        throwsStateError,
+      );
+
+      final persisted = await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .get();
+      expect(persisted.data()!['targetAmount'], 1000);
+      expect(persisted.data()!['savedAmount'], 600);
+    });
+
+    test('somente responsável pode editar meta compartilhada', () async {
+      final firestore = FakeFirebaseFirestore();
+      final goal = SavingsGoal(
+        id: 'shared-goal',
+        name: 'Viagem',
+        targetAmount: 1000,
+        walletId: 'context-wallet',
+        createdByUserId: 'user-2',
+        memberIds: const [userId, 'user-2'],
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 1),
+      );
+
+      await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .set(SavingsGoalModel.toMap(goal));
+
+      final repository = SavingsGoalRepository(
+        firestore: firestore,
+        auth: signedInAuth(),
+      );
+
+      expect(
+        repository.update(
+          goalId: goal.id,
+          name: 'Novo nome',
+          targetAmount: 1200,
+        ),
+        throwsStateError,
+      );
+    });
+
     test('arquivamento vazio é idempotente', () async {
       final firestore = FakeFirebaseFirestore();
       final goal = SavingsGoal(
