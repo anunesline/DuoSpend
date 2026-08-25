@@ -163,6 +163,7 @@ class TransactionController extends ChangeNotifier {
     DateTime? recurringEndDate,
     bool recurringNeverEnds = true,
     String? notes,
+    String? financialWalletId,
 
     // Compatibilidade temporária com a NewTransactionPage antiga.
     // O split agora é calculado pelo CreateTransactionUseCase.
@@ -200,6 +201,7 @@ class TransactionController extends ChangeNotifier {
         recurringEndDate: recurringEndDate,
         recurringNeverEnds: recurringNeverEnds,
         notes: notes,
+        financialWalletId: financialWalletId,
       );
 
       _lastResult = result;
