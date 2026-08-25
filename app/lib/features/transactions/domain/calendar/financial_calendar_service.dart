@@ -110,8 +110,10 @@ class FinancialCalendarService {
 
     for (final occurrence in occurrences) {
       final normalizedOccurrence = _dateOnly(occurrence);
+      final firstOccurrenceDate =
+          transaction.recurringStartDate ?? transaction.date;
       final isOriginalOccurrence = normalizedOccurrence
-          .isAtSameMomentAs(_dateOnly(transaction.date));
+          .isAtSameMomentAs(_dateOnly(firstOccurrenceDate));
       final isProjected = normalizedOccurrence.isAfter(referenceDate) ||
           (isOriginalOccurrence &&
               transaction.isFinanciallyPending);
