@@ -651,7 +651,7 @@ class _FilterToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final labels = <String>[
       if (hasCustomPeriod) 'Período personalizado',
-      if (selectedCategory != null) selectedCategory!,
+      ?selectedCategory,
       if (selectedType == 'income') 'Receitas',
       if (selectedType == 'expense') 'Despesas',
     ];
