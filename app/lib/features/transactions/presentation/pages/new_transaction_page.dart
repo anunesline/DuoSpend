@@ -78,6 +78,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   String? selectedPurchaseDestination;
 
+  String? selectedFinancialWalletId;
+
   bool isRecurring = false;
   String recurringFrequency = 'monthly';
   DateTime recurringStartDate = DateTime.now();
@@ -99,6 +101,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     _syncFinancialCategory();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeFinancialWalletSelection();
       _loadPartnerDisplayName();
     });
   }
@@ -473,6 +476,65 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   void _changePayer(String memberId) {
     setState(() {
       selectedPayerMemberId = memberId;
+
+      final currentUserId =
+          FirebaseAuth.instance.currentUser?.uid;
+
+      if (memberId == currentUserId) {
+        selectedFinancialWalletId =
+            _resolveSelectedFinancialWalletId();
+      }
+    });
+  }
+
+  List<WalletModel> _currentUserIndividualWallets() {
+    final currentUserId =
+        FirebaseAuth.instance.currentUser?.uid;
+
+    if (currentUserId == null || currentUserId.isEmpty) {
+      return const [];
+    }
+
+    return widget.walletContext.wallets
+        .where(
+          (wallet) =>
+              wallet.isIndividual &&
+              wallet.ownerId == currentUserId,
+        )
+        .toList(growable: false);
+  }
+
+  String? _resolveSelectedFinancialWalletId() {
+    final wallets = _currentUserIndividualWallets();
+
+    if (wallets.isEmpty) {
+      return null;
+    }
+
+    final selectedId = selectedFinancialWalletId;
+
+    if (selectedId != null &&
+        wallets.any((wallet) => wallet.id == selectedId)) {
+      return selectedId;
+    }
+
+    return wallets.first.id;
+  }
+
+  void _initializeFinancialWalletSelection() {
+    if (!mounted) {
+      return;
+    }
+
+    final resolvedWalletId =
+        _resolveSelectedFinancialWalletId();
+
+    if (resolvedWalletId == selectedFinancialWalletId) {
+      return;
+    }
+
+    setState(() {
+      selectedFinancialWalletId = resolvedWalletId;
     });
   }
 
@@ -700,6 +762,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       selectedPurchaseDestination,
     );
 
+    final financialWalletId = payerMemberId == user.uid
+        ? _resolveSelectedFinancialWalletId()
+        : null;
+
+    if (payerMemberId == user.uid &&
+        financialWalletId == null) {
+      _showMessage(
+        'Crie uma carteira individual para registrar esta movimentação.',
+      );
+      return;
+    }
+
     final transactionWallet = _resolveTransactionWallet(
       activeWallet: activeWallet,
       currentUserId: user.uid,
@@ -768,6 +842,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         recurringNeverEnds:
             isRecurring ? recurringNeverEnds : true,
         notes: notesController.text,
+        financialWalletId: financialWalletId,
       );
 
       if (!mounted) {
@@ -803,6 +878,51 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       );
   }
 
+  Widget _buildFinancialWalletSection({
+    required List<WalletModel> wallets,
+    required bool enabled,
+  }) {
+    final selectedWalletId =
+        _resolveSelectedFinancialWalletId();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: DropdownButtonFormField<String>(
+          key: ValueKey(
+            'financial-wallet-${selectedWalletId ?? 'none'}',
+          ),
+          initialValue: selectedWalletId,
+          decoration: InputDecoration(
+            labelText: type == 'expense'
+                ? 'Saiu de'
+                : 'Entrou em',
+            prefixIcon:
+                const Icon(Icons.account_balance_wallet_outlined),
+            helperText:
+                'Esta é a carteira cujo saldo será movimentado.',
+          ),
+          items: wallets.map((wallet) {
+            return DropdownMenuItem<String>(
+              value: wallet.id,
+              child: Text(
+                wallet.name,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }).toList(growable: false),
+          onChanged: !enabled || wallets.isEmpty
+              ? null
+              : (walletId) {
+                  setState(() {
+                    selectedFinancialWalletId = walletId;
+                  });
+                },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeWallet = _resolveActiveWallet();
@@ -815,6 +935,12 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                 currentUserMemberId: currentUser.uid,
               )
             : null;
+    final resolvedPayerMemberId =
+        financialSplitConfiguration?.resolvePayerMemberId(
+      selectedPayerMemberId,
+    );
+    final currentUserIndividualWallets =
+        _currentUserIndividualWallets();
 
     return Scaffold(
       appBar: AppBar(
@@ -881,6 +1007,17 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                 const SizedBox(
                   height: AppSpacing.lg,
                 ),
+                if (currentUser != null &&
+                    resolvedPayerMemberId == currentUser.uid)
+                  _buildFinancialWalletSection(
+                    wallets: currentUserIndividualWallets,
+                    enabled: !isSaving,
+                  ),
+                if (currentUser != null &&
+                    resolvedPayerMemberId == currentUser.uid)
+                  const SizedBox(
+                    height: AppSpacing.lg,
+                  ),
                 RecurringTransactionSection(
                   enabled: !isSaving,
                   isRecurring: isRecurring,
