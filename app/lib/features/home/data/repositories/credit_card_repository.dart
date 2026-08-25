@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/credit_card_invoice_model.dart';
 import '../models/credit_card_model.dart';
+import '../models/wallet_model.dart';
+import '../../../transactions/data/models/transaction_model.dart';
 
 class CreditCardRepository {
   static const String _cardsCollection = 'creditCards';
@@ -182,14 +184,16 @@ class CreditCardRepository {
 
   Future<CreditCardInvoiceModel> registerPurchase({
     required String cardId,
-    required String transactionId,
-    required double amount,
-    required DateTime purchaseDate,
-    required String paidByMemberId,
+    required TransactionModel transactionModel,
+    required WalletModel transactionWallet,
   }) async {
     final userId = _requireUserId();
     final normalizedCardId = cardId.trim();
-    final normalizedTransactionId = transactionId.trim();
+    final normalizedTransactionId = transactionModel.id.trim();
+    final paidByMemberId =
+        transactionModel.paidByMemberId?.trim() ?? '';
+    final amount = transactionModel.value;
+    final purchaseDate = transactionModel.date;
 
     if (normalizedCardId.isEmpty ||
         normalizedTransactionId.isEmpty) {
@@ -206,19 +210,47 @@ class CreditCardRepository {
       );
     }
 
-    if (paidByMemberId.trim() != userId) {
+    if (paidByMemberId != userId) {
       throw StateError(
         'Somente o titular pode registrar uma compra neste cartão.',
       );
     }
 
+    if (transactionModel.paymentMethod != 'creditCard' ||
+        transactionModel.paymentSourceId?.trim() !=
+            normalizedCardId) {
+      throw StateError(
+        'A transação não está vinculada ao cartão informado.',
+      );
+    }
+
+    _validateTransactionWallet(
+      wallet: transactionWallet,
+      userId: userId,
+      transactionModel: transactionModel,
+    );
+
     final cardReference = _cardReference(normalizedCardId);
     final chargeReference = cardReference
         .collection(_chargesCollection)
         .doc(normalizedTransactionId);
+    final transactionReference = _transactionReference(
+      userId: userId,
+      wallet: transactionWallet,
+      transactionId: normalizedTransactionId,
+    );
 
-    return _firestore.runTransaction((transaction) async {
-      final cardDocument = await transaction.get(cardReference);
+    return _firestore.runTransaction((firestoreTransaction) async {
+      final cardDocument = await firestoreTransaction.get(
+        cardReference,
+      );
+      final chargeDocument = await firestoreTransaction.get(
+        chargeReference,
+      );
+      final savedTransactionDocument =
+          await firestoreTransaction.get(
+        transactionReference,
+      );
 
       if (!cardDocument.exists || cardDocument.data() == null) {
         throw StateError('Cartão não encontrado.');
@@ -233,15 +265,12 @@ class CreditCardRepository {
         throw StateError('Cartão indisponível para esta compra.');
       }
 
-      final chargeDocument = await transaction.get(
-        chargeReference,
-      );
-
       if (chargeDocument.exists &&
           chargeDocument.data() != null) {
         final invoiceId =
             chargeDocument.data()!['invoiceId']?.toString() ?? '';
-        final invoiceDocument = await transaction.get(
+        final invoiceDocument =
+            await firestoreTransaction.get(
           cardReference
               .collection(_invoicesCollection)
               .doc(invoiceId),
@@ -251,6 +280,13 @@ class CreditCardRepository {
             invoiceDocument.data() == null) {
           throw StateError(
             'A cobrança existe, mas sua fatura não foi encontrada.',
+          );
+        }
+
+        if (!savedTransactionDocument.exists) {
+          firestoreTransaction.set(
+            transactionReference,
+            transactionModel.toMap(),
           );
         }
 
@@ -270,7 +306,8 @@ class CreditCardRepository {
       final invoiceReference = cardReference
           .collection(_invoicesCollection)
           .doc(invoice.id);
-      final invoiceDocument = await transaction.get(
+      final invoiceDocument =
+          await firestoreTransaction.get(
         invoiceReference,
       );
 
@@ -295,7 +332,7 @@ class CreditCardRepository {
           purchaseDate,
         );
 
-        transaction.update(invoiceReference, {
+        firestoreTransaction.update(invoiceReference, {
           'total': FieldValue.increment(amount),
           'updatedAt': purchaseDate.toIso8601String(),
         });
@@ -305,22 +342,26 @@ class CreditCardRepository {
           amount,
           purchaseDate,
         );
-        transaction.set(
+        firestoreTransaction.set(
           invoiceReference,
           updatedInvoice.toMap(),
         );
       }
 
-      transaction.update(cardReference, {
+      firestoreTransaction.update(cardReference, {
         'usedLimit': FieldValue.increment(amount),
       });
-      transaction.set(chargeReference, {
+      firestoreTransaction.set(chargeReference, {
         'transactionId': normalizedTransactionId,
         'invoiceId': invoice.id,
         'amount': amount,
         'purchaseDate': purchaseDate.toIso8601String(),
         'createdAt': DateTime.now().toIso8601String(),
       });
+      firestoreTransaction.set(
+        transactionReference,
+        transactionModel.toMap(),
+      );
 
       return updatedInvoice;
     });
@@ -420,6 +461,51 @@ class CreditCardRepository {
 
       return paidInvoice;
     });
+  }
+
+  DocumentReference<Map<String, dynamic>>
+      _transactionReference({
+    required String userId,
+    required WalletModel wallet,
+    required String transactionId,
+  }) {
+    if (wallet.isShared) {
+      return _firestore
+          .collection(_walletsCollection)
+          .doc(wallet.id)
+          .collection('transactions')
+          .doc(transactionId);
+    }
+
+    return _firestore
+        .collection(_usersCollection)
+        .doc(userId)
+        .collection('transactions')
+        .doc(transactionId);
+  }
+
+  void _validateTransactionWallet({
+    required WalletModel wallet,
+    required String userId,
+    required TransactionModel transactionModel,
+  }) {
+    if (wallet.id.trim() != transactionModel.walletId.trim()) {
+      throw StateError(
+        'A transação não pertence à carteira informada.',
+      );
+    }
+
+    if (wallet.isShared && !wallet.hasMember(userId)) {
+      throw StateError(
+        'O usuário não participa da carteira compartilhada.',
+      );
+    }
+
+    if (wallet.isIndividual && !wallet.isOwner(userId)) {
+      throw StateError(
+        'O usuário não é titular da carteira individual.',
+      );
+    }
   }
 
   DocumentReference<Map<String, dynamic>> _cardReference(
