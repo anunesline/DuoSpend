@@ -8,6 +8,12 @@ import '../../domain/models/savings_goal.dart';
 import '../../domain/models/savings_goal_movement.dart';
 import '../controllers/savings_goals_controller.dart';
 
+enum _GoalListFilter {
+  active,
+  completed,
+  archived,
+}
+
 class SavingsGoalsPage extends StatefulWidget {
   final WalletModel contextWallet;
   final List<WalletModel> individualWallets;
@@ -26,6 +32,7 @@ class SavingsGoalsPage extends StatefulWidget {
 
 class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
   late final SavingsGoalsController controller;
+  _GoalListFilter selectedFilter = _GoalListFilter.active;
 
   @override
   void initState() {
@@ -611,6 +618,17 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
+        final visibleGoals = controller.goals.where((goal) {
+          switch (selectedFilter) {
+            case _GoalListFilter.active:
+              return goal.isActive;
+            case _GoalListFilter.completed:
+              return goal.isCompleted && !goal.isArchived;
+            case _GoalListFilter.archived:
+              return goal.isArchived;
+          }
+        }).toList();
+
         return Scaffold(
           backgroundColor: DuoColors.background,
           appBar: AppBar(
@@ -662,11 +680,32 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      _GoalFilters(
+                        selected: selectedFilter,
+                        activeCount: controller.goals
+                            .where((goal) => goal.isActive)
+                            .length,
+                        completedCount: controller.goals
+                            .where(
+                              (goal) =>
+                                  goal.isCompleted && !goal.isArchived,
+                            )
+                            .length,
+                        archivedCount: controller.goals
+                            .where((goal) => goal.isArchived)
+                            .length,
+                        onSelected: (filter) {
+                          setState(() {
+                            selectedFilter = filter;
+                          });
+                        },
+                      ),
                       const SizedBox(height: 14),
-                      if (controller.goals.isEmpty)
-                        const _EmptyGoals()
+                      if (visibleGoals.isEmpty)
+                        _EmptyGoals(filter: selectedFilter)
                       else
-                        for (final goal in controller.goals) ...[
+                        for (final goal in visibleGoals) ...[
                           _GoalCard(
                             goal: goal,
                             formattedSaved: _formatMoney(goal.savedAmount),
@@ -680,6 +719,11 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                             isProcessing:
                                 controller.processingGoalId == goal.id,
                             onHistory: () => _showMovementHistory(goal),
+                            onEdit: !goal.isArchived &&
+                                    goal.createdByUserId ==
+                                        widget.currentUserId
+                                ? () => _editGoal(goal)
+                                : null,
                             onContribute: goal.isActive
                                 ? () => _showMovementDialog(
                                       goal: goal,
@@ -787,6 +831,7 @@ class _GoalCard extends StatelessWidget {
   final String? formattedDeadline;
   final bool isProcessing;
   final VoidCallback onHistory;
+  final VoidCallback? onEdit;
   final VoidCallback? onContribute;
   final VoidCallback? onWithdraw;
   final VoidCallback? onArchive;
@@ -799,6 +844,7 @@ class _GoalCard extends StatelessWidget {
     required this.formattedDeadline,
     required this.isProcessing,
     required this.onHistory,
+    required this.onEdit,
     required this.onContribute,
     required this.onWithdraw,
     required this.onArchive,
@@ -864,19 +910,36 @@ class _GoalCard extends StatelessWidget {
                   size: 20,
                 ),
               ),
-              if (onArchive != null) ...[
-                const SizedBox(width: 2),
-                IconButton(
-                  onPressed: isProcessing ? null : onArchive,
-                  tooltip: 'Arquivar meta',
-                  visualDensity: VisualDensity.compact,
+              if (onEdit != null || onArchive != null)
+                PopupMenuButton<String>(
+                  enabled: !isProcessing,
+                  tooltip: 'Opções da meta',
+                  color: DuoColors.surface,
                   icon: const Icon(
-                    Icons.archive_outlined,
+                    Icons.more_vert_rounded,
                     color: DuoColors.textHint,
                     size: 20,
                   ),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      onEdit?.call();
+                    } else if (value == 'archive') {
+                      onArchive?.call();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    if (onEdit != null)
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Editar'),
+                      ),
+                    if (onArchive != null)
+                      const PopupMenuItem(
+                        value: 'archive',
+                        child: Text('Arquivar'),
+                      ),
+                  ],
                 ),
-              ],
             ],
           ),
           const SizedBox(height: 16),
