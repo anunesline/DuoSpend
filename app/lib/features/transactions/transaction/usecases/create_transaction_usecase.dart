@@ -333,7 +333,8 @@ class CreateTransactionUseCase {
                             installmentInCents /
                             totalInCents)
                         .round()
-                        .clamp(0, remaining);
+                        .clamp(0, remaining)
+                        .toInt();
 
         shares[memberId] = memberCents / 100;
         remainingByMember[memberId] =
