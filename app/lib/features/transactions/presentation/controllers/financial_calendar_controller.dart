@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../../home/data/models/credit_card_invoice_model.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../../home/data/repositories/credit_card_repository.dart';
+import '../../../home/data/repositories/wallet_repository.dart';
+import '../../data/repositories/transaction_repository.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/calendar/financial_calendar_entry.dart';
 import '../../domain/calendar/financial_calendar_service.dart';
@@ -11,14 +13,21 @@ import '../../domain/calendar/financial_projection.dart';
 class FinancialCalendarController extends ChangeNotifier {
   final CreditCardRepository _creditCardRepository;
   final FinancialCalendarService _calendarService;
+  final TransactionRepository _transactionRepository;
+  final WalletRepository _walletRepository;
 
   FinancialCalendarController({
     CreditCardRepository? creditCardRepository,
     FinancialCalendarService calendarService =
         const FinancialCalendarService(),
+    TransactionRepository? transactionRepository,
+    WalletRepository? walletRepository,
   }) : _creditCardRepository =
            creditCardRepository ?? CreditCardRepository(),
-       _calendarService = calendarService;
+       _calendarService = calendarService,
+       _transactionRepository =
+           transactionRepository ?? TransactionRepository(),
+       _walletRepository = walletRepository ?? WalletRepository();
 
   DateTime selectedMonth = DateTime(
     DateTime.now().year,
@@ -30,6 +39,8 @@ class FinancialCalendarController extends ChangeNotifier {
   FinancialProjection projection = FinancialProjection.empty(0);
   List<FinancialCalendarEntry> monthEntries = const [];
   List<CreditCardInvoiceModel> _invoices = const [];
+  List<TransactionModel> _transactions = const [];
+  bool isSettling = false;
 
   Future<void> load({
     required WalletModel wallet,
@@ -40,11 +51,9 @@ class FinancialCalendarController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      _transactions = List<TransactionModel>.unmodifiable(transactions);
       _invoices = await _loadWalletInvoices(wallet);
-      _recalculate(
-        wallet: wallet,
-        transactions: transactions,
-      );
+      _recalculate(wallet: wallet);
     } catch (error, stackTrace) {
       debugPrint('Erro ao carregar calendário financeiro: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -59,27 +68,25 @@ class FinancialCalendarController extends ChangeNotifier {
 
   void previousMonth({
     required WalletModel wallet,
-    required List<TransactionModel> transactions,
   }) {
     selectedMonth = DateTime(
       selectedMonth.year,
       selectedMonth.month - 1,
     );
     selectedDay = null;
-    _recalculate(wallet: wallet, transactions: transactions);
+    _recalculate(wallet: wallet);
     notifyListeners();
   }
 
   void nextMonth({
     required WalletModel wallet,
-    required List<TransactionModel> transactions,
   }) {
     selectedMonth = DateTime(
       selectedMonth.year,
       selectedMonth.month + 1,
     );
     selectedDay = null;
-    _recalculate(wallet: wallet, transactions: transactions);
+    _recalculate(wallet: wallet);
     notifyListeners();
   }
 
@@ -91,6 +98,70 @@ class FinancialCalendarController extends ChangeNotifier {
   void clearDaySelection() {
     selectedDay = null;
     notifyListeners();
+  }
+
+  Future<bool> settleEntry({
+    required FinancialCalendarEntry entry,
+    required WalletModel transactionWallet,
+  }) async {
+    final obligation = entry.transaction;
+
+    if (isSettling ||
+        obligation == null ||
+        !obligation.isFinanciallyPending) {
+      return false;
+    }
+
+    isSettling = true;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      final sourceWalletId = obligation.paymentSourceId?.trim();
+      final financialWalletId =
+          sourceWalletId != null && sourceWalletId.isNotEmpty
+              ? sourceWalletId
+              : transactionWallet.isIndividual
+                  ? transactionWallet.id
+                  : null;
+
+      if (financialWalletId == null) {
+        throw StateError(
+          'Selecione uma carteira individual para liquidar esta obrigação.',
+        );
+      }
+
+      final financialWallet =
+          await _walletRepository.getWalletById(financialWalletId);
+
+      if (financialWallet == null) {
+        throw StateError('Carteira financeira não encontrada.');
+      }
+
+      final settled = await _transactionRepository
+          .settleFinancialObligation(
+        obligation: obligation,
+        transactionWallet: transactionWallet,
+        financialWallet: financialWallet,
+      );
+
+      _transactions = List<TransactionModel>.unmodifiable(
+        _transactions.map(
+          (transaction) =>
+              transaction.id == settled.id ? settled : transaction,
+        ),
+      );
+      _recalculate(wallet: transactionWallet);
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Erro ao liquidar obrigação: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      errorMessage = _formatError(error);
+      return false;
+    } finally {
+      isSettling = false;
+      notifyListeners();
+    }
   }
 
   List<FinancialCalendarEntry> get visibleEntries {
@@ -111,7 +182,6 @@ class FinancialCalendarController extends ChangeNotifier {
 
   void _recalculate({
     required WalletModel wallet,
-    required List<TransactionModel> transactions,
   }) {
     final monthStart = DateTime(selectedMonth.year, selectedMonth.month);
     final monthEnd = DateTime(
@@ -127,7 +197,7 @@ class FinancialCalendarController extends ChangeNotifier {
 
     final monthProjection = _calendarService.buildProjection(
       currentBalance: wallet.balance,
-      transactions: transactions,
+      transactions: _transactions,
       invoices: _invoices,
       rangeStart: monthStart,
       rangeEnd: monthEnd,
@@ -148,12 +218,23 @@ class FinancialCalendarController extends ChangeNotifier {
 
     projection = _calendarService.buildProjection(
       currentBalance: wallet.balance,
-      transactions: transactions,
+      transactions: _transactions,
       invoices: _invoices,
       rangeStart: todayOnly,
       rangeEnd: monthEnd,
       now: today,
     );
+  }
+
+  String _formatError(Object error) {
+    final message = error.toString();
+    if (message.startsWith('Bad state: ')) {
+      return message.substring('Bad state: '.length);
+    }
+    if (message.startsWith('Exception: ')) {
+      return message.substring('Exception: '.length);
+    }
+    return message;
   }
 
   Future<List<CreditCardInvoiceModel>> _loadWalletInvoices(
