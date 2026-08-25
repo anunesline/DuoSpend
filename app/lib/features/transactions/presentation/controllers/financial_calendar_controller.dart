@@ -41,6 +41,7 @@ class FinancialCalendarController extends ChangeNotifier {
   List<CreditCardInvoiceModel> _invoices = const [];
   List<TransactionModel> _transactions = const [];
   bool isSettling = false;
+  double _currentBalance = 0;
 
   Future<void> load({
     required WalletModel wallet,
@@ -51,6 +52,7 @@ class FinancialCalendarController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      _currentBalance = wallet.balance;
       _transactions = List<TransactionModel>.unmodifiable(transactions);
       _invoices = await _loadWalletInvoices(wallet);
       _recalculate(wallet: wallet);
@@ -151,6 +153,13 @@ class FinancialCalendarController extends ChangeNotifier {
               transaction.id == settled.id ? settled : transaction,
         ),
       );
+
+      if (financialWallet.id == transactionWallet.id) {
+        _currentBalance += settled.type == 'income'
+            ? settled.value
+            : -settled.value;
+      }
+
       _recalculate(wallet: transactionWallet);
       return true;
     } catch (error, stackTrace) {
@@ -196,7 +205,7 @@ class FinancialCalendarController extends ChangeNotifier {
     final todayOnly = DateTime(today.year, today.month, today.day);
 
     final monthProjection = _calendarService.buildProjection(
-      currentBalance: wallet.balance,
+      currentBalance: _currentBalance,
       transactions: _transactions,
       invoices: _invoices,
       rangeStart: monthStart,
@@ -207,17 +216,17 @@ class FinancialCalendarController extends ChangeNotifier {
 
     if (monthEnd.isBefore(todayOnly)) {
       projection = FinancialProjection(
-        currentBalance: wallet.balance,
+        currentBalance: _currentBalance,
         projectedIncome: 0,
         projectedExpense: 0,
-        projectedBalance: wallet.balance,
+        projectedBalance: _currentBalance,
         entries: monthEntries,
       );
       return;
     }
 
     projection = _calendarService.buildProjection(
-      currentBalance: wallet.balance,
+      currentBalance: _currentBalance,
       transactions: _transactions,
       invoices: _invoices,
       rangeStart: todayOnly,
