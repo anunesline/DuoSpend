@@ -107,6 +107,85 @@ class FinancialReportService {
     );
   }
 
+  SharedFinancialReport buildSharedResponsibility({
+    required FinancialReport report,
+    required List<String> memberIds,
+  }) {
+    final orderedMemberIds = <String>[];
+    final paidByMember = <String, double>{};
+    final responsibilityByMember = <String, double>{};
+
+    void registerMember(String? memberId) {
+      final normalizedMemberId = memberId?.trim();
+
+      if (normalizedMemberId == null || normalizedMemberId.isEmpty) {
+        return;
+      }
+
+      if (!paidByMember.containsKey(normalizedMemberId)) {
+        orderedMemberIds.add(normalizedMemberId);
+        paidByMember[normalizedMemberId] = 0;
+        responsibilityByMember[normalizedMemberId] = 0;
+      }
+    }
+
+    for (final memberId in memberIds) {
+      registerMember(memberId);
+    }
+
+    var totalSharedExpense = 0.0;
+
+    for (final transaction in report.transactions) {
+      if (transaction.type != 'expense') {
+        continue;
+      }
+
+      totalSharedExpense += transaction.value;
+
+      final payerId = transaction.paidByMemberId?.trim();
+      registerMember(payerId);
+
+      if (payerId != null && payerId.isNotEmpty) {
+        paidByMember[payerId] =
+            (paidByMember[payerId] ?? 0) + transaction.value;
+      }
+
+      if (transaction.hasFinancialSplit) {
+        for (final share in transaction.memberShares.entries) {
+          final memberId = share.key.trim();
+
+          if (memberId.isEmpty || share.value <= 0) {
+            continue;
+          }
+
+          registerMember(memberId);
+          responsibilityByMember[memberId] =
+              (responsibilityByMember[memberId] ?? 0) + share.value;
+        }
+
+        continue;
+      }
+
+      if (payerId != null && payerId.isNotEmpty) {
+        responsibilityByMember[payerId] =
+            (responsibilityByMember[payerId] ?? 0) + transaction.value;
+      }
+    }
+
+    final members = orderedMemberIds.map((memberId) {
+      return MemberFinancialSummary(
+        memberId: memberId,
+        amountPaid: paidByMember[memberId] ?? 0,
+        responsibility: responsibilityByMember[memberId] ?? 0,
+      );
+    }).toList();
+
+    return SharedFinancialReport(
+      totalSharedExpense: totalSharedExpense,
+      members: List.unmodifiable(members),
+    );
+  }
+
   List<MonthlyFinancialPoint> buildMonthlyEvolution({
     required List<TransactionModel> transactions,
     required int endYear,
