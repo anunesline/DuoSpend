@@ -7,6 +7,7 @@ import 'package:app/features/financial_intelligence/domain/services/financial_in
 import 'package:app/features/goals/domain/models/savings_goal.dart';
 import 'package:app/features/reports/domain/models/financial_report.dart';
 import 'package:app/features/transactions/domain/calendar/financial_projection.dart';
+import 'package:app/features/transactions/domain/calendar/financial_calendar_entry.dart';
 
 void main() {
   const service = FinancialIntelligenceService();
@@ -28,10 +29,11 @@ void main() {
     FinancialReport? previous,
     List<BudgetConsumption> budgets = const [],
     List<SavingsGoal> goals = const [],
+    FinancialProjection? projection,
   }) => FinancialIntelligenceInput(
     currentMonth: current ?? report(),
     previousMonth: previous,
-    projection: FinancialProjection.empty(100),
+    projection: projection ?? FinancialProjection.empty(100),
     budgets: budgets,
     goals: goals,
     now: now,
@@ -74,5 +76,29 @@ void main() {
     ));
     expect(insights.any((item) => item.id == 'monthly-expense-trend'), isTrue);
     expect(insights.any((item) => item.id == 'category-trend-Lazer'), isTrue);
+  });
+
+  test('calcula disponível e risco antes da próxima entrada pela ordem futura', () {
+    final projection = FinancialProjection(
+      currentBalance: 100,
+      projectedIncome: 200,
+      projectedExpense: 150,
+      projectedBalance: 150,
+      entries: [
+        FinancialCalendarEntry(
+          id: 'expense', title: 'Aluguel', value: 150, type: 'expense',
+          date: DateTime(2026, 8, 20),
+          kind: FinancialCalendarEntryKind.recurring, isProjected: true,
+        ),
+        FinancialCalendarEntry(
+          id: 'income', title: 'Salário', value: 200, type: 'income',
+          date: DateTime(2026, 8, 25),
+          kind: FinancialCalendarEntryKind.recurring, isProjected: true,
+        ),
+      ],
+    );
+    final insights = service.build(input(projection: projection));
+    expect(insights.any((item) => item.id == 'available-to-spend'), isTrue);
+    expect(insights.any((item) => item.id == 'cash-flow-risk-expense'), isTrue);
   });
 }
