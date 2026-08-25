@@ -9,6 +9,7 @@ class SavingsGoalService {
     required double targetAmount,
     required String walletId,
     required String createdByUserId,
+    Iterable<String> memberIds = const [],
     double initialAmount = 0,
     DateTime? deadline,
     DateTime? now,
@@ -17,6 +18,23 @@ class SavingsGoalService {
     final normalizedName = name.trim();
     final normalizedWalletId = walletId.trim();
     final normalizedUserId = createdByUserId.trim();
+    final normalizedMemberIds = <String>[];
+
+    void addMember(String value) {
+      final normalizedValue = value.trim();
+
+      if (normalizedValue.isNotEmpty &&
+          !normalizedMemberIds.contains(normalizedValue)) {
+        normalizedMemberIds.add(normalizedValue);
+      }
+    }
+
+    addMember(normalizedUserId);
+
+    for (final memberId in memberIds) {
+      addMember(memberId);
+    }
+
     final currentTime = now ?? DateTime.now();
 
     if (normalizedId.isEmpty) {
@@ -91,6 +109,7 @@ class SavingsGoalService {
       deadline: normalizedDeadline,
       walletId: normalizedWalletId,
       createdByUserId: normalizedUserId,
+      memberIds: List.unmodifiable(normalizedMemberIds),
       status: initialAmount >= targetAmount
           ? SavingsGoalStatus.completed
           : SavingsGoalStatus.active,
