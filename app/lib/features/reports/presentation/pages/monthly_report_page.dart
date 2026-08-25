@@ -7,6 +7,7 @@ import '../../../home/data/models/wallet_model.dart';
 import '../../../transactions/data/models/transaction_model.dart';
 import '../../domain/models/financial_report.dart';
 import '../../domain/services/financial_report_service.dart';
+import 'category_report_page.dart';
 
 
 const _reportMonthNames = [
@@ -338,6 +339,23 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     });
   }
 
+  Future<void> _openCategoryReport({
+    required FinancialReport report,
+    required FinancialCategoryTotal category,
+  }) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryReportPage(
+          category: category.category,
+          startDate: report.startDate,
+          endDate: report.endDate,
+          transactions: report.transactions,
+        ),
+      ),
+    );
+  }
+
   String _formatMoney(double value) {
     return NumberFormat.currency(
       locale: 'pt_BR',
@@ -463,6 +481,12 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                         formattedAmount: _formatMoney(
                           report.expenseByCategory[index].amount,
                         ),
+                        onTap: () {
+                          _openCategoryReport(
+                            report: report,
+                            category: report.expenseByCategory[index],
+                          );
+                        },
                       ),
                       if (index != report.expenseByCategory.length - 1)
                         const Padding(
@@ -1500,73 +1524,91 @@ class _CategoryRow extends StatelessWidget {
   final FinancialCategoryTotal item;
   final Color color;
   final String formattedAmount;
+  final VoidCallback onTap;
 
   const _CategoryRow({
     required this.item,
     required this.color,
     required this.formattedAmount,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final progress = (item.percentage / 100).clamp(0.0, 1.0);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      item.category,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: DuoColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    formattedAmount,
+                    style: const TextStyle(
+                      color: DuoColors.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: DuoColors.textHint,
+                    size: 18,
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                item.category,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: DuoColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 7,
+                  backgroundColor: DuoColors.surfaceLight,
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
                 ),
               ),
-            ),
-            Text(
-              formattedAmount,
-              style: const TextStyle(
-                color: DuoColors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+              const SizedBox(height: 6),
+              Text(
+                '${item.percentage.toStringAsFixed(1).replaceAll('.', ',')}%',
+                style: const TextStyle(
+                  color: DuoColors.textHint,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(99),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 7,
-            backgroundColor: DuoColors.surfaceLight,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+            ],
           ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          '${item.percentage.toStringAsFixed(1).replaceAll('.', ',')}%',
-          style: const TextStyle(
-            color: DuoColors.textHint,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
