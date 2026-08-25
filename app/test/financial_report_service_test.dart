@@ -214,5 +214,65 @@ void main() {
         throwsArgumentError,
       );
     });
+    test('compara mês selecionado com o mês anterior', () {
+      final comparison = service.compareMonthly(
+        year: 2026,
+        month: DateTime.august,
+        transactions: [
+          transaction(
+            id: 'july-expense',
+            value: 500,
+            type: 'expense',
+            date: DateTime(2026, 7, 10),
+          ),
+          transaction(
+            id: 'august-expense',
+            value: 650,
+            type: 'expense',
+            date: DateTime(2026, 8, 10),
+          ),
+          transaction(
+            id: 'july-income',
+            value: 2000,
+            type: 'income',
+            date: DateTime(2026, 7, 1),
+          ),
+          transaction(
+            id: 'august-income',
+            value: 2500,
+            type: 'income',
+            date: DateTime(2026, 8, 1),
+          ),
+        ],
+      );
+
+      expect(comparison.expense.difference, 150);
+      expect(comparison.expense.percentageChange, 30);
+      expect(comparison.expense.increased, isTrue);
+      expect(comparison.income.percentageChange, 25);
+      expect(comparison.balance.currentValue, 1850);
+      expect(comparison.balance.previousValue, 1500);
+    });
+
+    test('trata mês anterior zerado sem percentual infinito', () {
+      final comparison = service.compareMonthly(
+        year: 2026,
+        month: DateTime.january,
+        transactions: [
+          transaction(
+            id: 'january-income',
+            value: 1000,
+            type: 'income',
+            date: DateTime(2026, 1, 5),
+          ),
+        ],
+      );
+
+      expect(comparison.previous.startDate, DateTime(2025, 12, 1));
+      expect(comparison.income.hasPreviousValue, isFalse);
+      expect(comparison.income.percentageChange, isNull);
+      expect(comparison.income.difference, 1000);
+    });
+
   });
 }
