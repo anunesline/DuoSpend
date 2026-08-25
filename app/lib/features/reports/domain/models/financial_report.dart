@@ -33,3 +33,48 @@ class FinancialReport {
 
   bool get isEmpty => transactions.isEmpty;
 }
+
+
+class FinancialMetricComparison {
+  final double currentValue;
+  final double previousValue;
+
+  const FinancialMetricComparison({
+    required this.currentValue,
+    required this.previousValue,
+  });
+
+  double get difference => currentValue - previousValue;
+
+  bool get hasPreviousValue => previousValue != 0;
+
+  double? get percentageChange {
+    if (!hasPreviousValue) {
+      return null;
+    }
+
+    return (difference / previousValue.abs()) * 100;
+  }
+
+  bool get increased => difference > 0;
+
+  bool get decreased => difference < 0;
+
+  bool get unchanged => difference == 0;
+}
+
+class FinancialReportComparison {
+  final FinancialReport current;
+  final FinancialReport previous;
+  final FinancialMetricComparison income;
+  final FinancialMetricComparison expense;
+  final FinancialMetricComparison balance;
+
+  const FinancialReportComparison({
+    required this.current,
+    required this.previous,
+    required this.income,
+    required this.expense,
+    required this.balance,
+  });
+}
