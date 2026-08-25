@@ -194,6 +194,7 @@ class BalanceSettlementController extends ChangeNotifier {
 
   Future<bool> declarePayment({
     required BalanceSettlementModel settlement,
+    required String payerWalletId,
     DateTime? declaredAt,
     String? notes,
   }) async {
@@ -214,6 +215,7 @@ class BalanceSettlementController extends ChangeNotifier {
       final updatedSettlement =
           await _settleBalanceUseCase.declarePayment(
             settlement: settlement,
+            payerWalletId: payerWalletId,
             declaredAt: declaredAt,
             notes: notes,
           );
@@ -297,6 +299,7 @@ class BalanceSettlementController extends ChangeNotifier {
   Future<bool> confirmReceipt({
     required BalanceSettlementModel settlement,
     required WalletModel wallet,
+    required String receiverWalletId,
     DateTime? confirmedAt,
     String? notes,
   }) async {
@@ -318,6 +321,7 @@ class BalanceSettlementController extends ChangeNotifier {
           await _settleBalanceUseCase.confirmReceipt(
             settlement: settlement,
             wallet: wallet,
+            receiverWalletId: receiverWalletId,
             confirmedAt: confirmedAt,
             notes: notes,
           );

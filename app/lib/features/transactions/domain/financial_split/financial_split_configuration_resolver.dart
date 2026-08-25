@@ -28,6 +28,9 @@ class FinancialSplitConfigurationResolver {
   }
 
   FinancialSplitConfiguration resolve({
+    // Mantido por compatibilidade com os chamadores atuais.
+    // A disponibilidade da divisão não depende mais da carteira
+    // atualmente selecionada, e sim da existência de parceiro válido.
     required bool isSharedWallet,
     required String currentUserMemberId,
     required String? partnerMemberId,
@@ -35,11 +38,14 @@ class FinancialSplitConfigurationResolver {
     final normalizedCurrentUserMemberId =
         currentUserMemberId.trim();
 
+    // O contexto da carteira continua chegando ao resolver porque
+    // ainda é útil para os fluxos atuais, mas não bloqueia a divisão.
+    final _ = isSharedWallet;
+
     final normalizedPartnerMemberId =
         partnerMemberId?.trim();
 
     final hasValidPartner =
-        isSharedWallet &&
         normalizedPartnerMemberId != null &&
         normalizedPartnerMemberId.isNotEmpty &&
         normalizedPartnerMemberId !=

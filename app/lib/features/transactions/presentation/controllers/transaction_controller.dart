@@ -157,6 +157,12 @@ class TransactionController extends ChangeNotifier {
     required String purchaseFor,
     String? partnerMemberId,
     WalletModel? wallet,
+    bool isRecurring = false,
+    String? recurringFrequency,
+    DateTime? recurringStartDate,
+    DateTime? recurringEndDate,
+    bool recurringNeverEnds = true,
+    String? notes,
 
     // Compatibilidade temporária com a NewTransactionPage antiga.
     // O split agora é calculado pelo CreateTransactionUseCase.
@@ -188,6 +194,12 @@ class TransactionController extends ChangeNotifier {
         purchaseFor: purchaseFor,
         partnerMemberId: partnerMemberId,
         items: List.unmodifiable(_items),
+        isRecurring: isRecurring,
+        recurringFrequency: recurringFrequency,
+        recurringStartDate: recurringStartDate,
+        recurringEndDate: recurringEndDate,
+        recurringNeverEnds: recurringNeverEnds,
+        notes: notes,
       );
 
       _lastResult = result;

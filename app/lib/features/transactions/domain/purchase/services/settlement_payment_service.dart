@@ -37,6 +37,7 @@ class SettlementPaymentService {
   /// corresponde ao membro devedor.
   Future<BalanceSettlementModel> declarePayment({
     required BalanceSettlementModel settlement,
+    required String payerWalletId,
     DateTime? declaredAt,
     String? notes,
   }) async {
@@ -50,6 +51,7 @@ class SettlementPaymentService {
 
     return _settlementRepository.declarePayment(
       settlement: settlement,
+      payerWalletId: payerWalletId,
       declaredAt: declaredAt,
       notes: _normalizeOptionalText(notes),
     );
@@ -90,6 +92,7 @@ class SettlementPaymentService {
   Future<BalanceSettlementModel> confirmReceipt({
     required BalanceSettlementModel settlement,
     required WalletModel wallet,
+    required String receiverWalletId,
     DateTime? confirmedAt,
     String? notes,
   }) async {
@@ -148,6 +151,7 @@ class SettlementPaymentService {
     return _settlementRepository.confirmReceipt(
       settlement: settlement,
       transactionId: transaction.id,
+      receiverWalletId: receiverWalletId,
       confirmedAt: confirmationDate,
       notes: _normalizeOptionalText(notes),
     );

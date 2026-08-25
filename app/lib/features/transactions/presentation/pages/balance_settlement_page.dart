@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../home/data/models/wallet_model.dart';
+import '../../../home/data/repositories/wallet_repository.dart';
 import '../../data/models/balance_settlement_model.dart';
 import '../controllers/balance_settlement_controller.dart';
 
@@ -25,6 +26,8 @@ class BalanceSettlementPage extends StatefulWidget {
 class _BalanceSettlementPageState
     extends State<BalanceSettlementPage> {
   late final BalanceSettlementController _controller;
+  final WalletRepository _walletRepository =
+      WalletRepository();
 
   String? get _currentUserId =>
       FirebaseAuth.instance.currentUser?.uid;
@@ -214,21 +217,23 @@ class _BalanceSettlementPageState
   Future<void> _declarePayment(
     BalanceSettlementModel settlement,
   ) async {
-    final confirmed = await _showActionDialog(
+    final payerWalletId = await _showWalletActionDialog(
       title: 'Informar pagamento',
       description:
           'Confirma que você já pagou '
           '${_memberName(settlement.toMemberId)}?',
       amount: settlement.amount,
+      walletLabel: 'De qual conta saiu o dinheiro?',
       confirmationLabel: 'Já paguei',
     );
 
-    if (confirmed != true || !mounted) {
+    if (payerWalletId == null || !mounted) {
       return;
     }
 
     final success = await _controller.declarePayment(
       settlement: settlement,
+      payerWalletId: payerWalletId,
     );
 
     if (!mounted) {
@@ -291,22 +296,25 @@ class _BalanceSettlementPageState
       return;
     }
 
-    final confirmed = await _showActionDialog(
+    final receiverWalletId =
+        await _showWalletActionDialog(
       title: 'Confirmar recebimento',
       description:
           'Confirma que recebeu o pagamento de '
           '${_memberName(settlement.fromMemberId)}?',
       amount: settlement.amount,
+      walletLabel: 'Em qual conta o dinheiro entrou?',
       confirmationLabel: 'Recebi',
     );
 
-    if (confirmed != true || !mounted) {
+    if (receiverWalletId == null || !mounted) {
       return;
     }
 
     final success = await _controller.confirmReceipt(
       settlement: settlement,
       wallet: wallet,
+      receiverWalletId: receiverWalletId,
     );
 
     if (!mounted) {
@@ -319,6 +327,115 @@ class _BalanceSettlementPageState
           'Recebimento confirmado e acerto concluído.',
       fallbackError:
           'Não foi possível confirmar o recebimento.',
+    );
+  }
+
+  Future<String?> _showWalletActionDialog({
+    required String title,
+    required String description,
+    required double amount,
+    required String walletLabel,
+    required String confirmationLabel,
+  }) async {
+    final wallets =
+        await _walletRepository.getIndividualWallets();
+
+    if (!mounted) {
+      return null;
+    }
+
+    if (wallets.isEmpty) {
+      _showMessage(
+        'Você precisa ter uma carteira individual para registrar este pagamento.',
+      );
+      return null;
+    }
+
+    var selectedWalletId = wallets.first.id;
+
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(title),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(description),
+                  const SizedBox(height: 16),
+                  Text(
+                    _formatCurrency(amount),
+                    style: Theme.of(dialogContext)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    walletLabel,
+                    style: Theme.of(dialogContext)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedWalletId,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(
+                        Icons.account_balance_wallet_outlined,
+                      ),
+                    ),
+                    items: wallets
+                        .map(
+                          (wallet) =>
+                              DropdownMenuItem<String>(
+                            value: wallet.id,
+                            child: Text(wallet.name),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+
+                      setDialogState(() {
+                        selectedWalletId = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Voltar'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(dialogContext)
+                        .pop(selectedWalletId);
+                  },
+                  icon: const Icon(Icons.check),
+                  label: Text(confirmationLabel),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

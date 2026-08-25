@@ -127,8 +127,48 @@ class TransactionModel {
   /// Quando verdadeiro, recurringEndDate deve ser ignorada.
   final bool recurringNeverEnds;
 
+  /// Forma utilizada para pagar a transação.
+  ///
+  /// Valores esperados inicialmente:
+  /// - cash
+  /// - pix
+  /// - debitCard
+  /// - creditCard
+  /// - boleto
+  /// - carne
+  /// - other
+  ///
+  /// Transações antigas recebem null para manter compatibilidade.
+  final String? paymentMethod;
+
+  /// Indica se a transação faz parte de um parcelamento.
+  final bool isInstallment;
+
+  /// Quantidade total de parcelas do parcelamento.
+  final int? installmentCount;
+
+  /// Número desta parcela dentro do parcelamento.
+  ///
+  /// Exemplo: 3 em uma compra 3/10.
+  final int? installmentNumber;
+
+  /// Identificador compartilhado por todas as parcelas
+  /// originadas da mesma compra.
+  final String? installmentGroupId;
+
+  /// Origem/meio financeiro específico usado no pagamento.
+  ///
+  /// Quando paymentMethod for creditCard, este campo poderá
+  /// apontar para o identificador do cartão/carteira do cartão.
+  /// Permanece separado de walletId e paidByMemberId.
+  final String? paymentSourceId;
+
   final String category;
   final String subcategory;
+
+  /// Observação livre e opcional sobre a transação.
+  final String? notes;
+
   final List<TransactionItemModel> items;
 
   TransactionModel({
@@ -156,8 +196,15 @@ class TransactionModel {
     this.recurringStartDate,
     this.recurringEndDate,
     this.recurringNeverEnds = true,
+    this.paymentMethod,
+    this.isInstallment = false,
+    this.installmentCount,
+    this.installmentNumber,
+    this.installmentGroupId,
+    this.paymentSourceId,
     required this.category,
     required this.subcategory,
+    this.notes,
     this.items = const [],
   });
 
@@ -282,8 +329,15 @@ class TransactionModel {
       'recurringEndDate':
           recurringEndDate?.toIso8601String(),
       'recurringNeverEnds': recurringNeverEnds,
+      'paymentMethod': paymentMethod,
+      'isInstallment': isInstallment,
+      'installmentCount': installmentCount,
+      'installmentNumber': installmentNumber,
+      'installmentGroupId': installmentGroupId,
+      'paymentSourceId': paymentSourceId,
       'category': category,
       'subcategory': subcategory,
+      'notes': notes,
       'items': items.map((item) => item.toMap()).toList(),
     };
   }
@@ -330,9 +384,21 @@ class TransactionModel {
           map['recurringNeverEnds'] == null
               ? true
               : _parseBool(map['recurringNeverEnds']),
+      paymentMethod:
+          _parseNullableString(map['paymentMethod']),
+      isInstallment: _parseBool(map['isInstallment']),
+      installmentCount:
+          _parseNullableInt(map['installmentCount']),
+      installmentNumber:
+          _parseNullableInt(map['installmentNumber']),
+      installmentGroupId:
+          _parseNullableString(map['installmentGroupId']),
+      paymentSourceId:
+          _parseNullableString(map['paymentSourceId']),
       category: map['category']?.toString() ?? 'Sem categoria',
       subcategory:
           map['subcategory']?.toString() ?? 'Sem subcategoria',
+      notes: _parseNullableString(map['notes']),
       items: rawItems is List
           ? rawItems
               .whereType<Map<String, dynamic>>()
@@ -367,8 +433,21 @@ class TransactionModel {
     DateTime? recurringEndDate,
     bool clearRecurringEndDate = false,
     bool? recurringNeverEnds,
+    String? paymentMethod,
+    bool clearPaymentMethod = false,
+    bool? isInstallment,
+    int? installmentCount,
+    bool clearInstallmentCount = false,
+    int? installmentNumber,
+    bool clearInstallmentNumber = false,
+    String? installmentGroupId,
+    bool clearInstallmentGroupId = false,
+    String? paymentSourceId,
+    bool clearPaymentSourceId = false,
     String? category,
     String? subcategory,
+    String? notes,
+    bool clearNotes = false,
     List<TransactionItemModel>? items,
   }) {
     return TransactionModel(
@@ -405,10 +484,54 @@ class TransactionModel {
           : recurringEndDate ?? this.recurringEndDate,
       recurringNeverEnds:
           recurringNeverEnds ?? this.recurringNeverEnds,
+      paymentMethod: clearPaymentMethod
+          ? null
+          : paymentMethod ?? this.paymentMethod,
+      isInstallment:
+          isInstallment ?? this.isInstallment,
+      installmentCount: clearInstallmentCount
+          ? null
+          : installmentCount ?? this.installmentCount,
+      installmentNumber: clearInstallmentNumber
+          ? null
+          : installmentNumber ?? this.installmentNumber,
+      installmentGroupId: clearInstallmentGroupId
+          ? null
+          : installmentGroupId ?? this.installmentGroupId,
+      paymentSourceId: clearPaymentSourceId
+          ? null
+          : paymentSourceId ?? this.paymentSourceId,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
+      notes: clearNotes ? null : notes ?? this.notes,
       items: items ?? this.items,
     );
+  }
+
+  static String? _parseNullableString(dynamic value) {
+    final normalizedValue = value?.toString().trim();
+
+    if (normalizedValue == null || normalizedValue.isEmpty) {
+      return null;
+    }
+
+    return normalizedValue;
+  }
+
+  static int? _parseNullableInt(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value.toString());
   }
 
   static double _parseDouble(dynamic value) {

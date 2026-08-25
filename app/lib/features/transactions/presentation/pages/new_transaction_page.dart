@@ -8,15 +8,18 @@ import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../home/data/models/wallet_model.dart';
+import '../../../auth/data/repositories/user_repository.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../domain/financial_split/financial_split_configuration.dart';
 import '../../domain/financial_split/financial_split_configuration_resolver.dart';
+import '../../domain/financial_split/financial_split_rules.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
 import '../../domain/purchase/models/purchase_item_model.dart';
 import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
 import '../widgets/financial_split_section.dart';
 import '../widgets/purchase_items_section.dart';
+import '../widgets/recurring_transaction_section.dart';
 import '../widgets/transaction_basic_fields_section.dart';
 import '../widgets/transaction_save_button.dart';
 import 'add_transaction_item_page.dart';
@@ -50,12 +53,20 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   final TextEditingController valueController =
       TextEditingController();
 
+  final TextEditingController notesController =
+      TextEditingController();
+
   final TransactionController transactionController =
       TransactionController();
 
   final FinancialSplitConfigurationResolver
       _financialSplitConfigurationResolver =
       const FinancialSplitConfigurationResolver();
+
+  final UserRepository _userRepository = UserRepository();
+
+  String? _partnerDisplayName;
+  String? _loadedPartnerMemberId;
 
   PurchaseController get purchaseController {
     return widget.purchaseController;
@@ -66,6 +77,12 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   String? selectedPayerMemberId;
 
   String? selectedPurchaseDestination;
+
+  bool isRecurring = false;
+  String recurringFrequency = 'monthly';
+  DateTime recurringStartDate = DateTime.now();
+  DateTime? recurringEndDate;
+  bool recurringNeverEnds = true;
 
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
 
@@ -80,12 +97,17 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     purchaseController.clearPurchase();
     _syncFinancialCategory();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPartnerDisplayName();
+    });
   }
 
   @override
   void dispose() {
     descriptionController.dispose();
     valueController.dispose();
+    notesController.dispose();
     transactionController.dispose();
 
     super.dispose();
@@ -108,11 +130,41 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     return null;
   }
 
+  WalletModel? _resolveConnectedSharedWallet({
+    required String currentUserId,
+  }) {
+    for (final wallet in widget.walletContext.sharedWallets) {
+      if (!wallet.hasPartner) {
+        continue;
+      }
+
+      if (!wallet.memberIds.contains(currentUserId)) {
+        continue;
+      }
+
+      return wallet;
+    }
+
+    return null;
+  }
+
   String? _resolvePartnerMemberId({
     required WalletModel wallet,
     required String currentUserId,
   }) {
-    for (final memberId in wallet.memberIds) {
+    WalletModel? memberSourceWallet = wallet;
+
+    if (!wallet.isShared || !wallet.hasPartner) {
+      memberSourceWallet = _resolveConnectedSharedWallet(
+        currentUserId: currentUserId,
+      );
+    }
+
+    if (memberSourceWallet == null) {
+      return null;
+    }
+
+    for (final memberId in memberSourceWallet.memberIds) {
       final normalizedMemberId = memberId.trim();
 
       if (normalizedMemberId.isNotEmpty &&
@@ -137,6 +189,85 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         currentUserId: currentUserMemberId,
       ),
     );
+  }
+
+  WalletModel _resolveTransactionWallet({
+    required WalletModel activeWallet,
+    required String currentUserId,
+    required String purchaseDestination,
+  }) {
+    final requiresSharedContext =
+        purchaseDestination ==
+                FinancialSplitRules.purchaseForPartner ||
+            purchaseDestination ==
+                FinancialSplitRules.purchaseForBoth;
+
+    if (!requiresSharedContext) {
+      return activeWallet;
+    }
+
+    if (activeWallet.isShared && activeWallet.hasPartner) {
+      return activeWallet;
+    }
+
+    final sharedWallet = _resolveConnectedSharedWallet(
+      currentUserId: currentUserId,
+    );
+
+    if (sharedWallet == null) {
+      throw Exception(
+        'Não foi possível identificar a carteira compartilhada.',
+      );
+    }
+
+    return sharedWallet;
+  }
+
+  Future<void> _loadPartnerDisplayName() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final activeWallet = _resolveActiveWallet();
+
+    if (currentUser == null || activeWallet == null) {
+      return;
+    }
+
+    final partnerMemberId = _resolvePartnerMemberId(
+      wallet: activeWallet,
+      currentUserId: currentUser.uid,
+    );
+
+    if (partnerMemberId == null ||
+        partnerMemberId.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _partnerDisplayName = null;
+        _loadedPartnerMemberId = null;
+      });
+
+      return;
+    }
+
+    if (_loadedPartnerMemberId == partnerMemberId &&
+        _partnerDisplayName != null) {
+      return;
+    }
+
+    final displayName =
+        await _userRepository.getUserDisplayName(
+      partnerMemberId,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _loadedPartnerMemberId = partnerMemberId;
+      _partnerDisplayName = displayName;
+    });
   }
 
   void _syncFinancialCategory() {
@@ -351,6 +482,50 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     });
   }
 
+  void _changeRecurring(bool value) {
+    setState(() {
+      isRecurring = value;
+
+      if (!value) {
+        recurringEndDate = null;
+        recurringNeverEnds = true;
+      }
+    });
+  }
+
+  void _changeRecurringFrequency(String value) {
+    setState(() {
+      recurringFrequency = value;
+    });
+  }
+
+  void _changeRecurringStartDate(DateTime value) {
+    setState(() {
+      recurringStartDate = value;
+
+      if (recurringEndDate != null &&
+          recurringEndDate!.isBefore(value)) {
+        recurringEndDate = null;
+      }
+    });
+  }
+
+  void _changeRecurringEndDate(DateTime? value) {
+    setState(() {
+      recurringEndDate = value;
+    });
+  }
+
+  void _changeRecurringNeverEnds(bool value) {
+    setState(() {
+      recurringNeverEnds = value;
+
+      if (value) {
+        recurringEndDate = null;
+      }
+    });
+  }
+
   Future<void> _openAddItemPage() async {
     final result =
         await Navigator.push<TransactionItemModel>(
@@ -525,12 +700,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       selectedPurchaseDestination,
     );
 
+    final transactionWallet = _resolveTransactionWallet(
+      activeWallet: activeWallet,
+      currentUserId: user.uid,
+      purchaseDestination: purchaseDestination,
+    );
+
     final id =
         DateTime.now().millisecondsSinceEpoch.toString();
 
     try {
       final consumerId =
-          await _resolveConsumerId(activeWallet.id);
+          await _resolveConsumerId(transactionWallet.id);
 
       if (purchaseController.hasItems) {
         final purchaseResult =
@@ -538,7 +719,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
           CreatePurchaseCommand(
             id: id,
             userId: user.uid,
-            walletId: activeWallet.id,
+            walletId: transactionWallet.id,
             consumerId: consumerId,
             purchaseDate: DateTime.now(),
           ),
@@ -566,8 +747,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         description: description,
         value: value,
         type: type,
-        walletId: activeWallet.id,
-        wallet: activeWallet,
+        walletId: transactionWallet.id,
+        wallet: transactionWallet,
         consumerId: consumerId,
         category: selectedCategory.name,
         subcategory:
@@ -577,6 +758,16 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         purchaseFor: purchaseDestination,
         partnerMemberId:
             financialSplitConfiguration.partnerMemberId,
+        isRecurring: isRecurring,
+        recurringFrequency:
+            isRecurring ? recurringFrequency : null,
+        recurringStartDate:
+            isRecurring ? recurringStartDate : null,
+        recurringEndDate:
+            isRecurring ? recurringEndDate : null,
+        recurringNeverEnds:
+            isRecurring ? recurringNeverEnds : true,
+        notes: notesController.text,
       );
 
       if (!mounted) {
@@ -681,10 +872,37 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                             .resolvePurchaseDestination(
                       selectedPurchaseDestination,
                     ),
+                    partnerDisplayName:
+                        _partnerDisplayName,
                     onPayerChanged: _changePayer,
                     onPurchaseDestinationChanged:
                         _changePurchaseDestination,
                   ),
+                const SizedBox(
+                  height: AppSpacing.lg,
+                ),
+                RecurringTransactionSection(
+                  enabled: !isSaving,
+                  isRecurring: isRecurring,
+                  recurringFrequency:
+                      recurringFrequency,
+                  recurringStartDate:
+                      recurringStartDate,
+                  recurringEndDate:
+                      recurringEndDate,
+                  recurringNeverEnds:
+                      recurringNeverEnds,
+                  onRecurringChanged:
+                      _changeRecurring,
+                  onFrequencyChanged:
+                      _changeRecurringFrequency,
+                  onStartDateChanged:
+                      _changeRecurringStartDate,
+                  onEndDateChanged:
+                      _changeRecurringEndDate,
+                  onNeverEndsChanged:
+                      _changeRecurringNeverEnds,
+                ),
                 const SizedBox(
                   height: AppSpacing.lg,
                 ),
@@ -694,6 +912,25 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                   onAddItem: _openAddItemPage,
                   onEditItem: _openEditItemPage,
                   onRemoveItem: _removeItem,
+                ),
+                const SizedBox(
+                  height: AppSpacing.lg,
+                ),
+                TextField(
+                  controller: notesController,
+                  enabled: !isSaving,
+                  minLines: 3,
+                  maxLines: 5,
+                  textCapitalization:
+                      TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Observações',
+                    hintText:
+                        'Adicione alguma informação importante (opcional)',
+                    alignLabelWithHint: true,
+                    prefixIcon:
+                        Icon(Icons.notes_outlined),
+                  ),
                 ),
                 const SizedBox(
                   height: AppSpacing.xl,

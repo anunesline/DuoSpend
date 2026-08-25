@@ -125,11 +125,14 @@ class RecurringTransactionService {
     final startDate = transaction.recurringStartDate ?? transaction.date;
     final normalizedReferenceDate = _dateOnly(referenceDate);
     var occurrence = startDate;
+    var occurrenceIndex = 0;
 
     while (_dateOnly(occurrence).isBefore(normalizedReferenceDate)) {
-      occurrence = calculateNextOccurrence(
-        currentDate: occurrence,
+      occurrenceIndex++;
+      occurrence = _occurrenceAtIndex(
+        startDate: startDate,
         frequency: frequency,
+        index: occurrenceIndex,
       );
     }
 
@@ -174,8 +177,14 @@ class RecurringTransactionService {
 
     final frequency =
         RecurringTransactionFrequency.fromValue(frequencyValue);
+    final startDate = transaction.recurringStartDate ?? transaction.date;
     final occurrences = <DateTime>[];
     var currentOccurrence = firstOccurrence;
+    var occurrenceIndex = _occurrenceIndex(
+      startDate: startDate,
+      occurrenceDate: firstOccurrence,
+      frequency: frequency,
+    );
 
     while (!currentOccurrence.isAfter(rangeEnd) &&
         occurrences.length < limit) {
@@ -188,13 +197,120 @@ class RecurringTransactionService {
 
       occurrences.add(currentOccurrence);
 
-      currentOccurrence = calculateNextOccurrence(
-        currentDate: currentOccurrence,
+      occurrenceIndex++;
+      currentOccurrence = _occurrenceAtIndex(
+        startDate: startDate,
         frequency: frequency,
+        index: occurrenceIndex,
       );
     }
 
     return occurrences;
+  }
+
+  DateTime _occurrenceAtIndex({
+    required DateTime startDate,
+    required RecurringTransactionFrequency frequency,
+    required int index,
+  }) {
+    if (index <= 0) {
+      return startDate;
+    }
+
+    switch (frequency) {
+      case RecurringTransactionFrequency.daily:
+        return DateTime(
+          startDate.year,
+          startDate.month,
+          startDate.day + index,
+          startDate.hour,
+          startDate.minute,
+          startDate.second,
+          startDate.millisecond,
+          startDate.microsecond,
+        );
+
+      case RecurringTransactionFrequency.weekly:
+        return DateTime(
+          startDate.year,
+          startDate.month,
+          startDate.day + (index * 7),
+          startDate.hour,
+          startDate.minute,
+          startDate.second,
+          startDate.millisecond,
+          startDate.microsecond,
+        );
+
+      case RecurringTransactionFrequency.monthly:
+        final absoluteMonth =
+            (startDate.year * 12 + startDate.month - 1) + index;
+        final year = absoluteMonth ~/ 12;
+        final month = absoluteMonth % 12 + 1;
+        final day = _validDayForMonth(
+          year: year,
+          month: month,
+          preferredDay: startDate.day,
+        );
+
+        return DateTime(
+          year,
+          month,
+          day,
+          startDate.hour,
+          startDate.minute,
+          startDate.second,
+          startDate.millisecond,
+          startDate.microsecond,
+        );
+
+      case RecurringTransactionFrequency.yearly:
+        final year = startDate.year + index;
+        final day = _validDayForMonth(
+          year: year,
+          month: startDate.month,
+          preferredDay: startDate.day,
+        );
+
+        return DateTime(
+          year,
+          startDate.month,
+          day,
+          startDate.hour,
+          startDate.minute,
+          startDate.second,
+          startDate.millisecond,
+          startDate.microsecond,
+        );
+    }
+  }
+
+  int _occurrenceIndex({
+    required DateTime startDate,
+    required DateTime occurrenceDate,
+    required RecurringTransactionFrequency frequency,
+  }) {
+    switch (frequency) {
+      case RecurringTransactionFrequency.daily:
+        return _dateOnly(occurrenceDate)
+            .difference(_dateOnly(startDate))
+            .inDays;
+
+      case RecurringTransactionFrequency.weekly:
+        return _dateOnly(occurrenceDate)
+                .difference(_dateOnly(startDate))
+                .inDays ~/
+            7;
+
+      case RecurringTransactionFrequency.monthly:
+        return _monthsBetween(
+          _dateOnly(startDate),
+          _dateOnly(occurrenceDate),
+        );
+
+      case RecurringTransactionFrequency.yearly:
+        return occurrenceDate.year - startDate.year;
+    }
   }
 
   bool _matchesFrequency({

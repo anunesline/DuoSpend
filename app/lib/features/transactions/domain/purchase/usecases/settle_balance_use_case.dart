@@ -6,18 +6,6 @@ import '../services/settlement_payment_service.dart';
 /// Orquestra o fluxo completo de acerto financeiro
 /// entre membros de uma carteira compartilhada.
 ///
-/// Responsabilidades:
-/// - validar o contexto geral do caso de uso;
-/// - delegar as operações de pagamento ao
-///   SettlementPaymentService;
-/// - sincronizar os acertos após mudanças financeiras;
-/// - entregar um ponto único de entrada para o Controller.
-///
-/// As regras operacionais de criação da transação pertencem
-/// ao SettlementPaymentService.
-///
-/// O cálculo e a reconstrução dos acertos pertencem ao
-/// BalanceSettlementSynchronizer.
 class SettleBalanceUseCase {
   final SettlementPaymentService _paymentService;
   final BalanceSettlementSynchronizer _synchronizer;
@@ -30,21 +18,9 @@ class SettleBalanceUseCase {
        _synchronizer =
            synchronizer ?? BalanceSettlementSynchronizer();
 
-  /// Registra que o membro devedor declarou
-  /// ter realizado o pagamento.
-  ///
-  /// O acerto passa de:
-  ///
-  /// pending
-  ///
-  /// para:
-  ///
-  /// awaiting_confirmation
-  ///
-  /// Essa operação ainda não cria uma transação financeira,
-  /// pois o pagamento precisa ser confirmado pelo credor.
   Future<BalanceSettlementModel> declarePayment({
     required BalanceSettlementModel settlement,
+    required String payerWalletId,
     DateTime? declaredAt,
     String? notes,
   }) async {
@@ -52,21 +28,12 @@ class SettleBalanceUseCase {
 
     return _paymentService.declarePayment(
       settlement: settlement,
+      payerWalletId: payerWalletId,
       declaredAt: declaredAt,
       notes: notes,
     );
   }
 
-  /// Cancela uma declaração de pagamento enquanto
-  /// o membro credor ainda não confirmou o recebimento.
-  ///
-  /// O acerto retorna de:
-  ///
-  /// awaiting_confirmation
-  ///
-  /// para:
-  ///
-  /// pending
   Future<BalanceSettlementModel> cancelPaymentDeclaration({
     required BalanceSettlementModel settlement,
   }) async {
@@ -77,21 +44,10 @@ class SettleBalanceUseCase {
     );
   }
 
-  /// Confirma definitivamente o recebimento do pagamento.
-  ///
-  /// Fluxo:
-  ///
-  /// 1. valida carteira e settlement;
-  /// 2. cria ou recupera a transação do acerto;
-  /// 3. confirma o recebimento;
-  /// 4. marca o settlement como concluído;
-  /// 5. recalcula e sincroniza os acertos da carteira.
-  ///
-  /// A sincronização acontece somente após a confirmação
-  /// definitiva do credor.
   Future<BalanceSettlementModel> confirmReceipt({
     required BalanceSettlementModel settlement,
     required WalletModel wallet,
+    required String receiverWalletId,
     DateTime? confirmedAt,
     String? notes,
   }) async {
@@ -105,6 +61,7 @@ class SettleBalanceUseCase {
         await _paymentService.confirmReceipt(
           settlement: settlement,
           wallet: wallet,
+          receiverWalletId: receiverWalletId,
           confirmedAt: confirmedAt,
           notes: notes,
         );
@@ -116,14 +73,6 @@ class SettleBalanceUseCase {
     return confirmedSettlement;
   }
 
-  /// Tenta localizar a transação financeira que representa
-  /// o pagamento de um acerto específico.
-  ///
-  /// Útil para:
-  /// - auditoria;
-  /// - recuperação após interrupções;
-  /// - exibição no histórico;
-  /// - prevenção de duplicidade.
   Future<bool> hasSettlementTransaction({
     required BalanceSettlementModel settlement,
     required WalletModel wallet,

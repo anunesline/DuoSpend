@@ -11,6 +11,7 @@ class FinancialSplitSection extends StatelessWidget {
   final FinancialSplitConfiguration configuration;
   final String selectedPayerMemberId;
   final String selectedPurchaseDestination;
+  final String? partnerDisplayName;
   final ValueChanged<String> onPayerChanged;
   final ValueChanged<String> onPurchaseDestinationChanged;
 
@@ -20,6 +21,7 @@ class FinancialSplitSection extends StatelessWidget {
     required this.configuration,
     required this.selectedPayerMemberId,
     required this.selectedPurchaseDestination,
+    this.partnerDisplayName,
     required this.onPayerChanged,
     required this.onPurchaseDestinationChanged,
   });
@@ -98,18 +100,35 @@ class FinancialSplitSection extends StatelessWidget {
     );
   }
 
-  static String _resolvePayerLabel(String memberId){
-    return memberId==configurationStaticCurrent?"Eu":"Parceiro";
+  String _resolvePayerLabel(String memberId) {
+    if (memberId.trim() ==
+        configuration.currentUserMemberId.trim()) {
+      return 'Eu';
+    }
+
+    return _resolvedPartnerLabel;
   }
 
-  static const String configurationStaticCurrent="__dynamic__";
+  String get _resolvedPartnerLabel {
+    final normalizedName = partnerDisplayName?.trim();
 
-  String _resolvePurchaseDestinationLabel(String value){
-    switch(value){
-      case FinancialSplitRules.purchaseForSelf: return "Eu";
-      case FinancialSplitRules.purchaseForPartner: return "Parceiro";
-      case FinancialSplitRules.purchaseForBoth: return "Ambos";
-      default:return "Outro";
+    if (normalizedName == null || normalizedName.isEmpty) {
+      return 'Parceiro';
+    }
+
+    return normalizedName;
+  }
+
+  String _resolvePurchaseDestinationLabel(String value) {
+    switch (value) {
+      case FinancialSplitRules.purchaseForSelf:
+        return 'Eu';
+      case FinancialSplitRules.purchaseForPartner:
+        return _resolvedPartnerLabel;
+      case FinancialSplitRules.purchaseForBoth:
+        return 'Ambos';
+      default:
+        return 'Outro';
     }
   }
 }

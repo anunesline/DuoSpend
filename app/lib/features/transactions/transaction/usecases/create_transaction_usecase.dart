@@ -6,8 +6,11 @@ import '../../data/repositories/transaction_repository.dart';
 import '../../domain/financial_split/financial_split_result.dart';
 import '../../domain/financial_split/financial_split_rules.dart';
 import '../../domain/financial_split/financial_split_service.dart';
+import '../../domain/models/payment_method.dart';
 import '../../domain/purchase/services/balance_settlement_synchronizer.dart';
 import '../../domain/services/shared_transaction_confirmation_service.dart';
+import '../../domain/services/recurring_transaction_service.dart';
+import '../../domain/usecases/create_recurring_transaction_usecase.dart';
 
 class CreateTransactionResult {
   final TransactionModel transaction;
@@ -30,6 +33,8 @@ class CreateTransactionUseCase {
   final BalanceSettlementSynchronizer _settlementSynchronizer;
   final SharedTransactionConfirmationService
       _confirmationService;
+  final CreateRecurringTransactionUseCase?
+      _createRecurringTransactionUseCase;
 
   const CreateTransactionUseCase({
     required TransactionRepository transactionRepository,
@@ -38,11 +43,15 @@ class CreateTransactionUseCase {
     required BalanceSettlementSynchronizer settlementSynchronizer,
     SharedTransactionConfirmationService confirmationService =
         const SharedTransactionConfirmationService(),
+    CreateRecurringTransactionUseCase?
+        createRecurringTransactionUseCase,
   })  : _transactionRepository = transactionRepository,
         _walletRepository = walletRepository,
         _financialSplitService = financialSplitService,
         _settlementSynchronizer = settlementSynchronizer,
-        _confirmationService = confirmationService;
+        _confirmationService = confirmationService,
+        _createRecurringTransactionUseCase =
+            createRecurringTransactionUseCase;
 
   Future<CreateTransactionResult> call({
     required String transactionId,
@@ -60,6 +69,14 @@ class CreateTransactionUseCase {
     String? splitType,
     Map<String, double>? customMemberShares,
     WalletModel? wallet,
+    bool isRecurring = false,
+    String? recurringFrequency,
+    DateTime? recurringStartDate,
+    DateTime? recurringEndDate,
+    bool recurringNeverEnds = true,
+    String? notes,
+    PaymentMethod? paymentMethod,
+    String? paymentSourceId,
   }) async {
     final normalizedTransactionId = transactionId.trim();
     final normalizedDescription = description.trim();
@@ -68,6 +85,9 @@ class CreateTransactionUseCase {
     final normalizedSubcategory = subcategory.trim();
     final normalizedPaidByMemberId = paidByMemberId.trim();
     final normalizedConsumerId = consumerId?.trim();
+    final normalizedNotes = notes?.trim();
+    final normalizedPaymentSourceId =
+        paymentSourceId?.trim();
 
     _validateInput(
       transactionId: normalizedTransactionId,
@@ -78,6 +98,11 @@ class CreateTransactionUseCase {
       category: normalizedCategory,
       subcategory: normalizedSubcategory,
       paidByMemberId: normalizedPaidByMemberId,
+    );
+
+    _validatePaymentConfiguration(
+      paymentMethod: paymentMethod,
+      paymentSourceId: normalizedPaymentSourceId,
     );
 
     final transactionWallet = await _resolveTransactionWallet(
@@ -114,7 +139,7 @@ class CreateTransactionUseCase {
       isSettlement: false,
     );
 
-    final transaction = TransactionModel(
+    final baseTransaction = TransactionModel(
       id: normalizedTransactionId,
       description: normalizedDescription,
       value: value,
@@ -135,6 +160,20 @@ class CreateTransactionUseCase {
       confirmationStatus: confirmationDecision.status,
       confirmationRequestedAt:
           confirmationDecision.requestedAt,
+      isRecurring: isRecurring,
+      recurringFrequency: recurringFrequency,
+      recurringStartDate: recurringStartDate,
+      recurringEndDate: recurringEndDate,
+      recurringNeverEnds: recurringNeverEnds,
+      paymentMethod: paymentMethod?.value,
+      paymentSourceId:
+          normalizedPaymentSourceId == null ||
+                  normalizedPaymentSourceId.isEmpty
+              ? null
+              : normalizedPaymentSourceId,
+      notes: normalizedNotes == null || normalizedNotes.isEmpty
+          ? null
+          : normalizedNotes,
       items: items
           .map(
             (item) => item.copyWith(
@@ -144,13 +183,25 @@ class CreateTransactionUseCase {
           .toList(),
     );
 
+    final recurringUseCase =
+        _createRecurringTransactionUseCase ??
+            CreateRecurringTransactionUseCase(
+              recurringService:
+                  const RecurringTransactionService(),
+            );
+
+    final transaction = recurringUseCase.execute(
+      baseTransaction,
+    );
+
     await _transactionRepository.addTransaction(
       transaction,
       wallet: transactionWallet,
     );
 
-    await _updateFinancialWalletBalance(
-      wallet: financialWallet,
+    await _applyImmediateFinancialImpact(
+      paymentMethod: paymentMethod,
+      financialWallet: financialWallet,
       transactionType: type,
       transactionValue: value,
     );
@@ -216,6 +267,67 @@ class CreateTransactionUseCase {
     }
 
     return financialWallet;
+  }
+
+  Future<void> _applyImmediateFinancialImpact({
+    required PaymentMethod? paymentMethod,
+    required WalletModel financialWallet,
+    required String transactionType,
+    required double transactionValue,
+  }) async {
+    // Compatibilidade com os fluxos anteriores à introdução
+    // de formas de pagamento: sem paymentMethod informado,
+    // mantém o comportamento financeiro já existente.
+    if (paymentMethod == null) {
+      await _updateFinancialWalletBalance(
+        wallet: financialWallet,
+        transactionType: transactionType,
+        transactionValue: transactionValue,
+      );
+
+      return;
+    }
+
+    // Dinheiro, Pix e débito representam liquidação imediata:
+    // o valor efetivamente sai/entra na carteira financeira agora.
+    if (paymentMethod.affectsBalanceImmediately) {
+      await _updateFinancialWalletBalance(
+        wallet: financialWallet,
+        transactionType: transactionType,
+        transactionValue: transactionValue,
+      );
+
+      return;
+    }
+
+    // Crédito, boleto e carnê NÃO movimentam a conta bancária
+    // no momento do registro.
+    //
+    // Crédito fica vinculado ao paymentSourceId do cartão e deverá
+    // movimentar a carteira/fatura do cartão quando o domínio de
+    // cartões estiver conectado.
+    //
+    // Boleto e carnê permanecem como obrigação pendente.
+    //
+    // Em ambos os casos, a conta bancária somente será movimentada
+    // quando houver confirmação/liquidação do pagamento.
+  }
+
+  void _validatePaymentConfiguration({
+    required PaymentMethod? paymentMethod,
+    required String? paymentSourceId,
+  }) {
+    if (paymentMethod == null) {
+      return;
+    }
+
+    if (paymentMethod.requiresPaymentSource &&
+        (paymentSourceId == null ||
+            paymentSourceId.isEmpty)) {
+      throw Exception(
+        'Selecione a origem financeira para ${paymentMethod.label}.',
+      );
+    }
   }
 
   Future<void> _updateFinancialWalletBalance({

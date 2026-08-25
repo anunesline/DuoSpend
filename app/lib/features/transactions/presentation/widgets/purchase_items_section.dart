@@ -101,156 +101,171 @@ class PurchaseItemsSection extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Itens da compra',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colorScheme.outlineVariant,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.shopping_basket_outlined,
+                  color: colorScheme.onPrimaryContainer,
+                  size: 21,
                 ),
               ),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: onAddItem,
-              icon: const Icon(Icons.add),
-              label: const Text('Adicionar'),
-            ),
-          ],
-        ),
-        const SizedBox(
-          height: AppSpacing.xs,
-        ),
-        Text(
-          items.isEmpty
-              ? 'Adicione os produtos que fazem parte desta compra.'
-              : '${items.length} ${items.length == 1 ? 'item adicionado' : 'itens adicionados'}',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(
-          height: AppSpacing.md,
-        ),
-        AnimatedSwitcher(
-          duration: const Duration(
-            milliseconds: 300,
-          ),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (
-            child,
-            animation,
-          ) {
-            return FadeTransition(
-              opacity: animation,
-              child: SizeTransition(
-                sizeFactor: animation,
-                axisAlignment: -1,
-                child: child,
-              ),
-            );
-          },
-          child: items.isEmpty
-              ? _EmptyItemsCard(
-                  key: const ValueKey(
-                    'empty-purchase-items',
-                  ),
-                  onAddItem: onAddItem,
-                )
-              : Column(
-                  key: ValueKey(
-                    'purchase-items-${items.length}-${items.map((item) => item.hashCode).join('-')}',
-                  ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (
-                      var index = 0;
-                      index < items.length;
-                      index++
-                    )
-                      _AnimatedPurchaseItem(
-                        key: ValueKey(
-                          items[index],
-                        ),
-                        index: index,
-                        child: Dismissible(
-                          key: ValueKey(
-                            'purchase-item-${items[index].hashCode}-$index',
-                          ),
-                          direction:
-                              DismissDirection.endToStart,
-                          confirmDismiss: (_) {
-                            return _confirmRemoveItem(
-                              context,
-                              items[index],
-                            );
-                          },
-                          onDismissed: (_) {
-                            final removedItem =
-                                items[index];
-
-                            onRemoveItem(
-                              removedItem,
-                            );
-
-                            _showRemovedMessage(
-                              context,
-                              removedItem,
-                            );
-                          },
-                          background: _DeleteBackground(
-                            colorScheme: colorScheme,
-                          ),
-                          child: PurchaseItemCard(
-                            item: items[index],
-                            currentMemberLabel:
-                                currentMemberLabel,
-                            partnerMemberLabel:
-                                partnerMemberLabel,
-                            selectedConsumer:
-                                selectedConsumerForItem
-                                    ?.call(
-                              items[index],
-                            ),
-                            onConsumerChanged:
-                                onConsumerChanged == null
-                                    ? null
-                                    : (selection) {
-                                        onConsumerChanged!(
-                                          items[index],
-                                          selection,
-                                        );
-                                      },
-                            onTap: onEditItem == null
-                                ? null
-                                : () {
-                                    onEditItem!(
-                                      items[index],
-                                    );
-                                  },
-                          ),
-                        ),
+                    Text(
+                      'Itens da compra',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      items.isEmpty
+                          ? 'Opcional'
+                          : '${items.length} ${items.length == 1 ? 'item adicionado' : 'itens adicionados'}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ),
-        ),
-        if (items.isNotEmpty) ...[
-          const SizedBox(
-            height: AppSpacing.sm,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              FilledButton.tonalIcon(
+                onPressed: onAddItem,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Adicionar itens'),
+              ),
+            ],
           ),
-          _ItemsTotalCard(
-            total: total,
-            formattedTotal: _formatMoney(
-              total,
+          if (items.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Divider(
+              height: 1,
+              color: colorScheme.outlineVariant,
             ),
-          ),
+            const SizedBox(height: AppSpacing.md),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (
+                child,
+                animation,
+              ) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SizeTransition(
+                    sizeFactor: animation,
+                    axisAlignment: -1,
+                    child: child,
+                  ),
+                );
+              },
+              child: Column(
+                key: ValueKey(
+                  'purchase-items-${items.length}-${items.map((item) => item.hashCode).join('-')}',
+                ),
+                children: [
+                  for (
+                    var index = 0;
+                    index < items.length;
+                    index++
+                  )
+                    _AnimatedPurchaseItem(
+                      key: ValueKey(items[index]),
+                      index: index,
+                      child: Dismissible(
+                        key: ValueKey(
+                          'purchase-item-${items[index].hashCode}-$index',
+                        ),
+                        direction:
+                            DismissDirection.endToStart,
+                        confirmDismiss: (_) {
+                          return _confirmRemoveItem(
+                            context,
+                            items[index],
+                          );
+                        },
+                        onDismissed: (_) {
+                          final removedItem = items[index];
+
+                          onRemoveItem(removedItem);
+
+                          _showRemovedMessage(
+                            context,
+                            removedItem,
+                          );
+                        },
+                        background: _DeleteBackground(
+                          colorScheme: colorScheme,
+                        ),
+                        child: PurchaseItemCard(
+                          item: items[index],
+                          currentMemberLabel:
+                              currentMemberLabel,
+                          partnerMemberLabel:
+                              partnerMemberLabel,
+                          selectedConsumer:
+                              selectedConsumerForItem?.call(
+                            items[index],
+                          ),
+                          onConsumerChanged:
+                              onConsumerChanged == null
+                                  ? null
+                                  : (selection) {
+                                      onConsumerChanged!(
+                                        items[index],
+                                        selection,
+                                      );
+                                    },
+                          onTap: onEditItem == null
+                              ? null
+                              : () {
+                                  onEditItem!(
+                                    items[index],
+                                  );
+                                },
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _ItemsTotalCard(
+              total: total,
+              formattedTotal: _formatMoney(total),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
+
 }
 
 class _AnimatedPurchaseItem extends StatelessWidget {
@@ -299,81 +314,6 @@ class _AnimatedPurchaseItem extends StatelessWidget {
   }
 }
 
-class _EmptyItemsCard extends StatelessWidget {
-  final VoidCallback onAddItem;
-
-  const _EmptyItemsCard({
-    super.key,
-    required this.onAddItem,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(
-        AppSpacing.lg,
-      ),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: colorScheme.outlineVariant,
-        ),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(
-              Icons.shopping_basket_outlined,
-              color: colorScheme.onPrimaryContainer,
-              size: 28,
-            ),
-          ),
-          const SizedBox(
-            height: AppSpacing.md,
-          ),
-          Text(
-            'Nenhum item adicionado',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(
-            height: AppSpacing.xs,
-          ),
-          Text(
-            'Detalhe compras de mercado, farmácia, casa e outros consumos.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(
-            height: AppSpacing.md,
-          ),
-          OutlinedButton.icon(
-            onPressed: onAddItem,
-            icon: const Icon(Icons.add),
-            label: const Text(
-              'Adicionar primeiro item',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _DeleteBackground extends StatelessWidget {
   final ColorScheme colorScheme;

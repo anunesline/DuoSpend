@@ -112,6 +112,7 @@ class BalanceSettlementRepository {
   /// do acerto.
   Future<BalanceSettlementModel> declarePayment({
     required BalanceSettlementModel settlement,
+    required String payerWalletId,
     DateTime? declaredAt,
     String? notes,
   }) async {
@@ -125,6 +126,7 @@ class BalanceSettlementRepository {
     final updatedSettlement = settlement.declarePayment(
       declaredByMemberId: userId,
       declaredAt: declaredAt ?? DateTime.now(),
+      payerWalletId: payerWalletId,
       notes: notes,
     );
 
@@ -178,6 +180,7 @@ class BalanceSettlementRepository {
   Future<BalanceSettlementModel> confirmReceipt({
     required BalanceSettlementModel settlement,
     required String transactionId,
+    required String receiverWalletId,
     DateTime? confirmedAt,
     String? notes,
   }) async {
@@ -201,6 +204,7 @@ class BalanceSettlementRepository {
       confirmedByMemberId: userId,
       confirmedAt: confirmedAt ?? DateTime.now(),
       transactionId: normalizedTransactionId,
+      receiverWalletId: receiverWalletId,
       notes: notes,
     );
 

@@ -10,6 +10,14 @@ class BalanceSettlementModel {
   final String toMemberId;
   final double amount;
 
+  /// Carteira individual escolhida pelo devedor como origem
+  /// do pagamento declarado.
+  final String? payerWalletId;
+
+  /// Carteira individual escolhida pelo credor como destino
+  /// do valor recebido.
+  final String? receiverWalletId;
+
   /// Momento em que o acerto foi criado.
   final DateTime createdAt;
 
@@ -47,6 +55,8 @@ class BalanceSettlementModel {
     required this.fromMemberId,
     required this.toMemberId,
     required this.amount,
+    this.payerWalletId,
+    this.receiverWalletId,
     required this.createdAt,
     this.settledAt,
     this.status = pendingStatus,
@@ -90,6 +100,7 @@ class BalanceSettlementModel {
   BalanceSettlementModel declarePayment({
     required String declaredByMemberId,
     required DateTime declaredAt,
+    required String payerWalletId,
     String? notes,
   }) {
     final normalizedMemberId = declaredByMemberId.trim();
@@ -108,6 +119,16 @@ class BalanceSettlementModel {
       );
     }
 
+    final normalizedPayerWalletId = payerWalletId.trim();
+
+    if (normalizedPayerWalletId.isEmpty) {
+      throw ArgumentError.value(
+        payerWalletId,
+        'payerWalletId',
+        'A carteira usada no pagamento não pode ficar vazia.',
+      );
+    }
+
     if (!isPending) {
       throw StateError(
         'Somente um acerto pendente pode ser declarado como pago.',
@@ -118,6 +139,7 @@ class BalanceSettlementModel {
       status: awaitingConfirmationStatus,
       paymentDeclaredAt: declaredAt,
       paymentDeclaredByMemberId: normalizedMemberId,
+      payerWalletId: normalizedPayerWalletId,
       notes: notes ?? this.notes,
     );
   }
@@ -153,6 +175,8 @@ class BalanceSettlementModel {
       fromMemberId: fromMemberId,
       toMemberId: toMemberId,
       amount: amount,
+      payerWalletId: null,
+      receiverWalletId: null,
       createdAt: createdAt,
       settledAt: null,
       status: pendingStatus,
@@ -169,10 +193,13 @@ class BalanceSettlementModel {
     required String confirmedByMemberId,
     required DateTime confirmedAt,
     required String transactionId,
+    required String receiverWalletId,
     String? notes,
   }) {
     final normalizedMemberId = confirmedByMemberId.trim();
     final normalizedTransactionId = transactionId.trim();
+    final normalizedReceiverWalletId =
+        receiverWalletId.trim();
 
     if (normalizedMemberId.isEmpty) {
       throw ArgumentError.value(
@@ -187,6 +214,21 @@ class BalanceSettlementModel {
         transactionId,
         'transactionId',
         'O ID da transação do acerto não pode ficar vazio.',
+      );
+    }
+
+    if (normalizedReceiverWalletId.isEmpty) {
+      throw ArgumentError.value(
+        receiverWalletId,
+        'receiverWalletId',
+        'A carteira que recebeu o pagamento não pode ficar vazia.',
+      );
+    }
+
+    if (payerWalletId == null ||
+        payerWalletId!.trim().isEmpty) {
+      throw StateError(
+        'O pagamento não possui uma carteira de origem informada.',
       );
     }
 
@@ -208,6 +250,7 @@ class BalanceSettlementModel {
       receiptConfirmedAt: confirmedAt,
       receiptConfirmedByMemberId: normalizedMemberId,
       settlementTransactionId: normalizedTransactionId,
+      receiverWalletId: normalizedReceiverWalletId,
       notes: notes ?? this.notes,
     );
   }
@@ -233,6 +276,8 @@ class BalanceSettlementModel {
       'fromMemberId': fromMemberId,
       'toMemberId': toMemberId,
       'amount': amount,
+      'payerWalletId': payerWalletId,
+      'receiverWalletId': receiverWalletId,
       'createdAt': createdAt.toIso8601String(),
       'settledAt': settledAt?.toIso8601String(),
       'status': status,
@@ -260,6 +305,12 @@ class BalanceSettlementModel {
           map['fromMemberId']?.toString() ?? '',
       toMemberId: map['toMemberId']?.toString() ?? '',
       amount: _parseDouble(map['amount']),
+      payerWalletId: _parseNullableString(
+        map['payerWalletId'],
+      ),
+      receiverWalletId: _parseNullableString(
+        map['receiverWalletId'],
+      ),
       createdAt: _parseDateTime(map['createdAt']) ??
           DateTime.now(),
       settledAt: _parseDateTime(map['settledAt']),
@@ -284,6 +335,10 @@ class BalanceSettlementModel {
     String? fromMemberId,
     String? toMemberId,
     double? amount,
+    String? payerWalletId,
+    String? receiverWalletId,
+    bool clearPayerWalletId = false,
+    bool clearReceiverWalletId = false,
     DateTime? createdAt,
     DateTime? settledAt,
     String? status,
@@ -300,6 +355,12 @@ class BalanceSettlementModel {
       fromMemberId: fromMemberId ?? this.fromMemberId,
       toMemberId: toMemberId ?? this.toMemberId,
       amount: amount ?? this.amount,
+      payerWalletId: clearPayerWalletId
+          ? null
+          : payerWalletId ?? this.payerWalletId,
+      receiverWalletId: clearReceiverWalletId
+          ? null
+          : receiverWalletId ?? this.receiverWalletId,
       createdAt: createdAt ?? this.createdAt,
       settledAt: settledAt ?? this.settledAt,
       status: status ?? this.status,
@@ -318,6 +379,17 @@ class BalanceSettlementModel {
           settlementTransactionId ??
           this.settlementTransactionId,
     );
+  }
+
+  static String? _parseNullableString(dynamic value) {
+    final normalizedValue = value?.toString().trim();
+
+    if (normalizedValue == null ||
+        normalizedValue.isEmpty) {
+      return null;
+    }
+
+    return normalizedValue;
   }
 
   static double _parseDouble(dynamic value) {
