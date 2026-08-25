@@ -221,4 +221,32 @@ void main() {
     expect(insights.any((item) => item.id == 'card-invoice-due-invoice'), isTrue);
     expect(insights.any((item) => item.id == 'card-invoice-insufficient-history'), isTrue);
   });
+
+  test('não altera orçamento, meta ou projeção recebidos', () {
+    final budget = Budget(
+      id: 'immutable-budget', walletId: 'shared-wallet', category: 'Mercado',
+      month: now, limitAmount: 100, createdByUserId: 'owner',
+      createdAt: now, updatedAt: now,
+    );
+    final goal = SavingsGoal(
+      id: 'immutable-goal', name: 'Casa', targetAmount: 1000, savedAmount: 100,
+      walletId: 'shared-wallet', createdByUserId: 'owner',
+      memberIds: const ['owner', 'member'], createdAt: now, updatedAt: now,
+    );
+    final projection = FinancialProjection.empty(500);
+
+    service.build(input(
+      budgets: [BudgetConsumption(budget: budget, spentAmount: 120)],
+      goals: [goal],
+      projection: projection,
+    ));
+
+    expect(budget.walletId, 'shared-wallet');
+    expect(budget.createdByUserId, 'owner');
+    expect(budget.limitAmount, 100);
+    expect(goal.savedAmount, 100);
+    expect(goal.memberIds, const ['owner', 'member']);
+    expect(projection.currentBalance, 500);
+    expect(projection.entries, isEmpty);
+  });
 }
