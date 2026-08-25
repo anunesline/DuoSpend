@@ -19,6 +19,7 @@ class SavingsGoal {
   final DateTime? deadline;
   final String walletId;
   final String createdByUserId;
+  final List<String> memberIds;
   final SavingsGoalStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -31,6 +32,7 @@ class SavingsGoal {
     this.deadline,
     required this.walletId,
     required this.createdByUserId,
+    this.memberIds = const [],
     this.status = SavingsGoalStatus.active,
     required this.createdAt,
     required this.updatedAt,
@@ -63,6 +65,10 @@ class SavingsGoal {
 
   bool get hasDeadline => deadline != null;
 
+  bool hasMember(String userId) {
+    return memberIds.contains(userId.trim());
+  }
+
   SavingsGoal copyWith({
     String? id,
     String? name,
@@ -72,6 +78,7 @@ class SavingsGoal {
     bool clearDeadline = false,
     String? walletId,
     String? createdByUserId,
+    List<String>? memberIds,
     SavingsGoalStatus? status,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -84,6 +91,7 @@ class SavingsGoal {
       deadline: clearDeadline ? null : deadline ?? this.deadline,
       walletId: walletId ?? this.walletId,
       createdByUserId: createdByUserId ?? this.createdByUserId,
+      memberIds: memberIds ?? this.memberIds,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
