@@ -21,6 +21,7 @@ import '../../domain/purchase/models/purchase_item_model.dart';
 import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
 import '../widgets/financial_split_section.dart';
+import '../widgets/installment_transaction_section.dart';
 import '../widgets/purchase_items_section.dart';
 import '../widgets/recurring_transaction_section.dart';
 import '../widgets/transaction_basic_fields_section.dart';
@@ -94,6 +95,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   DateTime recurringStartDate = DateTime.now();
   DateTime? recurringEndDate;
   bool recurringNeverEnds = true;
+
+  bool isInstallment = false;
+  int installmentCount = 2;
+  DateTime firstInstallmentDate = DateTime.now();
 
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
 
@@ -615,10 +620,36 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     setState(() {
       isRecurring = value;
 
-      if (!value) {
+      if (value) {
+        isInstallment = false;
+      } else {
         recurringEndDate = null;
         recurringNeverEnds = true;
       }
+    });
+  }
+
+  void _changeInstallment(bool value) {
+    setState(() {
+      isInstallment = value;
+
+      if (value) {
+        isRecurring = false;
+        recurringEndDate = null;
+        recurringNeverEnds = true;
+      }
+    });
+  }
+
+  void _changeInstallmentCount(int value) {
+    setState(() {
+      installmentCount = value;
+    });
+  }
+
+  void _changeFirstInstallmentDate(DateTime value) {
+    setState(() {
+      firstInstallmentDate = value;
     });
   }
 
@@ -932,6 +963,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
             isRecurring ? recurringEndDate : null,
         recurringNeverEnds:
             isRecurring ? recurringNeverEnds : true,
+        isInstallment: isInstallment,
+        installmentCount: installmentCount,
+        firstInstallmentDate:
+            isInstallment ? firstInstallmentDate : null,
         notes: notesController.text,
         financialWalletId: financialWalletId,
         paymentMethod: selectedPaymentMethod,
@@ -1193,6 +1228,20 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                   const SizedBox(
                     height: AppSpacing.lg,
                   ),
+                InstallmentTransactionSection(
+                  enabled: !isSaving,
+                  isInstallment: isInstallment,
+                  installmentCount: installmentCount,
+                  firstInstallmentDate: firstInstallmentDate,
+                  onInstallmentChanged: _changeInstallment,
+                  onInstallmentCountChanged:
+                      _changeInstallmentCount,
+                  onFirstInstallmentDateChanged:
+                      _changeFirstInstallmentDate,
+                ),
+                const SizedBox(
+                  height: AppSpacing.lg,
+                ),
                 RecurringTransactionSection(
                   enabled: !isSaving,
                   isRecurring: isRecurring,
