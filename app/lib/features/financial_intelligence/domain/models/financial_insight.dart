@@ -3,6 +3,7 @@ enum FinancialInsightType {
   budget,
   projectedBalance,
   cashFlowRisk,
+  purchaseImpact,
   goal,
   spendingTrend,
   recurring,
