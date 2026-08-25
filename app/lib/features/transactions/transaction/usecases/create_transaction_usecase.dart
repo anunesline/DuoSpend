@@ -1,4 +1,5 @@
 import '../../../home/data/models/wallet_model.dart';
+import '../../../home/data/repositories/credit_card_repository.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
@@ -29,6 +30,7 @@ class CreateTransactionResult {
 class CreateTransactionUseCase {
   final TransactionRepository _transactionRepository;
   final WalletRepository _walletRepository;
+  final CreditCardRepository _creditCardRepository;
   final FinancialSplitService _financialSplitService;
   final BalanceSettlementSynchronizer _settlementSynchronizer;
   final SharedTransactionConfirmationService
@@ -36,9 +38,10 @@ class CreateTransactionUseCase {
   final CreateRecurringTransactionUseCase?
       _createRecurringTransactionUseCase;
 
-  const CreateTransactionUseCase({
+  CreateTransactionUseCase({
     required TransactionRepository transactionRepository,
     required WalletRepository walletRepository,
+    CreditCardRepository? creditCardRepository,
     required FinancialSplitService financialSplitService,
     required BalanceSettlementSynchronizer settlementSynchronizer,
     SharedTransactionConfirmationService confirmationService =
@@ -47,6 +50,8 @@ class CreateTransactionUseCase {
         createRecurringTransactionUseCase,
   })  : _transactionRepository = transactionRepository,
         _walletRepository = walletRepository,
+        _creditCardRepository =
+            creditCardRepository ?? CreditCardRepository(),
         _financialSplitService = financialSplitService,
         _settlementSynchronizer = settlementSynchronizer,
         _confirmationService = confirmationService,
@@ -197,10 +202,18 @@ class CreateTransactionUseCase {
       baseTransaction,
     );
 
-    await _transactionRepository.addTransaction(
-      transaction,
-      wallet: transactionWallet,
-    );
+    if (paymentMethod?.isCreditCard ?? false) {
+      await _creditCardRepository.registerPurchase(
+        cardId: normalizedPaymentSourceId!,
+        transactionModel: transaction,
+        transactionWallet: transactionWallet,
+      );
+    } else {
+      await _transactionRepository.addTransaction(
+        transaction,
+        wallet: transactionWallet,
+      );
+    }
 
     await _applyImmediateFinancialImpact(
       paymentMethod: paymentMethod,
