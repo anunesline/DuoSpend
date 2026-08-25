@@ -5,6 +5,7 @@ import '../../../../core/design_system/duo_card.dart';
 import '../../../../core/design_system/duo_colors.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../domain/models/savings_goal.dart';
+import '../../domain/models/savings_goal_movement.dart';
 import '../controllers/savings_goals_controller.dart';
 
 class SavingsGoalsPage extends StatefulWidget {
@@ -341,6 +342,40 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     );
   }
 
+  Future<void> _showMovementHistory(
+    SavingsGoal goal,
+  ) async {
+    final movements = await controller.loadMovements(goal);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (movements == null) {
+      _showMessage(
+        controller.errorMessage ??
+            'Não foi possível carregar o histórico da meta.',
+      );
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: DuoColors.surface,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return _GoalHistorySheet(
+          goal: goal,
+          movements: movements,
+          currentUserId: widget.currentUserId,
+          wallets: controller.financialWallets,
+          formatMoney: _formatMoney,
+        );
+      },
+    );
+  }
+
   Future<void> _archiveGoal(SavingsGoal goal) async {
     if (goal.savedAmount > 0) {
       _showMessage(
@@ -492,6 +527,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                                 : _formatDeadline(goal.deadline!),
                             isProcessing:
                                 controller.processingGoalId == goal.id,
+                            onHistory: () => _showMovementHistory(goal),
                             onContribute: goal.isActive
                                 ? () => _showMovementDialog(
                                       goal: goal,
@@ -598,6 +634,7 @@ class _GoalCard extends StatelessWidget {
   final String formattedRemaining;
   final String? formattedDeadline;
   final bool isProcessing;
+  final VoidCallback onHistory;
   final VoidCallback? onContribute;
   final VoidCallback? onWithdraw;
   final VoidCallback? onArchive;
@@ -609,6 +646,7 @@ class _GoalCard extends StatelessWidget {
     required this.formattedRemaining,
     required this.formattedDeadline,
     required this.isProcessing,
+    required this.onHistory,
     required this.onContribute,
     required this.onWithdraw,
     required this.onArchive,
@@ -662,6 +700,16 @@ class _GoalCard extends StatelessWidget {
                   color: statusColor,
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
+                ),
+              ),
+              IconButton(
+                onPressed: isProcessing ? null : onHistory,
+                tooltip: 'Histórico da meta',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(
+                  Icons.history_rounded,
+                  color: DuoColors.textHint,
+                  size: 20,
                 ),
               ),
               if (onArchive != null) ...[
