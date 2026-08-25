@@ -8,6 +8,32 @@ import '../../../transactions/data/models/transaction_model.dart';
 import '../../domain/models/financial_report.dart';
 import '../../domain/services/financial_report_service.dart';
 
+
+const _reportMonthNames = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+];
+
+String _reportMonthName(DateTime date, {bool abbreviated = false}) {
+  final name = _reportMonthNames[date.month - 1];
+
+  if (!abbreviated) {
+    return name;
+  }
+
+  return name.substring(0, 3).toUpperCase();
+}
+
 class MonthlyReportPage extends StatefulWidget {
   final WalletModel wallet;
   final List<TransactionModel> transactions;
@@ -62,7 +88,8 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
   }
 
   String get _monthLabel {
-    final label = DateFormat('MMMM yyyy', 'pt_BR').format(_selectedMonth);
+    final month = _reportMonthName(_selectedMonth);
+    final label = '$month ${_selectedMonth.year}';
 
     return '${label[0].toUpperCase()}${label.substring(1)}';
   }
@@ -572,10 +599,10 @@ class _EvolutionMonthColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final balanceColor =
         point.balance >= 0 ? DuoColors.success : DuoColors.error;
-    final monthLabel = DateFormat(
-      'MMM',
-      'pt_BR',
-    ).format(point.month).replaceAll('.', '').toUpperCase();
+    final monthLabel = _reportMonthName(
+      point.month,
+      abbreviated: true,
+    );
 
     return Tooltip(
       message: 'Resultado: ${formatMoney(point.balance)}',
@@ -668,10 +695,9 @@ class _MonthlyComparisonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final previousMonth = DateFormat(
-      'MMMM',
-      'pt_BR',
-    ).format(comparison.previous.startDate);
+    final previousMonth = _reportMonthName(
+      comparison.previous.startDate,
+    );
 
     return DuoCard(
       borderRadius: 20,
