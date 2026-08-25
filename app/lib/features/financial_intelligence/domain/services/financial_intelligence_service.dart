@@ -44,6 +44,7 @@ class FinancialIntelligenceService {
     _addCashFlowRiskInsight(input, insights);
     _addGoalInsights(input, insights);
     _addTrendInsights(input, insights);
+    _addHistoricalAverageInsights(input, insights);
     _addRecurringInsights(input, insights);
     _addCardInsights(input, insights);
 
@@ -244,6 +245,38 @@ class FinancialIntelligenceService {
       source: 'Ocorrências recorrentes previstas no calendário financeiro',
       amount: monthlyExpense,
     ));
+  }
+
+  void _addHistoricalAverageInsights(
+    FinancialIntelligenceInput input,
+    List<FinancialInsight> insights,
+  ) {
+    if (input.historicalMonths.length < 3) return;
+
+    for (final current in input.currentMonth.expenseByCategory) {
+      final historicalTotal = input.historicalMonths.fold<double>(0, (
+        total,
+        month,
+      ) {
+        final amount = month.expenseByCategory
+            .where((item) => item.category == current.category)
+            .fold<double>(0, (sum, item) => sum + item.amount);
+        return total + amount;
+      });
+      final average = historicalTotal / input.historicalMonths.length;
+      if (average <= 0 || current.amount <= average) continue;
+
+      final increase = ((current.amount - average) / average) * 100;
+      insights.add(FinancialInsight(
+        id: 'category-average-${current.category}',
+        type: FinancialInsightType.spendingTrend,
+        severity: FinancialInsightSeverity.attention,
+        title: '${current.category} acima da média recente',
+        message: 'Os gastos em ${current.category} estão ${increase.round()}% acima da média dos últimos meses.',
+        source: 'Média da categoria nos últimos ${input.historicalMonths.length} meses',
+        amount: current.amount - average,
+      ));
+    }
   }
 
   void _addCardInsights(
