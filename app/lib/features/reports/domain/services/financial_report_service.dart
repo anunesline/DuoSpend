@@ -8,6 +8,8 @@ class FinancialReportService {
     required List<TransactionModel> transactions,
     required DateTime startDate,
     required DateTime endDate,
+    String? category,
+    String? transactionType,
   }) {
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
@@ -18,6 +20,20 @@ class FinancialReportService {
       );
     }
 
+    final normalizedCategory = category?.trim();
+    final normalizedType = transactionType?.trim();
+
+    if (normalizedType != null &&
+        normalizedType.isNotEmpty &&
+        normalizedType != 'income' &&
+        normalizedType != 'expense') {
+      throw ArgumentError.value(
+        transactionType,
+        'transactionType',
+        'O tipo deve ser income ou expense.',
+      );
+    }
+
     final eligibleTransactions = transactions.where((transaction) {
       final transactionDate = _dateOnly(transaction.date);
 
@@ -25,7 +41,14 @@ class FinancialReportService {
           !transactionDate.isAfter(normalizedEnd) &&
           transaction.isFinanciallySettled &&
           !transaction.isSettlement &&
-          transaction.canAffectSharedBalance;
+          transaction.canAffectSharedBalance &&
+          (normalizedCategory == null ||
+              normalizedCategory.isEmpty ||
+              _normalizedCategory(transaction.category) ==
+                  normalizedCategory) &&
+          (normalizedType == null ||
+              normalizedType.isEmpty ||
+              transaction.type == normalizedType);
     }).toList()
       ..sort((first, second) => second.date.compareTo(first.date));
 
@@ -89,6 +112,8 @@ class FinancialReportService {
     required int endYear,
     required int endMonth,
     int monthCount = 6,
+    String? category,
+    String? transactionType,
   }) {
     if (endMonth < DateTime.january ||
         endMonth > DateTime.december) {
@@ -116,6 +141,8 @@ class FinancialReportService {
         transactions: transactions,
         year: month.year,
         month: month.month,
+        category: category,
+        transactionType: transactionType,
       );
 
       points.add(
@@ -133,6 +160,8 @@ class FinancialReportService {
     required List<TransactionModel> transactions,
     required int year,
     required int month,
+    String? category,
+    String? transactionType,
   }) {
     final selectedMonth = DateTime(year, month);
     final previousMonth = DateTime(year, month - 1);
@@ -141,11 +170,15 @@ class FinancialReportService {
       transactions: transactions,
       year: selectedMonth.year,
       month: selectedMonth.month,
+      category: category,
+      transactionType: transactionType,
     );
     final previous = buildMonthly(
       transactions: transactions,
       year: previousMonth.year,
       month: previousMonth.month,
+      category: category,
+      transactionType: transactionType,
     );
 
     return FinancialReportComparison(
@@ -170,6 +203,8 @@ class FinancialReportService {
     required List<TransactionModel> transactions,
     required int year,
     required int month,
+    String? category,
+    String? transactionType,
   }) {
     if (month < DateTime.january || month > DateTime.december) {
       throw ArgumentError.value(
@@ -186,6 +221,8 @@ class FinancialReportService {
       transactions: transactions,
       startDate: startDate,
       endDate: endDate,
+      category: category,
+      transactionType: transactionType,
     );
   }
 
