@@ -1,4 +1,5 @@
 import '../../../budgets/domain/models/budget_consumption.dart';
+import '../../../home/data/models/credit_card_invoice_model.dart';
 import '../../../transactions/domain/calendar/financial_calendar_entry.dart';
 import '../models/financial_insight.dart';
 import '../models/financial_intelligence_input.dart';
@@ -283,7 +284,44 @@ class FinancialIntelligenceService {
     FinancialIntelligenceInput input,
     List<FinancialInsight> insights,
   ) {
-    if (input.currentInvoices.isEmpty || input.previousInvoices.isEmpty) return;
+    final upcomingInvoice = input.currentInvoices
+        .where((invoice) => !invoice.isPaid && invoice.total > 0)
+        .where((invoice) {
+          final daysUntilDue = invoice.dueDate
+              .difference(DateTime(input.now.year, input.now.month, input.now.day))
+              .inDays;
+          return daysUntilDue >= 0 && daysUntilDue <= 7;
+        })
+        .fold<CreditCardInvoiceModel?>(null, (nearest, invoice) {
+          if (nearest == null || invoice.dueDate.isBefore(nearest.dueDate)) {
+            return invoice;
+          }
+          return nearest;
+        });
+    if (upcomingInvoice != null) {
+      insights.add(FinancialInsight(
+        id: 'card-invoice-due-${upcomingInvoice.id}',
+        type: FinancialInsightType.cardInvoice,
+        severity: FinancialInsightSeverity.attention,
+        title: 'Fatura próxima do vencimento',
+        message: 'Há uma fatura prevista para vencer nos próximos 7 dias.',
+        source: 'Fatura aberta e data de vencimento cadastrada',
+        amount: upcomingInvoice.total,
+      ));
+    }
+
+    if (input.currentInvoices.isEmpty) return;
+    if (input.previousInvoices.isEmpty) {
+      insights.add(const FinancialInsight(
+        id: 'card-invoice-insufficient-history',
+        type: FinancialInsightType.cardInvoice,
+        severity: FinancialInsightSeverity.info,
+        title: 'Histórico de fatura insuficiente',
+        message: 'Ainda não há fatura anterior para comparar este cartão.',
+        source: 'Faturas cadastradas no cartão',
+      ));
+      return;
+    }
     final current = input.currentInvoices.fold<double>(0, (sum, invoice) => sum + invoice.total);
     final previous = input.previousInvoices.fold<double>(0, (sum, invoice) => sum + invoice.total);
     if (previous <= 0 || current <= previous) return;
