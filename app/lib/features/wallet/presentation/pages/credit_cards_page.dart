@@ -435,7 +435,8 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
                               ? 0
                               : (card.usedLimit /
                                       card.creditLimit)
-                                  .clamp(0, 1),
+                                  .clamp(0, 1)
+                                  .toDouble(),
                         ),
                       ),
                       if (_controller.isProcessing(card.id))
