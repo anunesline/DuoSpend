@@ -11,6 +11,7 @@ import '../../domain/models/payment_method.dart';
 import '../../domain/purchase/services/balance_settlement_synchronizer.dart';
 import '../../domain/services/shared_transaction_confirmation_service.dart';
 import '../../domain/services/recurring_transaction_service.dart';
+import '../../domain/usecases/create_installment_transactions_usecase.dart';
 import '../../domain/usecases/create_recurring_transaction_usecase.dart';
 
 class CreateTransactionResult {
@@ -18,12 +19,14 @@ class CreateTransactionResult {
   final WalletModel transactionWallet;
   final WalletModel financialWallet;
   final FinancialSplitResult financialSplit;
+  final List<TransactionModel> transactions;
 
   const CreateTransactionResult({
     required this.transaction,
     required this.transactionWallet,
     required this.financialWallet,
     required this.financialSplit,
+    this.transactions = const [],
   });
 }
 
@@ -37,6 +40,8 @@ class CreateTransactionUseCase {
       _confirmationService;
   final CreateRecurringTransactionUseCase?
       _createRecurringTransactionUseCase;
+  final CreateInstallmentTransactionsUseCase
+      _createInstallmentTransactionsUseCase;
 
   CreateTransactionUseCase({
     required TransactionRepository transactionRepository,
@@ -48,6 +53,9 @@ class CreateTransactionUseCase {
         const SharedTransactionConfirmationService(),
     CreateRecurringTransactionUseCase?
         createRecurringTransactionUseCase,
+    CreateInstallmentTransactionsUseCase
+        createInstallmentTransactionsUseCase =
+            const CreateInstallmentTransactionsUseCase(),
   })  : _transactionRepository = transactionRepository,
         _walletRepository = walletRepository,
         _creditCardRepository =
@@ -56,7 +64,9 @@ class CreateTransactionUseCase {
         _settlementSynchronizer = settlementSynchronizer,
         _confirmationService = confirmationService,
         _createRecurringTransactionUseCase =
-            createRecurringTransactionUseCase;
+            createRecurringTransactionUseCase,
+        _createInstallmentTransactionsUseCase =
+            createInstallmentTransactionsUseCase;
 
   Future<CreateTransactionResult> call({
     required String transactionId,
@@ -79,6 +89,9 @@ class CreateTransactionUseCase {
     DateTime? recurringStartDate,
     DateTime? recurringEndDate,
     bool recurringNeverEnds = true,
+    bool isInstallment = false,
+    int installmentCount = 2,
+    DateTime? firstInstallmentDate,
     String? notes,
     PaymentMethod? paymentMethod,
     String? paymentSourceId,
@@ -112,6 +125,12 @@ class CreateTransactionUseCase {
       paymentMethod: paymentMethod,
       paymentSourceId: normalizedPaymentSourceId,
     );
+
+    if (isRecurring && isInstallment) {
+      throw Exception(
+        'Uma transação não pode ser recorrente e parcelada ao mesmo tempo.',
+      );
+    }
 
     final transactionWallet = await _resolveTransactionWallet(
       walletId: normalizedWalletId,
@@ -198,19 +217,32 @@ class CreateTransactionUseCase {
                   const RecurringTransactionService(),
             );
 
-    final transaction = recurringUseCase.execute(
-      baseTransaction,
-    );
+    final transactions = isInstallment
+        ? _createInstallmentTransactionsUseCase.execute(
+            transaction: baseTransaction,
+            installmentCount: installmentCount,
+            firstInstallmentDate:
+                firstInstallmentDate ?? DateTime.now(),
+          )
+        : <TransactionModel>[
+            recurringUseCase.execute(baseTransaction),
+          ];
+    final transaction = transactions.first;
 
     if (paymentMethod?.isCreditCard ?? false) {
-      await _creditCardRepository.registerPurchase(
-        cardId: normalizedPaymentSourceId!,
-        transactionModel: transaction,
-        transactionWallet: transactionWallet,
-      );
+      // Cada parcela é idempotente pelo próprio transactionId.
+      // O limite total fica comprometido e cada parcela entra
+      // na fatura correspondente à sua data.
+      for (final installment in transactions) {
+        await _creditCardRepository.registerPurchase(
+          cardId: normalizedPaymentSourceId!,
+          transactionModel: installment,
+          transactionWallet: transactionWallet,
+        );
+      }
     } else {
-      await _transactionRepository.addTransaction(
-        transaction,
+      await _transactionRepository.addTransactions(
+        transactions,
         wallet: transactionWallet,
       );
     }
@@ -219,7 +251,7 @@ class CreateTransactionUseCase {
       paymentMethod: paymentMethod,
       financialWallet: financialWallet,
       transactionType: type,
-      transactionValue: value,
+      transactionValue: transaction.value,
     );
 
     if (transactionWallet.isShared &&
@@ -234,6 +266,7 @@ class CreateTransactionUseCase {
       transactionWallet: transactionWallet,
       financialWallet: financialWallet,
       financialSplit: financialSplit,
+      transactions: List<TransactionModel>.unmodifiable(transactions),
     );
   }
 
