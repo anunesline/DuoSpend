@@ -115,9 +115,9 @@ class FinancialCalendarService {
       final normalizedOccurrence = _dateOnly(occurrence);
       final isOriginalOccurrence = normalizedOccurrence
           .isAtSameMomentAs(_dateOnly(transaction.date));
-      final isDeferred = _isDeferred(transaction);
       final isProjected = normalizedOccurrence.isAfter(referenceDate) ||
-          (isDeferred && !normalizedOccurrence.isBefore(referenceDate));
+          (isOriginalOccurrence &&
+              transaction.isFinanciallyPending);
 
       entries.add(
         FinancialCalendarEntry(
@@ -140,14 +140,9 @@ class FinancialCalendarService {
     required DateTime referenceDate,
   }) {
     final normalizedDate = _dateOnly(transaction.date);
-    final isDeferred = _isDeferred(transaction);
     final isCreditCard = transaction.paymentMethod == 'creditCard';
-    final isUnpaidInstallment = transaction.isInstallment &&
-        (transaction.installmentNumber ?? 1) > 1;
     final isProjected = !isCreditCard &&
-        (normalizedDate.isAfter(referenceDate) ||
-            isUnpaidInstallment ||
-            (isDeferred && !normalizedDate.isBefore(referenceDate)));
+        transaction.isFinanciallyPending;
 
     return FinancialCalendarEntry(
       id: transaction.id,
@@ -162,11 +157,6 @@ class FinancialCalendarService {
       transaction: transaction,
       referenceId: transaction.installmentGroupId,
     );
-  }
-
-  bool _isDeferred(TransactionModel transaction) {
-    return transaction.paymentMethod == 'boleto' ||
-        transaction.paymentMethod == 'carne';
   }
 
   bool _isInRange(
