@@ -342,6 +342,158 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     );
   }
 
+  Future<void> _editGoal(SavingsGoal goal) async {
+    final nameController = TextEditingController(text: goal.name);
+    final targetController = TextEditingController(
+      text: goal.targetAmount
+          .toStringAsFixed(2)
+          .replaceAll('.', ','),
+    );
+    DateTime? deadline = goal.deadline;
+
+    final input = await showDialog<_EditGoalInput>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Editar meta'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      autofocus: true,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome da meta',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: targetController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Valor-alvo',
+                        prefixText: 'R\$ ',
+                        helperText:
+                            'Reservado: ${_formatMoney(goal.savedAmount)}',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final now = DateTime.now();
+                        final today = DateTime(
+                          now.year,
+                          now.month,
+                          now.day,
+                        );
+                        final currentDeadline = deadline;
+                        final initialDate =
+                            currentDeadline != null &&
+                                    !currentDeadline.isBefore(today)
+                                ? currentDeadline
+                                : today;
+                        final pickedDate = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: initialDate,
+                          firstDate: today,
+                          lastDate: DateTime(now.year + 30),
+                          helpText: 'Prazo da meta',
+                          cancelText: 'Cancelar',
+                          confirmText: 'Selecionar',
+                        );
+
+                        if (pickedDate != null) {
+                          setDialogState(() {
+                            deadline = pickedDate;
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.event_rounded),
+                      label: Text(
+                        deadline == null
+                            ? 'Adicionar prazo'
+                            : _formatDeadline(deadline!),
+                      ),
+                    ),
+                    if (deadline != null)
+                      TextButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            deadline = null;
+                          });
+                        },
+                        child: const Text('Remover prazo'),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final targetAmount = _parseMoney(
+                      targetController.text,
+                    );
+
+                    if (nameController.text.trim().isEmpty ||
+                        targetAmount == null ||
+                        targetAmount <= 0) {
+                      return;
+                    }
+
+                    Navigator.pop(
+                      dialogContext,
+                      _EditGoalInput(
+                        name: nameController.text.trim(),
+                        targetAmount: targetAmount,
+                        deadline: deadline,
+                      ),
+                    );
+                  },
+                  child: const Text('Salvar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    nameController.dispose();
+    targetController.dispose();
+
+    if (input == null || !mounted) {
+      return;
+    }
+
+    final updatedGoal = await controller.updateGoal(
+      goal: goal,
+      name: input.name,
+      targetAmount: input.targetAmount,
+      deadline: input.deadline,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    _showMessage(
+      updatedGoal == null
+          ? controller.errorMessage ??
+              'Não foi possível editar a meta.'
+          : 'Meta atualizada.',
+    );
+  }
   Future<void> _showMovementHistory(
     SavingsGoal goal,
   ) async {
@@ -1027,6 +1179,18 @@ class _GoalHistorySheet extends StatelessWidget {
       ),
     );
   }
+}
+
+class _EditGoalInput {
+  final String name;
+  final double targetAmount;
+  final DateTime? deadline;
+
+  const _EditGoalInput({
+    required this.name,
+    required this.targetAmount,
+    required this.deadline,
+  });
 }
 
 class _NewGoalInput {
