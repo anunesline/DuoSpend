@@ -208,13 +208,20 @@ class SavingsGoalsController extends ChangeNotifier {
         targetAmount: targetAmount,
         deadline: deadline,
       );
-      goals = List.unmodifiable(
-        goals.map(
-          (currentGoal) => currentGoal.id == updatedGoal.id
-              ? updatedGoal
-              : currentGoal,
-        ),
-      );
+      final updatedGoals = goals.map(
+        (currentGoal) => currentGoal.id == updatedGoal.id
+            ? updatedGoal
+            : currentGoal,
+      ).toList()
+        ..sort((first, second) {
+          if (first.isArchived != second.isArchived) {
+            return first.isArchived ? 1 : -1;
+          }
+
+          return second.updatedAt.compareTo(first.updatedAt);
+        });
+
+      goals = List.unmodifiable(updatedGoals);
 
       return updatedGoal;
     } catch (error, stackTrace) {
