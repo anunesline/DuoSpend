@@ -1034,35 +1034,114 @@ class _GoalCard extends StatelessWidget {
   }
 }
 
-class _EmptyGoals extends StatelessWidget {
-  const _EmptyGoals();
+class _GoalFilters extends StatelessWidget {
+  final _GoalListFilter selected;
+  final int activeCount;
+  final int completedCount;
+  final int archivedCount;
+  final ValueChanged<_GoalListFilter> onSelected;
+
+  const _GoalFilters({
+    required this.selected,
+    required this.activeCount,
+    required this.completedCount,
+    required this.archivedCount,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
+    Widget chip(
+      _GoalListFilter filter,
+      String label,
+      int count,
+    ) {
+      return ChoiceChip(
+        selected: selected == filter,
+        onSelected: (_) => onSelected(filter),
+        label: Text('$label ($count)'),
+        selectedColor: DuoColors.primary.withValues(alpha: .22),
+        side: const BorderSide(color: DuoColors.border),
+        labelStyle: TextStyle(
+          color: selected == filter
+              ? DuoColors.primaryLight
+              : DuoColors.textSecondary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          chip(_GoalListFilter.active, 'Ativas', activeCount),
+          const SizedBox(width: 8),
+          chip(
+            _GoalListFilter.completed,
+            'Concluídas',
+            completedCount,
+          ),
+          const SizedBox(width: 8),
+          chip(
+            _GoalListFilter.archived,
+            'Arquivadas',
+            archivedCount,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyGoals extends StatelessWidget {
+  final _GoalListFilter filter;
+
+  const _EmptyGoals({
+    required this.filter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final title = switch (filter) {
+      _GoalListFilter.active => 'Nenhuma meta ativa',
+      _GoalListFilter.completed => 'Nenhuma meta concluída',
+      _GoalListFilter.archived => 'Nenhuma meta arquivada',
+    };
+    final description = switch (filter) {
+      _GoalListFilter.active =>
+        'Crie uma meta e reserve dinheiro das suas carteiras.',
+      _GoalListFilter.completed =>
+        'As metas finalizadas aparecerão aqui.',
+      _GoalListFilter.archived =>
+        'As metas arquivadas continuarão disponíveis aqui.',
+    };
+
     return DuoCard(
       borderRadius: 20,
       padding: const EdgeInsets.all(28),
-      child: const Column(
+      child: Column(
         children: [
-          Icon(
+          const Icon(
             Icons.savings_outlined,
             color: DuoColors.textHint,
             size: 42,
           ),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
           Text(
-            'Nenhuma meta ainda',
-            style: TextStyle(
+            title,
+            style: const TextStyle(
               color: DuoColors.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w800,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
-            'Crie uma meta e reserve dinheiro das suas carteiras.',
+            description,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: DuoColors.textSecondary,
               fontSize: 12,
             ),
