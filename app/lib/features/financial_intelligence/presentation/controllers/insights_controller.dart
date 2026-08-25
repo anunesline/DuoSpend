@@ -89,6 +89,16 @@ class InsightsController extends ChangeNotifier {
         month: previousMonth.month,
         referenceDate: reference,
       );
+      final historicalReports = _reportService
+          .buildMonthlyEvolution(
+            transactions: transactions,
+            endYear: previousMonth.year,
+            endMonth: previousMonth.month,
+            monthCount: 3,
+            referenceDate: reference,
+          )
+          .map((point) => point.report)
+          .toList();
       final budgetConsumptions = budgets
           .where((budget) =>
               !budget.isArchived &&
@@ -112,6 +122,7 @@ class InsightsController extends ChangeNotifier {
       insights = _intelligenceService.build(FinancialIntelligenceInput(
         currentMonth: currentReport,
         previousMonth: previousReport.transactions.isEmpty ? null : previousReport,
+        historicalMonths: historicalReports,
         projection: projection,
         budgets: budgetConsumptions,
         goals: goals,
