@@ -2,6 +2,7 @@ enum FinancialInsightType {
   insufficientData,
   budget,
   projectedBalance,
+  cashFlowRisk,
   goal,
   spendingTrend,
   recurring,
