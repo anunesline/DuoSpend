@@ -167,6 +167,67 @@ class SavingsGoalRepository {
     );
   }
 
+  Future<SavingsGoal> archive({
+    required String goalId,
+    DateTime? archivedAt,
+  }) async {
+    final userId = _requireUserId();
+    final normalizedGoalId = goalId.trim();
+
+    if (normalizedGoalId.isEmpty) {
+      throw ArgumentError.value(goalId, 'goalId', 'Informe a meta.');
+    }
+
+    final goalReference = _goalReference(normalizedGoalId);
+    final archiveDate = archivedAt ?? DateTime.now();
+
+    return _firestore.runTransaction((transaction) async {
+      final goalDocument = await transaction.get(goalReference);
+
+      if (!goalDocument.exists || goalDocument.data() == null) {
+        throw StateError('Meta não encontrada.');
+      }
+
+      final goal = SavingsGoalModel.fromMap(
+        goalDocument.data()!,
+        documentId: goalDocument.id,
+      );
+
+      if (!goal.hasMember(userId)) {
+        throw StateError('Usuário sem acesso à meta.');
+      }
+
+      if (goal.createdByUserId != userId) {
+        throw StateError(
+          'Somente o responsável pela meta pode arquivá-la.',
+        );
+      }
+
+      if (goal.isArchived) {
+        return goal;
+      }
+
+      if (goal.savedAmount > 0) {
+        throw StateError(
+          'Retire o valor reservado antes de arquivar a meta.',
+        );
+      }
+
+      final archivedGoal = goal.copyWith(
+        status: SavingsGoalStatus.archived,
+        updatedAt: archiveDate,
+      );
+
+      transaction.set(
+        goalReference,
+        SavingsGoalModel.toMap(archivedGoal),
+        SetOptions(merge: true),
+      );
+
+      return archivedGoal;
+    });
+  }
+
   Future<SavingsGoal> _moveMoney({
     required String goalId,
     required WalletModel financialWallet,
