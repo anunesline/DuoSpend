@@ -12,6 +12,7 @@ import '../../../transactions/presentation/controllers/purchase_controller.dart'
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
 import '../../../transactions/presentation/pages/history_page.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
+import '../../../wallet/presentation/pages/credit_cards_page.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/transactions_preview.dart';
@@ -118,6 +119,19 @@ class _HomePageState extends State<HomePage> {
     await controller.loadHome();
   }
 
+  Future<void> _openCreditCardsPage() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreditCardsPage(
+          individualWallets: controller.individualWallets,
+        ),
+      ),
+    );
+
+    await _loadHome();
+  }
+
   Future<void> _openWalletSelector() async {
     if (!controller.hasWallets) {
       await _showCreateIndividualWalletDialog();
@@ -179,6 +193,17 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.credit_card_rounded),
+                  title: const Text('Cartões e faturas'),
+                  subtitle: const Text(
+                    'Gerencie cartões, limites e pagamentos.',
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _openCreditCardsPage();
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.add_rounded),
                   title: const Text('Nova carteira'),
