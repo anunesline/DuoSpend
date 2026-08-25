@@ -41,10 +41,7 @@ class FinancialCalendarService {
 
       if (_isInRange(transaction.date, rangeStart, rangeEnd)) {
         entries.add(
-          _entryFromTransaction(
-            transaction,
-            referenceDate: referenceDate,
-          ),
+          _entryFromTransaction(transaction),
         );
       }
     }
@@ -136,10 +133,8 @@ class FinancialCalendarService {
   }
 
   FinancialCalendarEntry _entryFromTransaction(
-    TransactionModel transaction, {
-    required DateTime referenceDate,
-  }) {
-    final normalizedDate = _dateOnly(transaction.date);
+    TransactionModel transaction,
+  ) {
     final isCreditCard = transaction.paymentMethod == 'creditCard';
     final isProjected = !isCreditCard &&
         transaction.isFinanciallyPending;
