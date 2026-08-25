@@ -341,6 +341,53 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     );
   }
 
+  Future<void> _archiveGoal(SavingsGoal goal) async {
+    if (goal.savedAmount > 0) {
+      _showMessage(
+        'Retire todo o valor reservado antes de arquivar.',
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Arquivar meta?'),
+          content: Text(
+            '“${goal.name}” sairá dos totais e ficará no histórico.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Arquivar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final archivedGoal = await controller.archiveGoal(goal);
+
+    if (!mounted) {
+      return;
+    }
+
+    _showMessage(
+      archivedGoal == null
+          ? controller.errorMessage ??
+              'Não foi possível arquivar a meta.'
+          : 'Meta arquivada.',
+    );
+  }
   double? _parseMoney(String value) {
     final normalized = value
         .trim()
@@ -548,6 +595,7 @@ class _GoalCard extends StatelessWidget {
   final bool isProcessing;
   final VoidCallback? onContribute;
   final VoidCallback? onWithdraw;
+  final VoidCallback? onArchive;
 
   const _GoalCard({
     required this.goal,
@@ -558,6 +606,7 @@ class _GoalCard extends StatelessWidget {
     required this.isProcessing,
     required this.onContribute,
     required this.onWithdraw,
+    required this.onArchive,
   });
 
   @override
