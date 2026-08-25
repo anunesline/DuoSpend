@@ -169,16 +169,29 @@ class CreditCardRepository {
 
     final snapshot = await _cardReference(card.id)
         .collection(_invoicesCollection)
-        .orderBy('referenceYear', descending: true)
-        .orderBy('referenceMonth', descending: true)
         .get();
+    final invoices = snapshot.docs
+        .map(
+          (document) => CreditCardInvoiceModel.fromMap(
+            document.data(),
+          ),
+        )
+        .toList(growable: true)
+      ..sort((first, second) {
+        final yearComparison =
+            second.referenceYear.compareTo(first.referenceYear);
+
+        if (yearComparison != 0) {
+          return yearComparison;
+        }
+
+        return second.referenceMonth.compareTo(
+          first.referenceMonth,
+        );
+      });
 
     return List<CreditCardInvoiceModel>.unmodifiable(
-      snapshot.docs.map(
-        (document) => CreditCardInvoiceModel.fromMap(
-          document.data(),
-        ),
-      ),
+      invoices,
     );
   }
 
@@ -213,6 +226,12 @@ class CreditCardRepository {
     if (paidByMemberId != userId) {
       throw StateError(
         'Somente o titular pode registrar uma compra neste cartão.',
+      );
+    }
+
+    if (transactionModel.type != 'expense') {
+      throw StateError(
+        'Somente despesas podem ser lançadas no cartão de crédito.',
       );
     }
 
@@ -538,8 +557,13 @@ class CreditCardRepository {
     }
 
     final data = document.data()!;
-    final ownerId = data['ownerId']?.toString().trim() ?? '';
-    final type = data['type']?.toString().trim() ?? '';
+    final isLegacyMainWallet = document.reference.path ==
+        '$_usersCollection/$ownerMemberId/'
+        '$_walletsCollection/$_legacyMainWalletId';
+    final ownerId = data['ownerId']?.toString().trim() ??
+        (isLegacyMainWallet ? ownerMemberId : '');
+    final type = data['type']?.toString().trim() ??
+        (isLegacyMainWallet ? 'individual' : '');
 
     if (ownerId != ownerMemberId || type != 'individual') {
       throw StateError(
