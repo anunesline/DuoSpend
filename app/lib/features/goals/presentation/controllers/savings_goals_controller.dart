@@ -32,13 +32,13 @@ class SavingsGoalsController extends ChangeNotifier {
   double get totalSaved {
     return goals
         .where((goal) => !goal.isArchived)
-        .fold(0, (total, goal) => total + goal.savedAmount);
+        .fold<double>(0, (total, goal) => total + goal.savedAmount);
   }
 
   double get totalTarget {
     return goals
         .where((goal) => !goal.isArchived)
-        .fold(0, (total, goal) => total + goal.targetAmount);
+        .fold<double>(0, (total, goal) => total + goal.targetAmount);
   }
 
   int get activeGoalCount {
