@@ -3,7 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../home/data/models/wallet_model.dart';
 import '../../domain/models/savings_goal.dart';
+import '../../domain/models/savings_goal_movement.dart';
 import '../models/savings_goal_model.dart';
+import '../models/savings_goal_movement_model.dart';
 
 class SavingsGoalRepository {
   static const _goalsCollection = 'savingsGoals';
@@ -131,6 +133,49 @@ class SavingsGoalRepository {
     }
 
     return goal;
+  }
+
+  Future<List<SavingsGoalMovement>> getMovements({
+    required String goalId,
+  }) async {
+    final userId = _requireUserId();
+    final normalizedGoalId = goalId.trim();
+
+    if (normalizedGoalId.isEmpty) {
+      return const [];
+    }
+
+    final goalReference = _goalReference(normalizedGoalId);
+    final goalDocument = await goalReference.get();
+
+    if (!goalDocument.exists || goalDocument.data() == null) {
+      throw StateError('Meta não encontrada.');
+    }
+
+    final goal = SavingsGoalModel.fromMap(
+      goalDocument.data()!,
+      documentId: goalDocument.id,
+    );
+
+    if (!goal.hasMember(userId)) {
+      throw StateError('Usuário sem acesso à meta.');
+    }
+
+    final snapshot = await goalReference
+        .collection(_movementsCollection)
+        .get();
+    final movements = snapshot.docs.map(
+      (document) => SavingsGoalMovementModel.fromMap(
+        document.data(),
+        documentId: document.id,
+      ),
+    ).toList()
+      ..sort(
+        (first, second) =>
+            second.occurredAt.compareTo(first.occurredAt),
+      );
+
+    return List.unmodifiable(movements);
   }
 
   Future<SavingsGoal> contribute({
