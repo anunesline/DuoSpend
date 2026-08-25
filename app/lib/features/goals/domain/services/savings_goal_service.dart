@@ -118,6 +118,78 @@ class SavingsGoalService {
     );
   }
 
+  SavingsGoal update({
+    required SavingsGoal goal,
+    required String name,
+    required double targetAmount,
+    DateTime? deadline,
+    DateTime? now,
+  }) {
+    if (goal.isArchived) {
+      throw StateError('Metas arquivadas não podem ser editadas.');
+    }
+
+    final normalizedName = name.trim();
+
+    if (normalizedName.isEmpty) {
+      throw ArgumentError.value(
+        name,
+        'name',
+        'Informe um nome para a meta.',
+      );
+    }
+
+    if (!targetAmount.isFinite || targetAmount <= 0) {
+      throw ArgumentError.value(
+        targetAmount,
+        'targetAmount',
+        'O valor-alvo deve ser maior que zero.',
+      );
+    }
+
+    if (targetAmount < goal.savedAmount) {
+      throw StateError(
+        'O valor-alvo não pode ser menor que o valor reservado.',
+      );
+    }
+
+    final currentTime = now ?? DateTime.now();
+    final normalizedDeadline = deadline == null
+        ? null
+        : DateTime(deadline.year, deadline.month, deadline.day);
+    final today = DateTime(
+      currentTime.year,
+      currentTime.month,
+      currentTime.day,
+    );
+    final keepsLegacyDeadline = normalizedDeadline != null &&
+        goal.deadline != null &&
+        normalizedDeadline.year == goal.deadline!.year &&
+        normalizedDeadline.month == goal.deadline!.month &&
+        normalizedDeadline.day == goal.deadline!.day;
+
+    if (normalizedDeadline != null &&
+        normalizedDeadline.isBefore(today) &&
+        !keepsLegacyDeadline) {
+      throw ArgumentError.value(
+        deadline,
+        'deadline',
+        'O prazo da meta não pode estar no passado.',
+      );
+    }
+
+    return goal.copyWith(
+      name: normalizedName,
+      targetAmount: targetAmount,
+      deadline: normalizedDeadline,
+      clearDeadline: normalizedDeadline == null,
+      status: goal.savedAmount >= targetAmount
+          ? SavingsGoalStatus.completed
+          : SavingsGoalStatus.active,
+      updatedAt: currentTime,
+    );
+  }
+
   SavingsGoal contribute({
     required SavingsGoal goal,
     required double amount,
