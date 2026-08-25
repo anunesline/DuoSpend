@@ -53,6 +53,14 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     );
   }
 
+  List<MonthlyFinancialPoint> get _evolution {
+    return _reportService.buildMonthlyEvolution(
+      transactions: widget.transactions,
+      endYear: _selectedMonth.year,
+      endMonth: _selectedMonth.month,
+    );
+  }
+
   String get _monthLabel {
     final label = DateFormat('MMMM yyyy', 'pt_BR').format(_selectedMonth);
 
@@ -79,6 +87,7 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
   @override
   Widget build(BuildContext context) {
     final comparison = _comparison;
+    final evolution = _evolution;
     final report = comparison.current;
 
     return Scaffold(
@@ -135,6 +144,11 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
             const SizedBox(height: 20),
             _MonthlyComparisonCard(
               comparison: comparison,
+              formatMoney: _formatMoney,
+            ),
+            const SizedBox(height: 20),
+            _FinancialEvolutionCard(
+              points: evolution,
               formatMoney: _formatMoney,
             ),
             const SizedBox(height: 28),
@@ -409,6 +423,235 @@ class _ValueCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FinancialEvolutionCard extends StatelessWidget {
+  final List<MonthlyFinancialPoint> points;
+  final String Function(double) formatMoney;
+
+  const _FinancialEvolutionCard({
+    required this.points,
+    required this.formatMoney,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    var maximum = 0.0;
+
+    for (final point in points) {
+      if (point.income > maximum) {
+        maximum = point.income;
+      }
+
+      if (point.expense > maximum) {
+        maximum = point.expense;
+      }
+    }
+
+    return DuoCard(
+      borderRadius: 20,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Evolução financeira',
+            style: TextStyle(
+              color: DuoColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Receitas e despesas dos últimos 6 meses',
+            style: TextStyle(
+              color: DuoColors.textSecondary,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Row(
+            children: [
+              _LegendDot(
+                label: 'Receitas',
+                color: DuoColors.success,
+              ),
+              SizedBox(width: 16),
+              _LegendDot(
+                label: 'Despesas',
+                color: DuoColors.error,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 142,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var index = 0; index < points.length; index++)
+                  Expanded(
+                    child: _EvolutionMonthColumn(
+                      point: points[index],
+                      maximum: maximum,
+                      isSelected: index == points.length - 1,
+                      formatMoney: formatMoney,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _LegendDot({
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            color: DuoColors.textSecondary,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EvolutionMonthColumn extends StatelessWidget {
+  final MonthlyFinancialPoint point;
+  final double maximum;
+  final bool isSelected;
+  final String Function(double) formatMoney;
+
+  const _EvolutionMonthColumn({
+    required this.point,
+    required this.maximum,
+    required this.isSelected,
+    required this.formatMoney,
+  });
+
+  double _heightFor(double value) {
+    if (value <= 0 || maximum <= 0) {
+      return 3;
+    }
+
+    return 6 + (value / maximum) * 82;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final balanceColor =
+        point.balance >= 0 ? DuoColors.success : DuoColors.error;
+    final monthLabel = DateFormat(
+      'MMM',
+      'pt_BR',
+    ).format(point.month).replaceAll('.', '').toUpperCase();
+
+    return Tooltip(
+      message: 'Resultado: ${formatMoney(point.balance)}',
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _EvolutionBar(
+                  height: _heightFor(point.income),
+                  color: DuoColors.success,
+                ),
+                const SizedBox(width: 3),
+                _EvolutionBar(
+                  height: _heightFor(point.expense),
+                  color: DuoColors.error,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 7),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              point.balance == 0
+                  ? 'R\$ 0'
+                  : formatMoney(point.balance),
+              maxLines: 1,
+              style: TextStyle(
+                color: balanceColor,
+                fontSize: 8,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            monthLabel,
+            style: TextStyle(
+              color: isSelected
+                  ? DuoColors.primaryLight
+                  : DuoColors.textHint,
+              fontSize: 9,
+              fontWeight:
+                  isSelected ? FontWeight.w900 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EvolutionBar extends StatelessWidget {
+  final double height;
+  final Color color;
+
+  const _EvolutionBar({
+    required this.height,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      width: 8,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(4),
+        ),
       ),
     );
   }
