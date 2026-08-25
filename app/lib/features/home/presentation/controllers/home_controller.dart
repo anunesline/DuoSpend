@@ -747,7 +747,24 @@ class HomeController extends ChangeNotifier {
     var income = 0.0;
     var expense = 0.0;
 
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
     for (final transaction in transactions) {
+      final transactionDate = DateTime(
+        transaction.date.year,
+        transaction.date.month,
+        transaction.date.day,
+      );
+      final method = transaction.paymentMethod;
+      final isDeferred = method == 'creditCard' ||
+          method == 'boleto' ||
+          method == 'carne';
+
+      if (transactionDate.isAfter(today) || isDeferred) {
+        continue;
+      }
+
       if (transaction.type == 'income') {
         income += transaction.value;
       } else if (transaction.type == 'expense') {
