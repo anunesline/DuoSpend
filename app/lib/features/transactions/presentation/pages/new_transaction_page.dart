@@ -7,12 +7,15 @@ import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
+import '../../../home/data/models/credit_card_model.dart';
 import '../../../home/data/models/wallet_model.dart';
+import '../../../home/data/repositories/credit_card_repository.dart';
 import '../../../auth/data/repositories/user_repository.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../domain/financial_split/financial_split_configuration.dart';
 import '../../domain/financial_split/financial_split_configuration_resolver.dart';
 import '../../domain/financial_split/financial_split_rules.dart';
+import '../../domain/models/payment_method.dart';
 import '../../domain/purchase/commands/create_purchase_command.dart';
 import '../../domain/purchase/models/purchase_item_model.dart';
 import '../controllers/purchase_controller.dart';
@@ -64,6 +67,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       const FinancialSplitConfigurationResolver();
 
   final UserRepository _userRepository = UserRepository();
+  final CreditCardRepository _creditCardRepository =
+      CreditCardRepository();
 
   String? _partnerDisplayName;
   String? _loadedPartnerMemberId;
@@ -79,6 +84,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   String? selectedPurchaseDestination;
 
   String? selectedFinancialWalletId;
+
+  PaymentMethod selectedPaymentMethod = PaymentMethod.pix;
+  String? selectedCreditCardId;
+  List<CreditCardModel> _creditCards = const [];
 
   bool isRecurring = false;
   String recurringFrequency = 'monthly';
@@ -102,6 +111,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeFinancialWalletSelection();
+      _loadCreditCards();
       _loadPartnerDisplayName();
     });
   }
@@ -538,6 +548,63 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     });
   }
 
+  Future<void> _loadCreditCards() async {
+    try {
+      final cards =
+          await _creditCardRepository.getActiveCards();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _creditCards = cards;
+
+        if (selectedCreditCardId == null &&
+            cards.isNotEmpty) {
+          selectedCreditCardId = cards.first.id;
+        }
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _creditCards = const [];
+        selectedCreditCardId = null;
+      });
+    }
+  }
+
+  void _changePaymentMethod(PaymentMethod method) {
+    setState(() {
+      selectedPaymentMethod = method;
+
+      if (method.isCreditCard &&
+          selectedCreditCardId == null &&
+          _creditCards.isNotEmpty) {
+        selectedCreditCardId = _creditCards.first.id;
+      }
+    });
+  }
+
+  CreditCardModel? _selectedCreditCard() {
+    final selectedId = selectedCreditCardId;
+
+    if (selectedId == null) {
+      return null;
+    }
+
+    for (final card in _creditCards) {
+      if (card.id == selectedId) {
+        return card;
+      }
+    }
+
+    return null;
+  }
+
   void _changePurchaseDestination(String value) {
     setState(() {
       selectedPurchaseDestination = value;
@@ -762,9 +829,33 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       selectedPurchaseDestination,
     );
 
-    final financialWalletId = payerMemberId == user.uid
+    var financialWalletId = payerMemberId == user.uid
         ? _resolveSelectedFinancialWalletId()
         : null;
+    String? paymentSourceId;
+
+    if (selectedPaymentMethod.isCreditCard) {
+      if (payerMemberId != user.uid) {
+        _showMessage(
+          'Somente o titular pode lançar uma compra no próprio cartão.',
+        );
+        return;
+      }
+
+      final selectedCard = _selectedCreditCard();
+
+      if (selectedCard == null) {
+        _showMessage(
+          'Cadastre ou selecione um cartão de crédito.',
+        );
+        return;
+      }
+
+      financialWalletId = selectedCard.walletId;
+      paymentSourceId = selectedCard.id;
+    } else if (selectedPaymentMethod.requiresPaymentSource) {
+      paymentSourceId = financialWalletId;
+    }
 
     if (payerMemberId == user.uid &&
         financialWalletId == null) {
@@ -843,6 +934,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
             isRecurring ? recurringNeverEnds : true,
         notes: notesController.text,
         financialWalletId: financialWalletId,
+        paymentMethod: selectedPaymentMethod,
+        paymentSourceId: paymentSourceId,
       );
 
       if (!mounted) {
@@ -876,6 +969,80 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+  }
+
+  Widget _buildPaymentSection({
+    required bool enabled,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          children: [
+            DropdownButtonFormField<PaymentMethod>(
+              initialValue: selectedPaymentMethod,
+              decoration: const InputDecoration(
+                labelText: 'Forma de pagamento',
+                prefixIcon: Icon(Icons.payments_outlined),
+              ),
+              items: PaymentMethod.values.map((method) {
+                return DropdownMenuItem<PaymentMethod>(
+                  value: method,
+                  child: Text(method.label),
+                );
+              }).toList(growable: false),
+              onChanged: !enabled
+                  ? null
+                  : (method) {
+                      if (method != null) {
+                        _changePaymentMethod(method);
+                      }
+                    },
+            ),
+            if (selectedPaymentMethod.isCreditCard) ...[
+              const SizedBox(height: AppSpacing.lg),
+              DropdownButtonFormField<String>(
+                key: ValueKey(
+                  'credit-card-${selectedCreditCardId ?? 'none'}',
+                ),
+                initialValue: _selectedCreditCard()?.id,
+                decoration: const InputDecoration(
+                  labelText: 'Cartão',
+                  prefixIcon: Icon(Icons.credit_card_rounded),
+                  helperText:
+                      'A compra entrará na fatura e não debitará a conta agora.',
+                ),
+                items: _creditCards.map((card) {
+                  return DropdownMenuItem<String>(
+                    value: card.id,
+                    child: Text(
+                      card.lastFourDigits == null
+                          ? card.name
+                          : '${card.name} •••• ${card.lastFourDigits}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(growable: false),
+                onChanged: !enabled || _creditCards.isEmpty
+                    ? null
+                    : (cardId) {
+                        setState(() {
+                          selectedCreditCardId = cardId;
+                        });
+                      },
+              ),
+              if (_creditCards.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: Text(
+                    'Nenhum cartão cadastrado. Adicione um pela Home.',
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildFinancialWalletSection({
@@ -941,6 +1108,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     );
     final currentUserIndividualWallets =
         _currentUserIndividualWallets();
+    final shouldShowFinancialWallet =
+        currentUser != null &&
+        resolvedPayerMemberId == currentUser.uid &&
+        selectedPaymentMethod.affectsBalanceImmediately;
 
     return Scaffold(
       appBar: AppBar(
@@ -1007,14 +1178,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                 const SizedBox(
                   height: AppSpacing.lg,
                 ),
-                if (currentUser != null &&
-                    resolvedPayerMemberId == currentUser.uid)
+                _buildPaymentSection(
+                  enabled: !isSaving,
+                ),
+                const SizedBox(
+                  height: AppSpacing.lg,
+                ),
+                if (shouldShowFinancialWallet)
                   _buildFinancialWalletSection(
                     wallets: currentUserIndividualWallets,
                     enabled: !isSaving,
                   ),
-                if (currentUser != null &&
-                    resolvedPayerMemberId == currentUser.uid)
+                if (shouldShowFinancialWallet)
                   const SizedBox(
                     height: AppSpacing.lg,
                   ),
