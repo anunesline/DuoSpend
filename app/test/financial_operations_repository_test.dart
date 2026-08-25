@@ -460,5 +460,74 @@ void main() {
       expect(savedWallet.data()!['balance'], 50);
       expect(savedGoal.data()!['savedAmount'], 0);
     });
+
+    test('arquivamento vazio é idempotente', () async {
+      final firestore = FakeFirebaseFirestore();
+      final goal = SavingsGoal(
+        id: 'goal-to-archive',
+        name: 'Meta vazia',
+        targetAmount: 500,
+        walletId: 'context-wallet',
+        createdByUserId: userId,
+        memberIds: const [userId],
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 1),
+      );
+
+      await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .set(SavingsGoalModel.toMap(goal));
+
+      final repository = SavingsGoalRepository(
+        firestore: firestore,
+        auth: signedInAuth(),
+      );
+
+      await repository.archive(goalId: goal.id);
+      final secondResult = await repository.archive(
+        goalId: goal.id,
+      );
+
+      expect(secondResult.isArchived, isTrue);
+    });
+
+    test('meta com dinheiro reservado não pode ser arquivada', () async {
+      final firestore = FakeFirebaseFirestore();
+      final goal = SavingsGoal(
+        id: 'funded-goal',
+        name: 'Meta com saldo',
+        targetAmount: 500,
+        savedAmount: 100,
+        walletId: 'context-wallet',
+        createdByUserId: userId,
+        memberIds: const [userId],
+        createdAt: DateTime(2026, 8, 1),
+        updatedAt: DateTime(2026, 8, 1),
+      );
+
+      await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .set(SavingsGoalModel.toMap(goal));
+
+      final repository = SavingsGoalRepository(
+        firestore: firestore,
+        auth: signedInAuth(),
+      );
+
+      expect(
+        repository.archive(goalId: goal.id),
+        throwsStateError,
+      );
+
+      final persisted = await firestore
+          .collection('savingsGoals')
+          .doc(goal.id)
+          .get();
+
+      expect(persisted.data()!['status'], 'active');
+      expect(persisted.data()!['savedAmount'], 100);
+    });
   });
 }
