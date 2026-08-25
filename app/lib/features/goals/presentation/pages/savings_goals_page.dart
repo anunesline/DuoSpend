@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/design_system/duo_card.dart';
 import '../../../../core/design_system/duo_colors.dart';
+import '../../../../core/utils/money_parser.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../domain/models/savings_goal.dart';
 import '../../domain/models/savings_goal_movement.dart';
@@ -583,13 +584,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     );
   }
   double? _parseMoney(String value) {
-    final normalized = value
-        .trim()
-        .replaceAll(RegExp(r'[^0-9,.-]'), '')
-        .replaceAll('.', '')
-        .replaceAll(',', '.');
-
-    return double.tryParse(normalized);
+    return parseMoneyInput(value);
   }
 
   void _showMessage(String message) {
