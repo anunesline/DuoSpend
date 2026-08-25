@@ -179,6 +179,60 @@ class SavingsGoalsController extends ChangeNotifier {
     );
   }
 
+  Future<SavingsGoal?> updateGoal({
+    required SavingsGoal goal,
+    required String name,
+    required double targetAmount,
+    DateTime? deadline,
+  }) async {
+    if (isProcessing) {
+      return null;
+    }
+
+    isProcessing = true;
+    processingGoalId = goal.id;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      _service.update(
+        goal: goal,
+        name: name,
+        targetAmount: targetAmount,
+        deadline: deadline,
+      );
+
+      final updatedGoal = await _repository.update(
+        goalId: goal.id,
+        name: name,
+        targetAmount: targetAmount,
+        deadline: deadline,
+      );
+      goals = List.unmodifiable(
+        goals.map(
+          (currentGoal) => currentGoal.id == updatedGoal.id
+              ? updatedGoal
+              : currentGoal,
+        ),
+      );
+
+      return updatedGoal;
+    } catch (error, stackTrace) {
+      debugPrint('Erro ao editar meta: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      errorMessage = _friendlyError(
+        error,
+        fallback: 'Não foi possível editar a meta.',
+      );
+
+      return null;
+    } finally {
+      isProcessing = false;
+      processingGoalId = null;
+      notifyListeners();
+    }
+  }
+
   Future<SavingsGoal?> archiveGoal(SavingsGoal goal) async {
     if (isProcessing) {
       return null;
@@ -315,6 +369,10 @@ class SavingsGoalsController extends ChangeNotifier {
 
     if (message.contains('Retire o valor reservado')) {
       return 'Retire todo o valor reservado antes de arquivar.';
+    }
+
+    if (message.contains('menor que o valor reservado')) {
+      return 'O valor-alvo não pode ser menor que o total reservado.';
     }
 
     if (error is ArgumentError || error is StateError) {
