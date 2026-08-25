@@ -84,6 +84,51 @@ class FinancialReportService {
     );
   }
 
+  List<MonthlyFinancialPoint> buildMonthlyEvolution({
+    required List<TransactionModel> transactions,
+    required int endYear,
+    required int endMonth,
+    int monthCount = 6,
+  }) {
+    if (endMonth < DateTime.january ||
+        endMonth > DateTime.december) {
+      throw ArgumentError.value(
+        endMonth,
+        'endMonth',
+        'O mês deve estar entre 1 e 12.',
+      );
+    }
+
+    if (monthCount < 1 || monthCount > 24) {
+      throw ArgumentError.value(
+        monthCount,
+        'monthCount',
+        'A evolução deve possuir entre 1 e 24 meses.',
+      );
+    }
+
+    final end = DateTime(endYear, endMonth);
+    final points = <MonthlyFinancialPoint>[];
+
+    for (var offset = monthCount - 1; offset >= 0; offset--) {
+      final month = DateTime(end.year, end.month - offset);
+      final report = buildMonthly(
+        transactions: transactions,
+        year: month.year,
+        month: month.month,
+      );
+
+      points.add(
+        MonthlyFinancialPoint(
+          month: month,
+          report: report,
+        ),
+      );
+    }
+
+    return List.unmodifiable(points);
+  }
+
   FinancialReportComparison compareMonthly({
     required List<TransactionModel> transactions,
     required int year,
