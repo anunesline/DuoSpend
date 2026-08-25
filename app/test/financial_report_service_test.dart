@@ -274,5 +274,61 @@ void main() {
       expect(comparison.income.difference, 1000);
     });
 
+    test('monta evolução cronológica dos últimos seis meses', () {
+      final evolution = service.buildMonthlyEvolution(
+        transactions: [
+          transaction(
+            id: 'march',
+            value: 100,
+            type: 'income',
+            date: DateTime(2026, 3, 5),
+          ),
+          transaction(
+            id: 'august',
+            value: 80,
+            type: 'expense',
+            date: DateTime(2026, 8, 5),
+          ),
+        ],
+        endYear: 2026,
+        endMonth: DateTime.august,
+      );
+
+      expect(evolution, hasLength(6));
+      expect(evolution.first.month, DateTime(2026, 3));
+      expect(evolution.last.month, DateTime(2026, 8));
+      expect(evolution.first.income, 100);
+      expect(evolution.last.expense, 80);
+    });
+
+    test('evolução atravessa a virada do ano e valida quantidade', () {
+      final evolution = service.buildMonthlyEvolution(
+        transactions: const [],
+        endYear: 2026,
+        endMonth: DateTime.february,
+        monthCount: 4,
+      );
+
+      expect(
+        evolution.map((point) => point.month).toList(),
+        [
+          DateTime(2025, 11),
+          DateTime(2025, 12),
+          DateTime(2026, 1),
+          DateTime(2026, 2),
+        ],
+      );
+
+      expect(
+        () => service.buildMonthlyEvolution(
+          transactions: const [],
+          endYear: 2026,
+          endMonth: 1,
+          monthCount: 0,
+        ),
+        throwsArgumentError,
+      );
+    });
+
   });
 }
