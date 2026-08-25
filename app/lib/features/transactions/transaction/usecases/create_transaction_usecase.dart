@@ -217,7 +217,7 @@ class CreateTransactionUseCase {
                   const RecurringTransactionService(),
             );
 
-    final transactions = isInstallment
+    final generatedTransactions = isInstallment
         ? _createInstallmentTransactionsUseCase.execute(
             transaction: baseTransaction,
             installmentCount: installmentCount,
@@ -227,6 +227,12 @@ class CreateTransactionUseCase {
         : <TransactionModel>[
             recurringUseCase.execute(baseTransaction),
           ];
+    final transactions = isInstallment
+        ? _applyInstallmentShares(
+            transactions: generatedTransactions,
+            totalShares: financialSplit.memberShares,
+          )
+        : generatedTransactions;
     final transaction = transactions.first;
 
     if (paymentMethod?.isCreditCard ?? false) {
@@ -247,12 +253,23 @@ class CreateTransactionUseCase {
       );
     }
 
-    await _applyImmediateFinancialImpact(
-      paymentMethod: paymentMethod,
-      financialWallet: financialWallet,
-      transactionType: type,
-      transactionValue: transaction.value,
-    );
+    final now = DateTime.now();
+    final firstInstallmentIsDue =
+        !isInstallment ||
+        !DateTime(
+          transaction.date.year,
+          transaction.date.month,
+          transaction.date.day,
+        ).isAfter(DateTime(now.year, now.month, now.day));
+
+    if (firstInstallmentIsDue) {
+      await _applyImmediateFinancialImpact(
+        paymentMethod: paymentMethod,
+        financialWallet: financialWallet,
+        transactionType: type,
+        transactionValue: transaction.value,
+      );
+    }
 
     if (transactionWallet.isShared &&
         confirmationDecision.shouldSynchronizeSettlement) {
@@ -268,6 +285,71 @@ class CreateTransactionUseCase {
       financialSplit: financialSplit,
       transactions: List<TransactionModel>.unmodifiable(transactions),
     );
+  }
+
+  List<TransactionModel> _applyInstallmentShares({
+    required List<TransactionModel> transactions,
+    required Map<String, double> totalShares,
+  }) {
+    if (transactions.isEmpty || totalShares.isEmpty) {
+      return transactions;
+    }
+
+    final memberIds = totalShares.keys.toList(growable: false);
+    final remainingByMember = <String, int>{
+      for (final memberId in memberIds)
+        memberId: ((totalShares[memberId] ?? 0) * 100).round(),
+    };
+    final totalInCents = transactions.fold<int>(
+      0,
+      (sum, transaction) =>
+          sum + (transaction.value * 100).round(),
+    );
+    var processedInCents = 0;
+    final result = <TransactionModel>[];
+
+    for (var index = 0; index < transactions.length; index++) {
+      final transaction = transactions[index];
+      final installmentInCents =
+          (transaction.value * 100).round();
+      final isLast = index == transactions.length - 1;
+      final shares = <String, double>{};
+      var allocatedInCents = 0;
+
+      for (var memberIndex = 0;
+          memberIndex < memberIds.length;
+          memberIndex++) {
+        final memberId = memberIds[memberIndex];
+        final isLastMember =
+            memberIndex == memberIds.length - 1;
+        final remaining =
+            remainingByMember[memberId] ?? 0;
+        final memberCents = isLast
+            ? remaining
+            : isLastMember
+                ? installmentInCents - allocatedInCents
+                : ((totalShares[memberId] ?? 0) *
+                            100 *
+                            installmentInCents /
+                            totalInCents)
+                        .round()
+                        .clamp(0, remaining);
+
+        shares[memberId] = memberCents / 100;
+        remainingByMember[memberId] =
+            remaining - memberCents;
+        allocatedInCents += memberCents;
+      }
+
+      processedInCents += installmentInCents;
+      result.add(transaction.copyWith(memberShares: shares));
+    }
+
+    if (processedInCents != totalInCents) {
+      throw StateError('Falha ao distribuir as parcelas.');
+    }
+
+    return List<TransactionModel>.unmodifiable(result);
   }
 
   Future<WalletModel> _resolveTransactionWallet({
