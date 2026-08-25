@@ -50,8 +50,22 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
   }
 
   String _monthLabel(DateTime month) {
-    final formatted = DateFormat('MMMM yyyy', 'pt_BR').format(month);
-    return formatted[0].toUpperCase() + formatted.substring(1);
+    const months = [
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
+    ];
+
+    return '${months[month.month - 1]} ${month.year}';
   }
 
   String _entryLabel(FinancialCalendarEntry entry) {
@@ -141,10 +155,8 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
                           ),
                           if (controller.selectedDay != null)
                             TextButton(
-                              onPressed: () {
-                                controller.selectedDay = null;
-                                controller.notifyListeners();
-                              },
+                              onPressed:
+                                  controller.clearDaySelection,
                               child: const Text('Ver mês'),
                             ),
                         ],
