@@ -163,6 +163,17 @@ class TransactionModel {
   /// Permanece separado de walletId e paidByMemberId.
   final String? paymentSourceId;
 
+  /// Estado da movimentação na carteira financeira.
+  ///
+  /// Valores:
+  /// - pending: ainda não movimentou o saldo;
+  /// - settled: saldo já movimentado;
+  /// - invoice: será liquidada pelo pagamento da fatura.
+  final String financialStatus;
+
+  /// Momento em que a obrigação movimentou o saldo real.
+  final DateTime? financialSettledAt;
+
   final String category;
   final String subcategory;
 
@@ -202,11 +213,19 @@ class TransactionModel {
     this.installmentNumber,
     this.installmentGroupId,
     this.paymentSourceId,
+    this.financialStatus = 'settled',
+    this.financialSettledAt,
     required this.category,
     required this.subcategory,
     this.notes,
     this.items = const [],
   });
+
+  bool get isFinanciallySettled => financialStatus == 'settled';
+
+  bool get isFinanciallyPending => financialStatus == 'pending';
+
+  bool get isSettledByInvoice => financialStatus == 'invoice';
 
   /// Retorna verdadeiro quando a transação possui
   /// algum tipo de divisão entre membros.
@@ -335,6 +354,8 @@ class TransactionModel {
       'installmentNumber': installmentNumber,
       'installmentGroupId': installmentGroupId,
       'paymentSourceId': paymentSourceId,
+      'financialStatus': financialStatus,
+      'financialSettledAt': financialSettledAt?.toIso8601String(),
       'category': category,
       'subcategory': subcategory,
       'notes': notes,
@@ -395,6 +416,9 @@ class TransactionModel {
           _parseNullableString(map['installmentGroupId']),
       paymentSourceId:
           _parseNullableString(map['paymentSourceId']),
+      financialStatus: _parseFinancialStatus(map),
+      financialSettledAt:
+          _parseDateTime(map['financialSettledAt']),
       category: map['category']?.toString() ?? 'Sem categoria',
       subcategory:
           map['subcategory']?.toString() ?? 'Sem subcategoria',
@@ -444,6 +468,9 @@ class TransactionModel {
     bool clearInstallmentGroupId = false,
     String? paymentSourceId,
     bool clearPaymentSourceId = false,
+    String? financialStatus,
+    DateTime? financialSettledAt,
+    bool clearFinancialSettledAt = false,
     String? category,
     String? subcategory,
     String? notes,
@@ -501,11 +528,43 @@ class TransactionModel {
       paymentSourceId: clearPaymentSourceId
           ? null
           : paymentSourceId ?? this.paymentSourceId,
+      financialStatus: financialStatus ?? this.financialStatus,
+      financialSettledAt: clearFinancialSettledAt
+          ? null
+          : financialSettledAt ?? this.financialSettledAt,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
       notes: clearNotes ? null : notes ?? this.notes,
       items: items ?? this.items,
     );
+  }
+
+  static String _parseFinancialStatus(Map<String, dynamic> map) {
+    final status = map['financialStatus']?.toString().trim();
+
+    if (status == 'pending' ||
+        status == 'settled' ||
+        status == 'invoice') {
+      return status!;
+    }
+
+    final paymentMethod = map['paymentMethod']?.toString();
+    final installmentNumber = _parseNullableInt(
+      map['installmentNumber'],
+    );
+
+    if (paymentMethod == 'creditCard') {
+      return 'invoice';
+    }
+
+    if (paymentMethod == 'boleto' ||
+        paymentMethod == 'carne' ||
+        ((_parseBool(map['isInstallment'])) &&
+            (installmentNumber ?? 1) > 1)) {
+      return 'pending';
+    }
+
+    return 'settled';
   }
 
   static String? _parseNullableString(dynamic value) {
