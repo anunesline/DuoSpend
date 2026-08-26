@@ -37,6 +37,7 @@ class ReceiptScannerController extends ChangeNotifier {
   String? _errorMessage;
 
   ReceiptScannerState get state => _state;
+  bool get canScanFiscalQr => _lookupFiscalQrUseCase.hasStructuredProvider;
   ReceiptScanResult? get result => _result;
   ReceiptTransactionDraft? get draft =>
       _result == null ? null : ReceiptTransactionDraft.fromScanResult(_result!);

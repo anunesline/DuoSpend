@@ -21,12 +21,20 @@ class ReceiptScanResult {
     if (items.isEmpty || items.any((item) => item.totalPrice == null)) {
       return null;
     }
-    return items.fold<double>(0, (total, item) => total + item.totalPrice!);
+
+    return items.fold<double>(
+      0,
+      (total, item) => total + item.totalPrice!,
+    );
   }
 
   double? get totalDifference {
     final scannedItemsTotal = itemsTotal;
-    if (totalAmount == null || scannedItemsTotal == null) return null;
+
+    if (totalAmount == null || scannedItemsTotal == null) {
+      return null;
+    }
+
     return _roundCurrency(scannedItemsTotal - totalAmount!);
   }
 
@@ -56,7 +64,9 @@ class ReceiptScanResult {
       merchant: clearMerchant ? null : merchant ?? this.merchant,
       date: clearDate ? null : date ?? this.date,
       totalAmount: clearTotalAmount ? null : totalAmount ?? this.totalAmount,
-      paymentMethodSuggestion: clearPaymentMethodSuggestion ? null : paymentMethodSuggestion ?? this.paymentMethodSuggestion,
+      paymentMethodSuggestion: clearPaymentMethodSuggestion
+          ? null
+          : paymentMethodSuggestion ?? this.paymentMethodSuggestion,
       items: items ?? this.items,
     );
   }

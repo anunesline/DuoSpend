@@ -39,4 +39,23 @@ void main() {
     expect(draft.description, isEmpty);
     expect(draft.amount, isNull);
   });
+
+  test('bloqueia handoff enquanto itens e total divergirem', () {
+    const draft = ReceiptTransactionDraft(
+      description: 'Mercado',
+      amount: 20,
+      items: [
+        ReceiptScanItem(description: 'Item A', totalPrice: 12),
+        ReceiptScanItem(description: 'Item B', totalPrice: 7),
+      ],
+    );
+
+    expect(draft.itemsTotal, 19);
+    expect(draft.hasTotalDivergence, isTrue);
+    expect(draft.canContinueToTransaction, isFalse);
+
+    final corrected = draft.copyWith(amount: 19);
+    expect(corrected.hasTotalDivergence, isFalse);
+    expect(corrected.canContinueToTransaction, isTrue);
+  });
 }

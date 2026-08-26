@@ -32,7 +32,32 @@ class ReceiptTransactionDraft {
   }
 
   bool get canContinueToTransaction {
-    return description.trim().isNotEmpty && amount != null && amount! > 0;
+    return description.trim().isNotEmpty &&
+        amount != null &&
+        amount! > 0 &&
+        !hasTotalDivergence;
+  }
+
+  /// Total dos itens somente quando todos têm valor total conhecido.
+  ///
+  /// A revisão usa este cálculo para exigir uma decisão explícita do usuário
+  /// em vez de escolher silenciosamente entre total fiscal e soma dos itens.
+  double? get itemsTotal {
+    if (items.isEmpty || items.any((item) => item.totalPrice == null)) {
+      return null;
+    }
+
+    return items.fold<double>(
+      0,
+      (total, item) => total + item.totalPrice!,
+    );
+  }
+
+  bool get hasTotalDivergence {
+    final resolvedItemsTotal = itemsTotal;
+    return resolvedItemsTotal != null &&
+        amount != null &&
+        (resolvedItemsTotal - amount!).abs() >= 0.01;
   }
 
   ReceiptTransactionDraft copyWith({

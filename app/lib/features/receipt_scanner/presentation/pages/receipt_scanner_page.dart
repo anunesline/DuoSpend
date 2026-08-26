@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../data/providers/google_mlkit_receipt_text_recognition_provider.dart';
 import '../../data/providers/image_picker_receipt_image_capture_provider.dart';
+import '../../data/providers/parana_fiscal_qr_lookup_provider.dart';
 import '../../domain/models/fiscal_qr_lookup_status.dart';
 import '../../domain/models/receipt_capture_source.dart';
 import '../../domain/models/receipt_transaction_draft.dart';
+import '../../domain/usecases/lookup_fiscal_qr_usecase.dart';
 import '../../domain/usecases/recognize_receipt_usecase.dart';
 import '../controllers/receipt_scanner_controller.dart';
 import 'fiscal_qr_scanner_page.dart';
@@ -27,6 +29,9 @@ class _ReceiptScannerPageState extends State<ReceiptScannerPage> {
       captureProvider: ImagePickerReceiptImageCaptureProvider(),
       recognizeReceiptUseCase: RecognizeReceiptUseCase(
         recognitionProvider: GoogleMlKitReceiptTextRecognitionProvider(),
+      ),
+      lookupFiscalQrUseCase: LookupFiscalQrUseCase(
+        providers: [ParanaFiscalQrLookupProvider()],
       ),
     );
   }
@@ -88,15 +93,17 @@ class _ReceiptScannerPageState extends State<ReceiptScannerPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Leia o QR fiscal ou escolha uma imagem da nota. Você poderá revisar tudo antes de criar a transação.',
+                  'Escolha uma imagem da nota. Você poderá revisar tudo antes de criar a transação.',
                 ),
                 const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: isLoading ? null : _scanQr,
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
-                  label: const Text('Ler QR fiscal'),
-                ),
-                const SizedBox(height: 12),
+                if (_controller.canScanFiscalQr) ...[
+                  FilledButton.icon(
+                    onPressed: isLoading ? null : _scanQr,
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    label: const Text('Ler QR fiscal'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 OutlinedButton.icon(
                   onPressed: isLoading
                       ? null

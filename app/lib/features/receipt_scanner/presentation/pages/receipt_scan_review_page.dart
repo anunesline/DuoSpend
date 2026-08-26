@@ -75,31 +75,16 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
     setState(() => _purchaseDate = selectedDate);
   }
 
-  double? get _itemsTotal {
-    if (_items.isEmpty || _items.any((item) => item.totalPrice == null)) {
-      return null;
-    }
-
-    return _items.fold<double>(
-      0,
-      (total, item) => total + item.totalPrice!,
-    );
-  }
-
-  bool get _hasTotalDivergence {
-    final itemsTotal = _itemsTotal;
-    final amount = _amount;
-    return itemsTotal != null &&
-        amount != null &&
-        (itemsTotal - amount).abs() >= 0.01;
-  }
-
   void _continue() {
     final draft = _draft;
     if (!draft.canContinueToTransaction) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Informe estabelecimento e valor antes de continuar.'),
+        SnackBar(
+          content: Text(
+            draft.hasTotalDivergence
+                ? 'Revise a divergência entre itens e total antes de continuar.'
+                : 'Informe estabelecimento e valor antes de continuar.',
+          ),
         ),
       );
       return;
@@ -285,7 +270,7 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
               const SizedBox(height: AppSpacing.sm),
               ...List.generate(_items.length, _buildItem),
             ],
-            if (_hasTotalDivergence) ...[
+            if (_draft.hasTotalDivergence) ...[
               const SizedBox(height: AppSpacing.md),
               const Card(
                 child: Padding(

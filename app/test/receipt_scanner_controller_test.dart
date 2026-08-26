@@ -37,6 +37,8 @@ void main() {
   test('cancelar captura não produz rascunho nem qualquer persistência', () async {
     final controller = createController(null);
 
+    expect(controller.canScanFiscalQr, isFalse);
+
     final draft = await controller.captureAndRecognize(
       ReceiptCaptureSource.gallery,
     );
@@ -61,5 +63,25 @@ void main() {
     expect(controller.state, ReceiptScannerState.reviewing);
     expect(draft?.description, 'MERCADO DUO');
     expect(draft?.amount, 12.0);
+  });
+
+  test('QR sem provider não bloqueia a leitura OCR manual posterior', () async {
+    final controller = createController(
+      ReceiptScanImage(
+        bytes: Uint8List.fromList([1]),
+        mimeType: 'image/jpeg',
+      ),
+    );
+
+    final lookup = await controller.lookupFiscalQr(
+      'https://nfce.exemplo.gov.br/nota/123',
+    );
+    final draft = await controller.captureAndRecognize(
+      ReceiptCaptureSource.gallery,
+    );
+
+    expect(lookup.receipt, isNull);
+    expect(draft?.description, 'MERCADO DUO');
+    expect(controller.state, ReceiptScannerState.reviewing);
   });
 }
