@@ -19,40 +19,8 @@ class DuoSpendApp extends StatefulWidget {
 }
 
 class _DuoSpendAppState extends State<DuoSpendApp> {
-  final GlobalKey<ScaffoldMessengerState> _messengerKey =
-      GlobalKey<ScaffoldMessengerState>();
-
-  @override
-  void initState() {
-    super.initState();
-    widget.pushNotificationService.foregroundMessage.addListener(
-      _showForegroundNotification,
-    );
-  }
-
-  void _showForegroundNotification() {
-    final message = widget.pushNotificationService.foregroundMessage.value;
-    if (message == null) return;
-
-    final messenger = _messengerKey.currentState;
-    if (messenger == null) return;
-
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('${message.title}\n${message.body}'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    widget.pushNotificationService.clearForegroundMessage();
-  }
-
   @override
   void dispose() {
-    widget.pushNotificationService.foregroundMessage.removeListener(
-      _showForegroundNotification,
-    );
     widget.pushNotificationService.dispose();
     super.dispose();
   }
@@ -60,7 +28,6 @@ class _DuoSpendAppState extends State<DuoSpendApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      scaffoldMessengerKey: _messengerKey,
       title: 'DuoSpend',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
