@@ -631,20 +631,16 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
             foregroundColor: DuoColors.textPrimary,
             surfaceTintColor: Colors.transparent,
             title: const Text(
-              'Metas',
+              'Metas e sonhos',
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
-            centerTitle: true,
+            centerTitle: false,
           ),
-          floatingActionButton: FloatingActionButton.extended(
+          floatingActionButton: FloatingActionButton(
             onPressed: controller.isProcessing ? null : _createGoal,
             backgroundColor: DuoColors.primary,
             foregroundColor: DuoColors.textPrimary,
             icon: const Icon(Icons.add_rounded),
-            label: const Text(
-              'Nova meta',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
           ),
           body: controller.isLoading
               ? const Center(

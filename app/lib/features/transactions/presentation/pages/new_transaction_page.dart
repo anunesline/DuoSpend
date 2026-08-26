@@ -2,6 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/context/wallet_context.dart';
+import '../../../../core/design_system/duo_card.dart';
+import '../../../../core/design_system/duo_dropdown.dart';
+import '../../../../core/design_system/duo_page_scaffold.dart';
+import '../../../../core/design_system/duo_text_field.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
@@ -56,25 +60,20 @@ class NewTransactionPage extends StatefulWidget {
 }
 
 class _NewTransactionPageState extends State<NewTransactionPage> {
-  final TextEditingController descriptionController =
-      TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
 
-  final TextEditingController valueController =
-      TextEditingController();
+  final TextEditingController valueController = TextEditingController();
 
-  final TextEditingController notesController =
-      TextEditingController();
+  final TextEditingController notesController = TextEditingController();
 
-  final TransactionController transactionController =
-      TransactionController();
+  final TransactionController transactionController = TransactionController();
 
   final FinancialSplitConfigurationResolver
-      _financialSplitConfigurationResolver =
+  _financialSplitConfigurationResolver =
       const FinancialSplitConfigurationResolver();
 
   final UserRepository _userRepository = UserRepository();
-  final CreditCardRepository _creditCardRepository =
-      CreditCardRepository();
+  final CreditCardRepository _creditCardRepository = CreditCardRepository();
   final ReceiptTransactionItemMapper _receiptItemMapper =
       const ReceiptTransactionItemMapper();
 
@@ -112,8 +111,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   TaxonomyItem? selectedSubcategory =
       DuoTaxonomy.items.first.children.isNotEmpty
-          ? DuoTaxonomy.items.first.children.first
-          : null;
+      ? DuoTaxonomy.items.first.children.first
+      : null;
 
   @override
   void initState() {
@@ -162,8 +161,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       0,
       (total, item) => total + item.totalPrice,
     );
-    final canLoadItems = draft.amount == null ||
-        (itemsTotal - draft.amount!).abs() < 0.01;
+    final canLoadItems =
+        draft.amount == null || (itemsTotal - draft.amount!).abs() < 0.01;
     if (!canLoadItems) {
       return;
     }
@@ -187,8 +186,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   WalletModel? _resolveActiveWallet() {
     final selectedWallet = widget.walletContext.selectedWallet;
 
-    if (selectedWallet != null &&
-        selectedWallet.id == widget.walletId) {
+    if (selectedWallet != null && selectedWallet.id == widget.walletId) {
       return selectedWallet;
     }
 
@@ -201,9 +199,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     return null;
   }
 
-  WalletModel? _resolveConnectedSharedWallet({
-    required String currentUserId,
-  }) {
+  WalletModel? _resolveConnectedSharedWallet({required String currentUserId}) {
     for (final wallet in widget.walletContext.sharedWallets) {
       if (!wallet.hasPartner) {
         continue;
@@ -247,8 +243,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     return null;
   }
 
-  FinancialSplitConfiguration
-      _resolveFinancialSplitConfiguration({
+  FinancialSplitConfiguration _resolveFinancialSplitConfiguration({
     required WalletModel wallet,
     required String currentUserMemberId,
   }) {
@@ -268,10 +263,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     required String purchaseDestination,
   }) {
     final requiresSharedContext =
-        purchaseDestination ==
-                FinancialSplitRules.purchaseForPartner ||
-            purchaseDestination ==
-                FinancialSplitRules.purchaseForBoth;
+        purchaseDestination == FinancialSplitRules.purchaseForPartner ||
+        purchaseDestination == FinancialSplitRules.purchaseForBoth;
 
     if (!requiresSharedContext) {
       return activeWallet;
@@ -286,9 +279,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     );
 
     if (sharedWallet == null) {
-      throw Exception(
-        'Não foi possível identificar a carteira compartilhada.',
-      );
+      throw Exception('Não foi possível identificar a carteira compartilhada.');
     }
 
     return sharedWallet;
@@ -307,8 +298,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       currentUserId: currentUser.uid,
     );
 
-    if (partnerMemberId == null ||
-        partnerMemberId.isEmpty) {
+    if (partnerMemberId == null || partnerMemberId.isEmpty) {
       if (!mounted) {
         return;
       }
@@ -326,8 +316,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       return;
     }
 
-    final displayName =
-        await _userRepository.getUserDisplayName(
+    final displayName = await _userRepository.getUserDisplayName(
       partnerMemberId,
     );
 
@@ -344,8 +333,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   void _syncFinancialCategory() {
     purchaseController.setFinancialCategory(
       category: selectedCategory.name,
-      subcategory:
-          selectedSubcategory?.name ?? 'Sem subcategoria',
+      subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
     );
   }
 
@@ -355,10 +343,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     if (items.isEmpty) {
       setState(() {
         selectedCategory = DuoTaxonomy.items.first;
-        selectedSubcategory =
-            selectedCategory.children.isNotEmpty
-                ? selectedCategory.children.first
-                : null;
+        selectedSubcategory = selectedCategory.children.isNotEmpty
+            ? selectedCategory.children.first
+            : null;
       });
 
       _syncFinancialCategory();
@@ -366,35 +353,28 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     }
 
     final categoryCounts = <String, int>{};
-    final subcategoryCountsByCategory =
-        <String, Map<String, int>>{};
+    final subcategoryCountsByCategory = <String, Map<String, int>>{};
     final firstCategoryPosition = <String, int>{};
     final firstSubcategoryPosition = <String, int>{};
 
     for (var index = 0; index < items.length; index++) {
       final item = items[index];
       final categoryName = item.financialCategory.trim();
-      final subcategoryName =
-          item.financialSubcategory.trim();
+      final subcategoryName = item.financialSubcategory.trim();
 
       if (categoryName.isEmpty) {
         continue;
       }
 
-      categoryCounts[categoryName] =
-          (categoryCounts[categoryName] ?? 0) + 1;
+      categoryCounts[categoryName] = (categoryCounts[categoryName] ?? 0) + 1;
 
-      firstCategoryPosition.putIfAbsent(
-        categoryName,
-        () => index,
-      );
+      firstCategoryPosition.putIfAbsent(categoryName, () => index);
 
       if (subcategoryName.isEmpty) {
         continue;
       }
 
-      final subcategoryCounts =
-          subcategoryCountsByCategory.putIfAbsent(
+      final subcategoryCounts = subcategoryCountsByCategory.putIfAbsent(
         categoryName,
         () => <String, int>{},
       );
@@ -412,8 +392,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       return;
     }
 
-    final predominantCategoryName =
-        categoryCounts.keys.reduce((current, next) {
+    final predominantCategoryName = categoryCounts.keys.reduce((current, next) {
       final currentCount = categoryCounts[current] ?? 0;
       final nextCount = categoryCounts[next] ?? 0;
 
@@ -425,15 +404,11 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         return current;
       }
 
-      final currentPosition =
-          firstCategoryPosition[current] ?? items.length;
+      final currentPosition = firstCategoryPosition[current] ?? items.length;
 
-      final nextPosition =
-          firstCategoryPosition[next] ?? items.length;
+      final nextPosition = firstCategoryPosition[next] ?? items.length;
 
-      return nextPosition < currentPosition
-          ? next
-          : current;
+      return nextPosition < currentPosition ? next : current;
     });
 
     TaxonomyItem? predominantCategory;
@@ -451,18 +426,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     final subcategoryCounts =
         subcategoryCountsByCategory[predominantCategoryName] ??
-            const <String, int>{};
+        const <String, int>{};
 
     String? predominantSubcategoryName;
 
     if (subcategoryCounts.isNotEmpty) {
-      predominantSubcategoryName =
-          subcategoryCounts.keys.reduce((current, next) {
-        final currentCount =
-            subcategoryCounts[current] ?? 0;
+      predominantSubcategoryName = subcategoryCounts.keys.reduce((
+        current,
+        next,
+      ) {
+        final currentCount = subcategoryCounts[current] ?? 0;
 
-        final nextCount =
-            subcategoryCounts[next] ?? 0;
+        final nextCount = subcategoryCounts[next] ?? 0;
 
         if (nextCount > currentCount) {
           return next;
@@ -473,27 +448,21 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         }
 
         final currentPosition =
-            firstSubcategoryPosition[
-                    '$predominantCategoryName::$current'] ??
-                items.length;
+            firstSubcategoryPosition['$predominantCategoryName::$current'] ??
+            items.length;
 
         final nextPosition =
-            firstSubcategoryPosition[
-                    '$predominantCategoryName::$next'] ??
-                items.length;
+            firstSubcategoryPosition['$predominantCategoryName::$next'] ??
+            items.length;
 
-        return nextPosition < currentPosition
-            ? next
-            : current;
+        return nextPosition < currentPosition ? next : current;
       });
     }
 
     TaxonomyItem? predominantSubcategory;
 
-    for (final subcategory
-        in predominantCategory.children) {
-      if (subcategory.name ==
-          predominantSubcategoryName) {
+    for (final subcategory in predominantCategory.children) {
+      if (subcategory.name == predominantSubcategoryName) {
         predominantSubcategory = subcategory;
         break;
       }
@@ -504,9 +473,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
       selectedSubcategory =
           predominantSubcategory ??
-              (predominantCategory.children.isNotEmpty
-                  ? predominantCategory.children.first
-                  : null);
+          (predominantCategory.children.isNotEmpty
+              ? predominantCategory.children.first
+              : null);
     });
 
     _syncFinancialCategory();
@@ -516,18 +485,15 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     setState(() {
       selectedCategory = category;
 
-      selectedSubcategory =
-          category.children.isNotEmpty
-              ? category.children.first
-              : null;
+      selectedSubcategory = category.children.isNotEmpty
+          ? category.children.first
+          : null;
     });
 
     _syncFinancialCategory();
   }
 
-  void _changeSubcategory(
-    TaxonomyItem? subcategory,
-  ) {
+  void _changeSubcategory(TaxonomyItem? subcategory) {
     setState(() {
       selectedSubcategory = subcategory;
     });
@@ -545,19 +511,16 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     setState(() {
       selectedPayerMemberId = memberId;
 
-      final currentUserId =
-          FirebaseAuth.instance.currentUser?.uid;
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
       if (memberId == currentUserId) {
-        selectedFinancialWalletId =
-            _resolveSelectedFinancialWalletId();
+        selectedFinancialWalletId = _resolveSelectedFinancialWalletId();
       }
     });
   }
 
   List<WalletModel> _currentUserIndividualWallets() {
-    final currentUserId =
-        FirebaseAuth.instance.currentUser?.uid;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
     if (currentUserId == null || currentUserId.isEmpty) {
       return const [];
@@ -565,9 +528,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     return widget.walletContext.wallets
         .where(
-          (wallet) =>
-              wallet.isIndividual &&
-              wallet.ownerId == currentUserId,
+          (wallet) => wallet.isIndividual && wallet.ownerId == currentUserId,
         )
         .toList(growable: false);
   }
@@ -594,8 +555,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       return;
     }
 
-    final resolvedWalletId =
-        _resolveSelectedFinancialWalletId();
+    final resolvedWalletId = _resolveSelectedFinancialWalletId();
 
     if (resolvedWalletId == selectedFinancialWalletId) {
       return;
@@ -608,8 +568,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   Future<void> _loadCreditCards() async {
     try {
-      final cards =
-          await _creditCardRepository.getActiveCards();
+      final cards = await _creditCardRepository.getActiveCards();
 
       if (!mounted) {
         return;
@@ -618,8 +577,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       setState(() {
         _creditCards = cards;
 
-        if (selectedCreditCardId == null &&
-            cards.isNotEmpty) {
+        if (selectedCreditCardId == null && cards.isNotEmpty) {
           selectedCreditCardId = cards.first.id;
         }
       });
@@ -716,8 +674,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     setState(() {
       recurringStartDate = value;
 
-      if (recurringEndDate != null &&
-          recurringEndDate!.isBefore(value)) {
+      if (recurringEndDate != null && recurringEndDate!.isBefore(value)) {
         recurringEndDate = null;
       }
     });
@@ -740,13 +697,11 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   Future<void> _openAddItemPage() async {
-    final result =
-        await Navigator.push<TransactionItemModel>(
+    final result = await Navigator.push<TransactionItemModel>(
       context,
       MaterialPageRoute(
-        builder: (_) => AddTransactionItemPage(
-          productRepository: widget.productRepository,
-        ),
+        builder: (_) =>
+            AddTransactionItemPage(productRepository: widget.productRepository),
       ),
     );
 
@@ -761,17 +716,13 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     _showMessage('${result.name} adicionado.');
   }
 
-  Future<void> _openEditItemPage(
-    PurchaseItemModel purchaseItem,
-  ) async {
-    final initialTransactionItem =
-        purchaseController.toTransactionItem(
+  Future<void> _openEditItemPage(PurchaseItemModel purchaseItem) async {
+    final initialTransactionItem = purchaseController.toTransactionItem(
       item: purchaseItem,
       transactionId: purchaseItem.purchaseId,
     );
 
-    final updatedItem =
-        await Navigator.push<TransactionItemModel>(
+    final updatedItem = await Navigator.push<TransactionItemModel>(
       context,
       MaterialPageRoute(
         builder: (_) => AddTransactionItemPage(
@@ -800,8 +751,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   void _removeItem(PurchaseItemModel item) {
-    final transactionItem =
-        purchaseController.toTransactionItem(
+    final transactionItem = purchaseController.toTransactionItem(
       item: item,
       transactionId: item.purchaseId,
     );
@@ -824,37 +774,26 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         .replaceAll('.', ',');
   }
 
-  Future<String?> _resolveConsumerId(
-    String walletId,
-  ) async {
-    final selectedConsumer =
-        widget.consumerController.selectedConsumer;
+  Future<String?> _resolveConsumerId(String walletId) async {
+    final selectedConsumer = widget.consumerController.selectedConsumer;
 
-    if (selectedConsumer != null &&
-        selectedConsumer.walletId == walletId) {
+    if (selectedConsumer != null && selectedConsumer.walletId == walletId) {
       return selectedConsumer.id;
     }
 
-    await widget.consumerController.initializeWallet(
-      walletId: walletId,
-    );
+    await widget.consumerController.initializeWallet(walletId: walletId);
 
-    return widget
-        .consumerController.selectedConsumer?.id;
+    return widget.consumerController.selectedConsumer?.id;
   }
 
   Future<void> _saveTransaction() async {
-    if (purchaseController.isSaving ||
-        transactionController.isSaving) {
+    if (purchaseController.isSaving || transactionController.isSaving) {
       return;
     }
 
-    final description =
-        descriptionController.text.trim();
+    final description = descriptionController.text.trim();
 
-    final value = double.tryParse(
-      valueController.text.replaceAll(',', '.'),
-    );
+    final value = double.tryParse(valueController.text.replaceAll(',', '.'));
 
     if (description.isEmpty || value == null) {
       _showMessage('Preencha todos os campos.');
@@ -872,9 +811,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
       if (difference > 0.009) {
         _syncValueWithPurchaseTotal();
-        _showMessage(
-          'O valor foi ajustado para o total dos itens.',
-        );
+        _showMessage('O valor foi ajustado para o total dos itens.');
         return;
       }
     }
@@ -889,29 +826,22 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     final activeWallet = _resolveActiveWallet();
 
     if (activeWallet == null) {
-      _showMessage(
-        'Não foi possível identificar a carteira selecionada.',
-      );
+      _showMessage('Não foi possível identificar a carteira selecionada.');
 
       return;
     }
 
-    final financialSplitConfiguration =
-        _resolveFinancialSplitConfiguration(
+    final financialSplitConfiguration = _resolveFinancialSplitConfiguration(
       wallet: activeWallet,
       currentUserMemberId: user.uid,
     );
 
-    final payerMemberId =
-        financialSplitConfiguration.resolvePayerMemberId(
+    final payerMemberId = financialSplitConfiguration.resolvePayerMemberId(
       selectedPayerMemberId,
     );
 
-    final purchaseDestination =
-        financialSplitConfiguration
-            .resolvePurchaseDestination(
-      selectedPurchaseDestination,
-    );
+    final purchaseDestination = financialSplitConfiguration
+        .resolvePurchaseDestination(selectedPurchaseDestination);
 
     var financialWalletId = payerMemberId == user.uid
         ? _resolveSelectedFinancialWalletId()
@@ -929,9 +859,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       final selectedCard = _selectedCreditCard();
 
       if (selectedCard == null) {
-        _showMessage(
-          'Cadastre ou selecione um cartão de crédito.',
-        );
+        _showMessage('Cadastre ou selecione um cartão de crédito.');
         return;
       }
 
@@ -941,8 +869,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       paymentSourceId = financialWalletId;
     }
 
-    if (payerMemberId == user.uid &&
-        financialWalletId == null) {
+    if (payerMemberId == user.uid && financialWalletId == null) {
       _showMessage(
         'Crie uma carteira individual para registrar esta movimentação.',
       );
@@ -955,16 +882,13 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       purchaseDestination: purchaseDestination,
     );
 
-    final id =
-        DateTime.now().millisecondsSinceEpoch.toString();
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
 
     try {
-      final consumerId =
-          await _resolveConsumerId(transactionWallet.id);
+      final consumerId = await _resolveConsumerId(transactionWallet.id);
 
       if (purchaseController.hasItems) {
-        final purchaseResult =
-            await purchaseController.completePurchase(
+        final purchaseResult = await purchaseController.completePurchase(
           CreatePurchaseCommand(
             id: id,
             userId: user.uid,
@@ -975,17 +899,13 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         );
 
         if (purchaseController.errorMessage != null) {
-          _showMessage(
-            purchaseController.errorMessage!,
-          );
+          _showMessage(purchaseController.errorMessage!);
 
           return;
         }
 
         if (purchaseResult == null) {
-          _showMessage(
-            'Não foi possível concluir a compra.',
-          );
+          _showMessage('Não foi possível concluir a compra.');
 
           return;
         }
@@ -1000,26 +920,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         wallet: transactionWallet,
         consumerId: consumerId,
         category: selectedCategory.name,
-        subcategory:
-            selectedSubcategory?.name ??
-            'Sem subcategoria',
+        subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
         paidByMemberId: payerMemberId,
         purchaseFor: purchaseDestination,
-        partnerMemberId:
-            financialSplitConfiguration.partnerMemberId,
+        partnerMemberId: financialSplitConfiguration.partnerMemberId,
         isRecurring: isRecurring,
-        recurringFrequency:
-            isRecurring ? recurringFrequency : null,
-        recurringStartDate:
-            isRecurring ? recurringStartDate : null,
-        recurringEndDate:
-            isRecurring ? recurringEndDate : null,
-        recurringNeverEnds:
-            isRecurring ? recurringNeverEnds : true,
+        recurringFrequency: isRecurring ? recurringFrequency : null,
+        recurringStartDate: isRecurring ? recurringStartDate : null,
+        recurringEndDate: isRecurring ? recurringEndDate : null,
+        recurringNeverEnds: isRecurring ? recurringNeverEnds : true,
         isInstallment: isInstallment,
         installmentCount: installmentCount,
-        firstInstallmentDate:
-            isInstallment ? firstInstallmentDate : null,
+        firstInstallmentDate: isInstallment ? firstInstallmentDate : null,
         notes: notesController.text,
         financialWalletId: financialWalletId,
         paymentMethod: selectedPaymentMethod,
@@ -1033,13 +945,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
       Navigator.pop(context);
     } catch (_) {
-      final errorMessage =
-          transactionController.errorMessage;
+      final errorMessage = transactionController.errorMessage;
 
-      _showMessage(
-        errorMessage ??
-            'Não foi possível salvar a transação.',
-      );
+      _showMessage(errorMessage ?? 'Não foi possível salvar a transação.');
     }
   }
 
@@ -1053,10 +961,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
   }
 
@@ -1082,76 +987,69 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     );
   }
 
-  Widget _buildPaymentSection({
-    required bool enabled,
-  }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          children: [
-            DropdownButtonFormField<PaymentMethod>(
-              initialValue: selectedPaymentMethod,
-              decoration: const InputDecoration(
-                labelText: 'Forma de pagamento',
-                prefixIcon: Icon(Icons.payments_outlined),
-              ),
-              items: PaymentMethod.values.map((method) {
-                return DropdownMenuItem<PaymentMethod>(
-                  value: method,
-                  child: Text(method.label),
-                );
-              }).toList(growable: false),
-              onChanged: !enabled
+  Widget _buildPaymentSection({required bool enabled}) {
+    return DuoCard(
+      borderRadius: 24,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        children: [
+          DuoDropdown<PaymentMethod>(
+            label: 'Forma de pagamento',
+            value: selectedPaymentMethod,
+            icon: Icons.payments_outlined,
+            items: PaymentMethod.values
+                .map((method) {
+                  return DropdownMenuItem<PaymentMethod>(
+                    value: method,
+                    child: Text(method.label),
+                  );
+                })
+                .toList(growable: false),
+            onChanged: !enabled
+                ? null
+                : (method) {
+                    if (method != null) {
+                      _changePaymentMethod(method);
+                    }
+                  },
+          ),
+          if (selectedPaymentMethod.isCreditCard) ...[
+            const SizedBox(height: AppSpacing.lg),
+            DuoDropdown<String>(
+              key: ValueKey('credit-card-${selectedCreditCardId ?? 'none'}'),
+              label: 'Cartão',
+              value: _selectedCreditCard()?.id,
+              icon: Icons.credit_card_rounded,
+              helperText:
+                  'A compra entrará na fatura e não debitará a conta agora.',
+              items: _creditCards
+                  .map((card) {
+                    return DropdownMenuItem<String>(
+                      value: card.id,
+                      child: Text(
+                        card.lastFourDigits == null
+                            ? card.name
+                            : '${card.name} •••• ${card.lastFourDigits}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  })
+                  .toList(growable: false),
+              onChanged: !enabled || _creditCards.isEmpty
                   ? null
-                  : (method) {
-                      if (method != null) {
-                        _changePaymentMethod(method);
-                      }
+                  : (cardId) {
+                      setState(() {
+                        selectedCreditCardId = cardId;
+                      });
                     },
             ),
-            if (selectedPaymentMethod.isCreditCard) ...[
-              const SizedBox(height: AppSpacing.lg),
-              DropdownButtonFormField<String>(
-                key: ValueKey(
-                  'credit-card-${selectedCreditCardId ?? 'none'}',
-                ),
-                initialValue: _selectedCreditCard()?.id,
-                decoration: const InputDecoration(
-                  labelText: 'Cartão',
-                  prefixIcon: Icon(Icons.credit_card_rounded),
-                  helperText:
-                      'A compra entrará na fatura e não debitará a conta agora.',
-                ),
-                items: _creditCards.map((card) {
-                  return DropdownMenuItem<String>(
-                    value: card.id,
-                    child: Text(
-                      card.lastFourDigits == null
-                          ? card.name
-                          : '${card.name} •••• ${card.lastFourDigits}',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }).toList(growable: false),
-                onChanged: !enabled || _creditCards.isEmpty
-                    ? null
-                    : (cardId) {
-                        setState(() {
-                          selectedCreditCardId = cardId;
-                        });
-                      },
+            if (_creditCards.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text('Nenhum cartão cadastrado. Adicione um pela Home.'),
               ),
-              if (_creditCards.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 10),
-                  child: Text(
-                    'Nenhum cartão cadastrado. Adicione um pela Home.',
-                  ),
-                ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
@@ -1160,43 +1058,32 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     required List<WalletModel> wallets,
     required bool enabled,
   }) {
-    final selectedWalletId =
-        _resolveSelectedFinancialWalletId();
+    final selectedWalletId = _resolveSelectedFinancialWalletId();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: DropdownButtonFormField<String>(
-          key: ValueKey(
-            'financial-wallet-${selectedWalletId ?? 'none'}',
-          ),
-          initialValue: selectedWalletId,
-          decoration: InputDecoration(
-            labelText: type == 'expense'
-                ? 'Saiu de'
-                : 'Entrou em',
-            prefixIcon:
-                const Icon(Icons.account_balance_wallet_outlined),
-            helperText:
-                'Esta é a carteira cujo saldo será movimentado.',
-          ),
-          items: wallets.map((wallet) {
-            return DropdownMenuItem<String>(
-              value: wallet.id,
-              child: Text(
-                wallet.name,
-                overflow: TextOverflow.ellipsis,
-              ),
-            );
-          }).toList(growable: false),
-          onChanged: !enabled || wallets.isEmpty
-              ? null
-              : (walletId) {
-                  setState(() {
-                    selectedFinancialWalletId = walletId;
-                  });
-                },
-        ),
+    return DuoCard(
+      borderRadius: 24,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: DuoDropdown<String>(
+        key: ValueKey('financial-wallet-${selectedWalletId ?? 'none'}'),
+        label: type == 'expense' ? 'Saiu de' : 'Entrou em',
+        value: selectedWalletId,
+        icon: Icons.account_balance_wallet_outlined,
+        helperText: 'Esta é a carteira cujo saldo será movimentado.',
+        items: wallets
+            .map((wallet) {
+              return DropdownMenuItem<String>(
+                value: wallet.id,
+                child: Text(wallet.name, overflow: TextOverflow.ellipsis),
+              );
+            })
+            .toList(growable: false),
+        onChanged: !enabled || wallets.isEmpty
+            ? null
+            : (walletId) {
+                setState(() {
+                  selectedFinancialWalletId = walletId;
+                });
+              },
       ),
     );
   }
@@ -1208,33 +1095,31 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     final financialSplitConfiguration =
         activeWallet != null && currentUser != null
-            ? _resolveFinancialSplitConfiguration(
-                wallet: activeWallet,
-                currentUserMemberId: currentUser.uid,
-              )
-            : null;
-    final resolvedPayerMemberId =
-        financialSplitConfiguration?.resolvePayerMemberId(
-      selectedPayerMemberId,
-    );
-    final currentUserIndividualWallets =
-        _currentUserIndividualWallets();
+        ? _resolveFinancialSplitConfiguration(
+            wallet: activeWallet,
+            currentUserMemberId: currentUser.uid,
+          )
+        : null;
+    final resolvedPayerMemberId = financialSplitConfiguration
+        ?.resolvePayerMemberId(selectedPayerMemberId);
+    final currentUserIndividualWallets = _currentUserIndividualWallets();
     final shouldShowFinancialWallet =
         currentUser != null &&
         resolvedPayerMemberId == currentUser.uid &&
         selectedPaymentMethod.affectsBalanceImmediately;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nova Transação'),
-        actions: [
-          IconButton(
-            tooltip: 'Scanner fiscal',
-            onPressed: _openReceiptScanner,
-            icon: const Icon(Icons.document_scanner_outlined),
-          ),
-        ],
-      ),
+    return DuoPageScaffold(
+      title: 'Nova transação',
+      eyebrow: 'Movimentação',
+      scrollable: false,
+      padding: EdgeInsets.zero,
+      actions: [
+        IconButton(
+          tooltip: 'Scanner fiscal',
+          onPressed: _openReceiptScanner,
+          icon: const Icon(Icons.document_scanner_outlined),
+        ),
+      ],
       body: AnimatedBuilder(
         animation: Listenable.merge([
           transactionController,
@@ -1242,114 +1127,73 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         ]),
         builder: (context, _) {
           final isSaving =
-              purchaseController.isSaving ||
-              transactionController.isSaving;
+              purchaseController.isSaving || transactionController.isSaving;
 
           return SingleChildScrollView(
-            padding:
-                const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TransactionBasicFieldsSection(
-                  descriptionController:
-                      descriptionController,
+                  descriptionController: descriptionController,
                   valueController: valueController,
                   type: type,
-                  hasPurchaseItems:
-                      purchaseController.hasItems,
-                  selectedCategory:
-                      selectedCategory,
-                  selectedSubcategory:
-                      selectedSubcategory,
+                  hasPurchaseItems: purchaseController.hasItems,
+                  selectedCategory: selectedCategory,
+                  selectedSubcategory: selectedSubcategory,
                   onTypeChanged: _changeType,
-                  onCategoryChanged:
-                      _changeCategory,
-                  onSubcategoryChanged:
-                      _changeSubcategory,
+                  onCategoryChanged: _changeCategory,
+                  onSubcategoryChanged: _changeSubcategory,
                 ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
+                const SizedBox(height: AppSpacing.lg),
                 if (financialSplitConfiguration != null)
                   FinancialSplitSection(
                     enabled: !isSaving,
-                    configuration:
-                        financialSplitConfiguration,
-                    selectedPayerMemberId:
-                        financialSplitConfiguration
-                            .resolvePayerMemberId(
-                      selectedPayerMemberId,
-                    ),
-                    selectedPurchaseDestination:
-                        financialSplitConfiguration
-                            .resolvePurchaseDestination(
-                      selectedPurchaseDestination,
-                    ),
-                    partnerDisplayName:
-                        _partnerDisplayName,
+                    configuration: financialSplitConfiguration,
+                    selectedPayerMemberId: financialSplitConfiguration
+                        .resolvePayerMemberId(selectedPayerMemberId),
+                    selectedPurchaseDestination: financialSplitConfiguration
+                        .resolvePurchaseDestination(
+                          selectedPurchaseDestination,
+                        ),
+                    partnerDisplayName: _partnerDisplayName,
                     onPayerChanged: _changePayer,
-                    onPurchaseDestinationChanged:
-                        _changePurchaseDestination,
+                    onPurchaseDestinationChanged: _changePurchaseDestination,
                   ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
-                _buildPaymentSection(
-                  enabled: !isSaving,
-                ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
+                const SizedBox(height: AppSpacing.lg),
+                _buildPaymentSection(enabled: !isSaving),
+                const SizedBox(height: AppSpacing.lg),
                 if (shouldShowFinancialWallet)
                   _buildFinancialWalletSection(
                     wallets: currentUserIndividualWallets,
                     enabled: !isSaving,
                   ),
                 if (shouldShowFinancialWallet)
-                  const SizedBox(
-                    height: AppSpacing.lg,
-                  ),
+                  const SizedBox(height: AppSpacing.lg),
                 InstallmentTransactionSection(
                   enabled: !isSaving,
                   isInstallment: isInstallment,
                   installmentCount: installmentCount,
                   firstInstallmentDate: firstInstallmentDate,
                   onInstallmentChanged: _changeInstallment,
-                  onInstallmentCountChanged:
-                      _changeInstallmentCount,
-                  onFirstInstallmentDateChanged:
-                      _changeFirstInstallmentDate,
+                  onInstallmentCountChanged: _changeInstallmentCount,
+                  onFirstInstallmentDateChanged: _changeFirstInstallmentDate,
                 ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
+                const SizedBox(height: AppSpacing.lg),
                 RecurringTransactionSection(
                   enabled: !isSaving,
                   isRecurring: isRecurring,
-                  recurringFrequency:
-                      recurringFrequency,
-                  recurringStartDate:
-                      recurringStartDate,
-                  recurringEndDate:
-                      recurringEndDate,
-                  recurringNeverEnds:
-                      recurringNeverEnds,
-                  onRecurringChanged:
-                      _changeRecurring,
-                  onFrequencyChanged:
-                      _changeRecurringFrequency,
-                  onStartDateChanged:
-                      _changeRecurringStartDate,
-                  onEndDateChanged:
-                      _changeRecurringEndDate,
-                  onNeverEndsChanged:
-                      _changeRecurringNeverEnds,
+                  recurringFrequency: recurringFrequency,
+                  recurringStartDate: recurringStartDate,
+                  recurringEndDate: recurringEndDate,
+                  recurringNeverEnds: recurringNeverEnds,
+                  onRecurringChanged: _changeRecurring,
+                  onFrequencyChanged: _changeRecurringFrequency,
+                  onStartDateChanged: _changeRecurringStartDate,
+                  onEndDateChanged: _changeRecurringEndDate,
+                  onNeverEndsChanged: _changeRecurringNeverEnds,
                 ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
+                const SizedBox(height: AppSpacing.lg),
                 PurchaseItemsSection(
                   items: purchaseController.items,
                   total: purchaseController.total,
@@ -1357,28 +1201,18 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                   onEditItem: _openEditItemPage,
                   onRemoveItem: _removeItem,
                 ),
-                const SizedBox(
-                  height: AppSpacing.lg,
-                ),
-                TextField(
+                const SizedBox(height: AppSpacing.lg),
+                DuoTextField(
                   controller: notesController,
+                  label: 'Observações',
                   enabled: !isSaving,
                   minLines: 3,
                   maxLines: 5,
-                  textCapitalization:
-                      TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Observações',
-                    hintText:
-                        'Adicione alguma informação importante (opcional)',
-                    alignLabelWithHint: true,
-                    prefixIcon:
-                        Icon(Icons.notes_outlined),
-                  ),
+                  textCapitalization: TextCapitalization.sentences,
+                  hintText: 'Adicione alguma informação importante (opcional)',
+                  icon: Icons.notes_outlined,
                 ),
-                const SizedBox(
-                  height: AppSpacing.xl,
-                ),
+                const SizedBox(height: AppSpacing.xl),
                 TransactionSaveButton(
                   isSaving: isSaving,
                   onPressed: _saveTransaction,

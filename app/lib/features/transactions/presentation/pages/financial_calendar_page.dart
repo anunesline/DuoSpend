@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/design_system/duo_colors.dart';
+import '../../../../core/design_system/duo_page_scaffold.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../../domain/calendar/financial_calendar_entry.dart';
@@ -145,11 +146,11 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
-        return Scaffold(
-          backgroundColor: DuoColors.background,
-          appBar: AppBar(
-            title: const Text('Calendário financeiro'),
-          ),
+        return DuoPageScaffold(
+          title: 'Calendário',
+          eyebrow: 'Planejamento financeiro',
+          scrollable: false,
+          padding: EdgeInsets.zero,
           body: controller.isLoading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
@@ -158,7 +159,7 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
                     transactions: widget.transactions,
                   ),
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                     children: [
                       _ProjectionCard(
                         currentBalance: _formatMoney(
