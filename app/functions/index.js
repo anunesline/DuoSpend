@@ -4,7 +4,7 @@ const {getFirestore, FieldValue} = require("firebase-admin/firestore");
 const {getFunctions} = require("firebase-admin/functions");
 const {getMessaging} = require("firebase-admin/messaging");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
-const {onTaskDispatched} = require("firebase-functions/v2/tasks");
+const {onTaskDispatched} = require("firebase-functions/tasks");
 
 initializeApp();
 
