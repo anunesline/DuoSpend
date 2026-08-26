@@ -57,10 +57,14 @@ class PushNotificationService {
       sound: true,
       provisional: false,
     );
+
+    // Foreground messages are rendered by DuoSpendApp to avoid duplicate
+    // banners on Apple platforms. Background/terminated notification payloads
+    // remain handled by the OS through FCM.
     await messaging.setForegroundNotificationPresentationOptions(
-      alert: true,
+      alert: false,
       badge: true,
-      sound: true,
+      sound: false,
     );
 
     _authSubscription = auth.authStateChanges().listen(_handleAuthChanged);
@@ -81,20 +85,19 @@ class PushNotificationService {
     final nextUserId = user?.uid.trim();
     _lastUserId = nextUserId;
 
+    final token = await messaging.getToken();
     if (previousUserId != null &&
         previousUserId.isNotEmpty &&
-        previousUserId != nextUserId) {
-      final token = await messaging.getToken();
-      if (token != null && token.isNotEmpty) {
-        await _tokenReference(previousUserId, token).delete();
-      }
+        previousUserId != nextUserId &&
+        token != null &&
+        token.isNotEmpty) {
+      await _tokenReference(previousUserId, token).delete();
     }
 
-    if (nextUserId == null || nextUserId.isEmpty) return;
-    final token = await messaging.getToken();
-    if (token != null && token.isNotEmpty) {
-      await _saveToken(nextUserId, token);
+    if (nextUserId == null || nextUserId.isEmpty || token == null || token.isEmpty) {
+      return;
     }
+    await _saveToken(nextUserId, token);
   }
 
   Future<void> _saveTokenForCurrentUser(String token) async {
