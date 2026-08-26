@@ -31,8 +31,16 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Check notification worker
+        run: npm --prefix notification-worker run check
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos
