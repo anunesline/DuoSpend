@@ -6,6 +6,8 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
+import '../../../receipt_scanner/application/receipt_transaction_item_mapper.dart';
+import '../../../receipt_scanner/domain/models/receipt_transaction_draft.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../home/data/models/credit_card_model.dart';
 import '../../../home/data/models/wallet_model.dart';
@@ -34,6 +36,7 @@ class NewTransactionPage extends StatefulWidget {
   final PurchaseController purchaseController;
   final ProductRepository productRepository;
   final WalletContext walletContext;
+  final ReceiptTransactionDraft? receiptDraft;
 
   const NewTransactionPage({
     super.key,
@@ -42,6 +45,7 @@ class NewTransactionPage extends StatefulWidget {
     required this.consumerController,
     required this.purchaseController,
     required this.productRepository,
+    this.receiptDraft,
   });
 
   @override
@@ -70,6 +74,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   final UserRepository _userRepository = UserRepository();
   final CreditCardRepository _creditCardRepository =
       CreditCardRepository();
+  final ReceiptTransactionItemMapper _receiptItemMapper =
+      const ReceiptTransactionItemMapper();
 
   String? _partnerDisplayName;
   String? _loadedPartnerMemberId;
@@ -113,12 +119,54 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     purchaseController.clearPurchase();
     _syncFinancialCategory();
+    _applyReceiptDraft();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeFinancialWalletSelection();
       _loadCreditCards();
       _loadPartnerDisplayName();
     });
+  }
+
+  void _applyReceiptDraft() {
+    final draft = widget.receiptDraft;
+    if (draft == null) return;
+
+    descriptionController.text = draft.description;
+    if (draft.amount != null) {
+      valueController.text = draft.amount!
+          .toStringAsFixed(2)
+          .replaceAll('.', ',');
+    }
+    final suggestedPayment = PaymentMethod.fromValue(
+      draft.paymentMethodSuggestion,
+    );
+    if (suggestedPayment != null) {
+      selectedPaymentMethod = suggestedPayment;
+    }
+
+    final now = DateTime.now();
+    final items = _receiptItemMapper.map(
+      items: draft.items,
+      category: selectedCategory.name,
+      subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
+      taxonomyId: selectedSubcategory?.id ?? selectedCategory.id,
+      createdAt: now,
+    );
+    final itemsTotal = items.fold<double>(
+      0,
+      (total, item) => total + item.totalPrice,
+    );
+    final canLoadItems = draft.amount == null ||
+        (itemsTotal - draft.amount!).abs() < 0.01;
+    if (!canLoadItems) {
+      return;
+    }
+    for (final item in items) {
+      purchaseController.addTransactionItem(item);
+      transactionController.addItem(item);
+    }
+    _refreshPurchaseState();
   }
 
   @override
