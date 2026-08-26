@@ -96,6 +96,7 @@ class CreateTransactionUseCase {
     PaymentMethod? paymentMethod,
     String? paymentSourceId,
     String? financialWalletId,
+    DateTime? transactionDate,
   }) async {
     final normalizedTransactionId = transactionId.trim();
     final normalizedDescription = description.trim();
@@ -172,7 +173,7 @@ class CreateTransactionUseCase {
       description: normalizedDescription,
       value: value,
       type: type,
-      date: DateTime.now(),
+      date: transactionDate ?? DateTime.now(),
       walletId: transactionWallet.id,
       consumerId:
           normalizedConsumerId == null ||

@@ -106,6 +106,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   bool isInstallment = false;
   int installmentCount = 2;
   DateTime firstInstallmentDate = DateTime.now();
+  DateTime transactionDate = DateTime.now();
 
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
 
@@ -138,6 +139,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       valueController.text = draft.amount!
           .toStringAsFixed(2)
           .replaceAll('.', ',');
+    }
+    if (draft.purchaseDate != null) {
+      transactionDate = draft.purchaseDate!;
     }
     final suggestedPayment = PaymentMethod.fromValue(
       draft.paymentMethodSuggestion,
@@ -1020,6 +1024,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         financialWalletId: financialWalletId,
         paymentMethod: selectedPaymentMethod,
         paymentSourceId: paymentSourceId,
+        transactionDate: transactionDate,
       );
 
       if (!mounted) {

@@ -170,6 +170,7 @@ class TransactionController extends ChangeNotifier {
     String? financialWalletId,
     PaymentMethod? paymentMethod,
     String? paymentSourceId,
+    DateTime? transactionDate,
 
     // Compatibilidade temporária com a NewTransactionPage antiga.
     // O split agora é calculado pelo CreateTransactionUseCase.
@@ -213,6 +214,7 @@ class TransactionController extends ChangeNotifier {
         financialWalletId: financialWalletId,
         paymentMethod: paymentMethod,
         paymentSourceId: paymentSourceId,
+        transactionDate: transactionDate,
       );
 
       _lastResult = result;
