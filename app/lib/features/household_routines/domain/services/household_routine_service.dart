@@ -50,7 +50,27 @@ class HouseholdRoutineService {
     if (!task.isPending) return null;
 
     await taskRepository.saveTask(task.complete(completedAt));
-    if (!task.belongsToRoutine) return null;
+
+    if (!task.belongsToRoutine) {
+      if (!task.isRecurring) return null;
+      final nextDueAt = completedAt.add(Duration(days: task.repeatEveryDays!));
+      final nextTask = HouseholdTask(
+        id: uuid.v4(),
+        scopeId: task.scopeId,
+        scope: task.scope,
+        title: task.title,
+        notes: task.notes,
+        assigneeId: task.assigneeId,
+        status: HouseholdTaskStatus.pending,
+        dueAt: nextDueAt,
+        repeatEveryDays: task.repeatEveryDays,
+        createdAt: completedAt,
+        updatedAt: completedAt,
+        previousTaskId: task.id,
+      );
+      await taskRepository.saveTask(nextTask);
+      return nextTask;
+    }
 
     final routine = await routineRepository.getRoutineById(task.routineId!);
     if (routine == null) return null;
