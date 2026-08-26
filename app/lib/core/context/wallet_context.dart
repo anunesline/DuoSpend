@@ -145,6 +145,7 @@ class WalletContext extends ChangeNotifier {
       _wallets[index] = wallet;
     }
 
+    _synchronizeSharedWalletIds();
     _selectedWallet = wallet;
     _synchronizeUsageMode();
 
