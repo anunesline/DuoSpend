@@ -1,26 +1,33 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../domain/models/household_routine.dart';
 import '../../domain/models/household_task.dart';
+import '../../domain/repositories/household_routine_repository.dart';
 import '../../domain/repositories/household_task_repository.dart';
 import '../../domain/services/household_routine_service.dart';
 
 class HouseholdRoutinesController extends ChangeNotifier {
   final HouseholdTaskRepository taskRepository;
+  final HouseholdRoutineRepository routineRepository;
   final HouseholdRoutineService routineService;
   final Uuid uuid;
 
   HouseholdRoutinesController({
     required this.taskRepository,
+    required this.routineRepository,
     required this.routineService,
     this.uuid = const Uuid(),
   });
 
   final List<HouseholdTask> _tasks = [];
+  final List<HouseholdRoutine> _routines = [];
   bool _isLoading = false;
   String? _errorMessage;
 
   List<HouseholdTask> get tasks => List.unmodifiable(_tasks);
+  List<HouseholdRoutine> get routines => List.unmodifiable(_routines);
+
   List<HouseholdTask> get pendingTasks => List.unmodifiable(
         _tasks.where((task) => task.isPending).toList()
           ..sort((a, b) {
@@ -32,6 +39,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
             return aDue.compareTo(bDue);
           }),
       );
+
   List<HouseholdTask> get completedTasks => List.unmodifiable(
         _tasks.where((task) => task.isCompleted).toList()
           ..sort((a, b) => (b.completedAt ?? b.updatedAt)
@@ -45,9 +53,16 @@ class HouseholdRoutinesController extends ChangeNotifier {
     _setLoading(true);
     try {
       _errorMessage = null;
+      final results = await Future.wait([
+        taskRepository.getTasksByScope(scopeId),
+        routineRepository.getRoutinesByScope(scopeId),
+      ]);
       _tasks
         ..clear()
-        ..addAll(await taskRepository.getTasksByScope(scopeId));
+        ..addAll(results[0] as List<HouseholdTask>);
+      _routines
+        ..clear()
+        ..addAll(results[1] as List<HouseholdRoutine>);
     } catch (_) {
       _errorMessage = 'Não foi possível carregar as rotinas da casa.';
     } finally {
@@ -97,6 +112,88 @@ class HouseholdRoutinesController extends ChangeNotifier {
     }
   }
 
+  Future<HouseholdRoutine?> createRoutine({
+    required String scopeId,
+    required HouseholdTaskScope scope,
+    required String name,
+    required List<HouseholdRoutineStep> steps,
+    required DateTime startsAt,
+  }) async {
+    final normalizedName = name.trim();
+    final normalizedSteps = steps
+        .where((step) => step.title.trim().isNotEmpty)
+        .map(
+          (step) => HouseholdRoutineStep(
+            title: step.title.trim(),
+            notes: _emptyToNull(step.notes),
+            delayAfterPrevious: step.delayAfterPrevious,
+            assigneeId: _emptyToNull(step.assigneeId),
+          ),
+        )
+        .toList();
+
+    if (normalizedName.isEmpty) {
+      _setError('Informe o nome da rotina.');
+      return null;
+    }
+    if (normalizedSteps.isEmpty) {
+      _setError('Adicione pelo menos uma etapa à rotina.');
+      return null;
+    }
+    if (normalizedSteps.any((step) => step.delayAfterPrevious.isNegative)) {
+      _setError('O tempo entre etapas não pode ser negativo.');
+      return null;
+    }
+
+    final now = DateTime.now();
+    final routine = HouseholdRoutine(
+      id: uuid.v4(),
+      scopeId: scopeId,
+      name: normalizedName,
+      steps: normalizedSteps,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    try {
+      _errorMessage = null;
+      await routineRepository.saveRoutine(routine);
+      final firstTask = await routineService.startRoutine(
+        routine: routine,
+        scope: scope,
+        startsAt: startsAt,
+      );
+      _routines.add(routine);
+      _replaceTask(firstTask);
+      notifyListeners();
+      return routine;
+    } catch (_) {
+      _setError('Não foi possível criar a rotina.');
+      return null;
+    }
+  }
+
+  Future<HouseholdTask?> startRoutine({
+    required HouseholdRoutine routine,
+    required HouseholdTaskScope scope,
+    DateTime? startsAt,
+  }) async {
+    try {
+      _errorMessage = null;
+      final task = await routineService.startRoutine(
+        routine: routine,
+        scope: scope,
+        startsAt: startsAt ?? DateTime.now(),
+      );
+      _replaceTask(task);
+      notifyListeners();
+      return task;
+    } catch (_) {
+      _setError('Não foi possível iniciar a rotina.');
+      return null;
+    }
+  }
+
   Future<HouseholdTask?> completeTask(String taskId) async {
     try {
       _errorMessage = null;
@@ -114,8 +211,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
       notifyListeners();
       return nextTask;
     } catch (_) {
-      _errorMessage = 'Não foi possível concluir a tarefa.';
-      notifyListeners();
+      _setError('Não foi possível concluir a tarefa.');
       return null;
     }
   }
@@ -133,8 +229,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
       }
       notifyListeners();
     } catch (_) {
-      _errorMessage = 'Não foi possível cancelar a tarefa.';
-      notifyListeners();
+      _setError('Não foi possível cancelar a tarefa.');
     }
   }
 
@@ -149,6 +244,11 @@ class HouseholdRoutinesController extends ChangeNotifier {
 
   void _setLoading(bool value) {
     _isLoading = value;
+    notifyListeners();
+  }
+
+  void _setError(String message) {
+    _errorMessage = message;
     notifyListeners();
   }
 
