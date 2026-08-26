@@ -18,6 +18,9 @@ class ParanaFiscalQrLookupProvider implements FiscalQrLookupProvider {
   };
 
   @override
+  bool get canResolveStructuredReceipt => false;
+
+  @override
   bool supports(Uri uri) {
     if (!_hosts.contains(uri.host.toLowerCase())) return false;
     if (!uri.path.toLowerCase().contains('/nfce/qrcode')) return false;
