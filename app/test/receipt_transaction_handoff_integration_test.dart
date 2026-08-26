@@ -73,12 +73,12 @@ void main() {
         updatedAt: DateTime(2026, 8, 26),
       );
 
-  ReceiptTransactionDraft draft() => const ReceiptTransactionDraft(
+  ReceiptTransactionDraft draft() => ReceiptTransactionDraft(
         description: 'Mercado Duo',
         purchaseDate: DateTime(2026, 8, 25),
         amount: 30,
         paymentMethodSuggestion: 'pix',
-        items: [
+        items: const [
           ReceiptScanItem(
             description: 'Arroz',
             quantity: 2,
@@ -99,9 +99,9 @@ void main() {
         .set(financialWallet.toMap());
     final signedInAuth = auth();
     final transactionRepository = TransactionRepository(
-        firestore: firestore,
-        auth: signedInAuth,
-      );
+      firestore: firestore,
+      auth: signedInAuth,
+    );
     return CreateTransactionUseCase(
       transactionRepository: transactionRepository,
       walletRepository: WalletRepository(
