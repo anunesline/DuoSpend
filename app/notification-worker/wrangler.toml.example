@@ -1,0 +1,16 @@
+name = "duospend-household-reminders"
+main = "src/index.js"
+compatibility_date = "2026-08-26"
+
+[vars]
+FIREBASE_PROJECT_ID = "REPLACE_FIREBASE_PROJECT_ID"
+FIREBASE_WEB_API_KEY = "REPLACE_FIREBASE_WEB_API_KEY"
+ONESIGNAL_APP_ID = "REPLACE_ONESIGNAL_APP_ID"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "duospend-household-reminders"
+database_id = "REPLACE_D1_DATABASE_ID"
+
+# Configure the OneSignal REST API key as a secret, never in this file:
+# npx wrangler secret put ONESIGNAL_REST_API_KEY
