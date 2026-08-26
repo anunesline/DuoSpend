@@ -158,8 +158,13 @@ class FinancialIntelligenceService {
         continue;
       }
       final deadline = goal.deadline!;
-      final months = _monthsUntil(input.now, deadline);
-      if (months <= 0 && goal.remainingAmount > 0) {
+      final today = DateTime(input.now.year, input.now.month, input.now.day);
+      final deadlineDate = DateTime(
+        deadline.year,
+        deadline.month,
+        deadline.day,
+      );
+      if (deadlineDate.isBefore(today) && goal.remainingAmount > 0) {
         insights.add(FinancialInsight(
           id: 'goal-late-${goal.id}',
           type: FinancialInsightType.goal,
@@ -169,7 +174,9 @@ class FinancialIntelligenceService {
           source: 'Meta, valor guardado e prazo',
           amount: goal.remainingAmount,
         ));
-      } else if (months > 0) {
+      } else if (goal.remainingAmount > 0) {
+        final months = _monthsUntil(today, deadlineDate);
+        final monthlyInstallmentCount = months < 1 ? 1 : months;
         insights.add(FinancialInsight(
           id: 'goal-monthly-${goal.id}',
           type: FinancialInsightType.goal,
@@ -177,7 +184,7 @@ class FinancialIntelligenceService {
           title: 'Reserva mensal para ${goal.name}',
           message: 'Para atingir a meta no prazo, reserve o valor mensal indicado.',
           source: 'Valor restante da meta dividido pelos meses até o prazo',
-          amount: goal.remainingAmount / months,
+          amount: goal.remainingAmount / monthlyInstallmentCount,
         ));
       }
     }
