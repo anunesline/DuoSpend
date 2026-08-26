@@ -1,153 +1,71 @@
 import 'dart:async';
 
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-
-class PushNotificationMessage {
-  final String title;
-  final String body;
-  final Map<String, dynamic> data;
-
-  const PushNotificationMessage({
-    required this.title,
-    required this.body,
-    required this.data,
-  });
-}
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class PushNotificationService {
-  final FirebaseMessaging messaging;
-  final FirebaseAuth auth;
-  final FirebaseFunctions functions;
+  static const _appId = String.fromEnvironment('ONESIGNAL_APP_ID');
 
-  final ValueNotifier<PushNotificationMessage?> foregroundMessage =
-      ValueNotifier<PushNotificationMessage?>(null);
+  final FirebaseAuth auth;
 
   StreamSubscription<User?>? _authSubscription;
-  StreamSubscription<String>? _tokenSubscription;
-  StreamSubscription<RemoteMessage>? _messageSubscription;
-  String? _lastUserId;
-  String? _lastToken;
+  String? _identifiedUserId;
   bool _initialized = false;
 
-  PushNotificationService({
-    FirebaseMessaging? messaging,
-    FirebaseAuth? auth,
-    FirebaseFunctions? functions,
-  })  : messaging = messaging ?? FirebaseMessaging.instance,
-        auth = auth ?? FirebaseAuth.instance,
-        functions = functions ?? FirebaseFunctions.instance;
+  PushNotificationService({FirebaseAuth? auth})
+      : auth = auth ?? FirebaseAuth.instance;
 
-  bool get _supportsMessaging {
+  bool get _supportsPush {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS;
+        defaultTargetPlatform == TargetPlatform.iOS;
   }
 
   Future<void> initialize() async {
-    if (_initialized || !_supportsMessaging) return;
+    if (_initialized || !_supportsPush) return;
     _initialized = true;
 
+    if (_appId.trim().isEmpty) {
+      debugPrint(
+        'OneSignal disabled: build without --dart-define=ONESIGNAL_APP_ID.',
+      );
+      return;
+    }
+
     try {
-      await messaging.setAutoInitEnabled(true);
-      await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-      await messaging.setForegroundNotificationPresentationOptions(
-        alert: false,
-        badge: true,
-        sound: false,
-      );
+      OneSignal.initialize(_appId.trim());
+      await OneSignal.Notifications.requestPermission(false);
 
       _authSubscription = auth.authStateChanges().listen((user) {
-        unawaited(_handleAuthChanged(user));
+        unawaited(_syncIdentity(user));
       });
-      _tokenSubscription = messaging.onTokenRefresh.listen((token) {
-        unawaited(_handleTokenRefresh(token));
-      });
-      _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
-        foregroundMessage.value = PushNotificationMessage(
-          title: message.notification?.title ?? 'DuoSpend',
-          body: message.notification?.body ?? 'Você tem um novo lembrete.',
-          data: Map<String, dynamic>.from(message.data),
-        );
-      });
-
-      await _handleAuthChanged(auth.currentUser);
+      await _syncIdentity(auth.currentUser);
     } catch (error, stackTrace) {
-      debugPrint('Push notifications unavailable: $error\n$stackTrace');
+      debugPrint('OneSignal unavailable: $error\n$stackTrace');
     }
   }
 
-  Future<void> _handleAuthChanged(User? user) async {
+  Future<void> _syncIdentity(User? user) async {
     try {
-      final previousUserId = _lastUserId;
       final nextUserId = user?.uid.trim();
-
-      if (previousUserId != null &&
-          previousUserId.isNotEmpty &&
-          previousUserId != nextUserId) {
-        // Once sign-out finishes the callable endpoint is no longer authorized.
-        // Deleting the registration token locally invalidates it at FCM; any
-        // stale server record is removed automatically after a failed send.
-        await messaging.deleteToken();
-        _lastToken = null;
+      if (nextUserId == null || nextUserId.isEmpty) {
+        if (_identifiedUserId != null) {
+          await OneSignal.logout();
+          _identifiedUserId = null;
+        }
+        return;
       }
 
-      _lastUserId = nextUserId;
-      if (nextUserId == null || nextUserId.isEmpty) return;
-
-      final token = await messaging.getToken();
-      _lastToken = token;
-      if (token == null || token.isEmpty) return;
-      await _registerToken(token);
+      if (_identifiedUserId == nextUserId) return;
+      await OneSignal.login(nextUserId);
+      _identifiedUserId = nextUserId;
     } catch (error) {
-      debugPrint('Could not sync FCM token: $error');
+      debugPrint('Could not sync OneSignal user: $error');
     }
-  }
-
-  Future<void> _handleTokenRefresh(String token) async {
-    try {
-      final oldToken = _lastToken;
-      _lastToken = token;
-      if (auth.currentUser == null || token.isEmpty) return;
-
-      if (oldToken != null && oldToken.isNotEmpty && oldToken != token) {
-        await _unregisterToken(oldToken);
-      }
-      await _registerToken(token);
-    } catch (error) {
-      debugPrint('Could not refresh FCM token: $error');
-    }
-  }
-
-  Future<void> _registerToken(String token) async {
-    await functions.httpsCallable('registerPushToken').call({
-      'token': token,
-      'platform': defaultTargetPlatform.name,
-    });
-  }
-
-  Future<void> _unregisterToken(String token) async {
-    await functions.httpsCallable('unregisterPushToken').call({
-      'token': token,
-    });
-  }
-
-  void clearForegroundMessage() {
-    foregroundMessage.value = null;
   }
 
   Future<void> dispose() async {
     await _authSubscription?.cancel();
-    await _tokenSubscription?.cancel();
-    await _messageSubscription?.cancel();
-    foregroundMessage.dispose();
   }
 }
