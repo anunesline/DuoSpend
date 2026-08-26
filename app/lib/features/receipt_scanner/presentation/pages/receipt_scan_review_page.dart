@@ -24,6 +24,7 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
   late final TextEditingController _amountController;
   late DateTime? _purchaseDate;
   late String? _paymentMethodSuggestion;
+  late List<ReceiptScanItem> _items;
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
     );
     _purchaseDate = widget.draft.purchaseDate;
     _paymentMethodSuggestion = widget.draft.paymentMethodSuggestion;
+    _items = List.of(widget.draft.items);
   }
 
   @override
@@ -58,6 +60,7 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
     amount: _amount,
     purchaseDate: _purchaseDate,
     paymentMethodSuggestion: _paymentMethodSuggestion,
+    items: List.unmodifiable(_items),
   );
 
   Future<void> _selectDate() async {
@@ -73,12 +76,11 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
   }
 
   double? get _itemsTotal {
-    if (widget.draft.items.isEmpty ||
-        widget.draft.items.any((item) => item.totalPrice == null)) {
+    if (_items.isEmpty || _items.any((item) => item.totalPrice == null)) {
       return null;
     }
 
-    return widget.draft.items.fold<double>(
+    return _items.fold<double>(
       0,
       (total, item) => total + item.totalPrice!,
     );
@@ -117,22 +119,93 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
     return '$day/$month/${date.year}';
   }
 
-  Widget _buildItem(ReceiptScanItem item) {
-    final quantity = item.quantity;
-    final unitPrice = item.unitPrice;
-    final details = <String>[];
-    if (quantity != null) details.add('Qtd. $quantity');
-    if (unitPrice != null) {
-      details.add('Unit. R\$ ${_formatAmount(unitPrice)}');
-    }
-    if (item.totalPrice != null) {
-      details.add('Total R\$ ${_formatAmount(item.totalPrice)}');
-    }
+  double? _parseNumber(String value) {
+    final rawValue = value.trim();
+    if (rawValue.isEmpty) return null;
+    final normalized = rawValue.contains(',')
+        ? rawValue.replaceAll('.', '').replaceAll(',', '.')
+        : rawValue;
+    return double.tryParse(normalized);
+  }
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(item.description),
-      subtitle: details.isEmpty ? null : Text(details.join(' • ')),
+  void _updateItem(int index, ReceiptScanItem item) {
+    setState(() => _items[index] = item);
+  }
+
+  Widget _buildItem(int index) {
+    final item = _items[index];
+    return ExpansionTile(
+      key: ValueKey('receipt-item-$index-${item.description}'),
+      title: Text(item.description.isEmpty ? 'Item sem descrição' : item.description),
+      childrenPadding: const EdgeInsets.only(bottom: AppSpacing.md),
+      children: [
+        TextFormField(
+          initialValue: item.description,
+          decoration: const InputDecoration(labelText: 'Descrição'),
+          onChanged: (value) => _updateItem(
+            index,
+            item.copyWith(description: value),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                initialValue: item.quantity == null
+                    ? ''
+                    : _formatAmount(item.quantity),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Quantidade'),
+                onChanged: (value) => _updateItem(
+                  index,
+                  item.copyWith(
+                    quantity: _parseNumber(value),
+                    clearQuantity: value.trim().isEmpty,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: TextFormField(
+                initialValue: item.unit ?? 'un',
+                decoration: const InputDecoration(labelText: 'Unidade'),
+                onChanged: (value) => _updateItem(
+                  index,
+                  item.copyWith(unit: value),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextFormField(
+          initialValue: _formatAmount(item.unitPrice),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Valor unitário'),
+          onChanged: (value) => _updateItem(
+            index,
+            item.copyWith(
+              unitPrice: _parseNumber(value),
+              clearUnitPrice: value.trim().isEmpty,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextFormField(
+          initialValue: _formatAmount(item.totalPrice),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Valor total do item'),
+          onChanged: (value) => _updateItem(
+            index,
+            item.copyWith(
+              totalPrice: _parseNumber(value),
+              clearTotalPrice: value.trim().isEmpty,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -203,14 +276,14 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
                 setState(() => _paymentMethodSuggestion = value);
               },
             ),
-            if (widget.draft.items.isNotEmpty) ...[
+            if (_items.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.xl),
               const Text(
                 'Itens reconhecidos',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: AppSpacing.sm),
-              ...widget.draft.items.map(_buildItem),
+              ...List.generate(_items.length, _buildItem),
             ],
             if (_hasTotalDivergence) ...[
               const SizedBox(height: AppSpacing.md),
