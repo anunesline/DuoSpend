@@ -8,14 +8,4 @@ abstract class HouseholdTaskReminderRepository {
     required String senderUserId,
     required String recipientUserId,
   });
-
-  Future<List<HouseholdTaskReminder>> getDueReminders({
-    required String recipientUserId,
-    required DateTime now,
-  });
-
-  Future<void> markDelivered({
-    required String reminderId,
-    required DateTime deliveredAt,
-  });
 }
