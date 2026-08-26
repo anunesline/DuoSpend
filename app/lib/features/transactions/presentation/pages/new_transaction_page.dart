@@ -8,6 +8,7 @@ import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../receipt_scanner/application/receipt_transaction_item_mapper.dart';
 import '../../../receipt_scanner/domain/models/receipt_transaction_draft.dart';
+import '../../../receipt_scanner/presentation/pages/receipt_scanner_page.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../home/data/models/credit_card_model.dart';
 import '../../../home/data/models/wallet_model.dart';
@@ -1054,6 +1055,28 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       );
   }
 
+  Future<void> _openReceiptScanner() async {
+    final draft = await Navigator.push<ReceiptTransactionDraft>(
+      context,
+      MaterialPageRoute(builder: (_) => const ReceiptScannerPage()),
+    );
+    if (!mounted || draft == null) return;
+
+    await Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NewTransactionPage(
+          walletContext: widget.walletContext,
+          walletId: widget.walletId,
+          consumerController: widget.consumerController,
+          purchaseController: widget.purchaseController,
+          productRepository: widget.productRepository,
+          receiptDraft: draft,
+        ),
+      ),
+    );
+  }
+
   Widget _buildPaymentSection({
     required bool enabled,
   }) {
@@ -1199,6 +1222,13 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nova Transação'),
+        actions: [
+          IconButton(
+            tooltip: 'Scanner fiscal',
+            onPressed: _openReceiptScanner,
+            icon: const Icon(Icons.document_scanner_outlined),
+          ),
+        ],
       ),
       body: AnimatedBuilder(
         animation: Listenable.merge([
