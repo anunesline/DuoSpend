@@ -9,6 +9,10 @@ class LookupFiscalQrUseCase {
     List<FiscalQrLookupProvider> providers = const [],
   }) : _providers = providers;
 
+  bool get hasStructuredProvider => _providers.any(
+        (provider) => provider.canResolveStructuredReceipt,
+      );
+
   Future<FiscalQrLookupResult> call(String rawValue) async {
     final uri = Uri.tryParse(rawValue.trim());
     if (uri == null ||

@@ -38,3 +38,8 @@ mas a consulta pública disponível é uma página de consumidor; não há paylo
 JSON/XML de nota e itens documentado para integração por aplicativo. O provider
 portanto retorna `null` deliberadamente, mantendo OCR/revisão manual. Ele não
 faz scraping da página HTML e é o ponto isolado para uma futura API autorizada.
+
+A entrada de QR fica oculta na UI enquanto nenhum provider declarar capacidade
+de retornar dados estruturados. Isso evita oferecer ao usuário um caminho que,
+hoje, só terminaria em indisponibilidade; OCR por imagem e revisão manual
+continuam disponíveis.

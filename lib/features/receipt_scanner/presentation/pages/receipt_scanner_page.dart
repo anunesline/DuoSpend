@@ -93,15 +93,17 @@ class _ReceiptScannerPageState extends State<ReceiptScannerPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Leia o QR fiscal ou escolha uma imagem da nota. Você poderá revisar tudo antes de criar a transação.',
+                  'Escolha uma imagem da nota. Você poderá revisar tudo antes de criar a transação.',
                 ),
                 const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: isLoading ? null : _scanQr,
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
-                  label: const Text('Ler QR fiscal'),
-                ),
-                const SizedBox(height: 12),
+                if (_controller.canScanFiscalQr) ...[
+                  FilledButton.icon(
+                    onPressed: isLoading ? null : _scanQr,
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    label: const Text('Ler QR fiscal'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 OutlinedButton.icon(
                   onPressed: isLoading
                       ? null

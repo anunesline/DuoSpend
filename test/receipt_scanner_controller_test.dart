@@ -37,6 +37,8 @@ void main() {
   test('cancelar captura não produz rascunho nem qualquer persistência', () async {
     final controller = createController(null);
 
+    expect(controller.canScanFiscalQr, isFalse);
+
     final draft = await controller.captureAndRecognize(
       ReceiptCaptureSource.gallery,
     );

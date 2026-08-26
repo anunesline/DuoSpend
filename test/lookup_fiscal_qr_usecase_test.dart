@@ -26,6 +26,13 @@ class _FailingFiscalQrProvider implements FiscalQrLookupProvider {
   bool supports(Uri uri) => uri.host == 'nfce.exemplo.gov.br';
 }
 
+class _StructuredFiscalQrProvider extends _FakeFiscalQrProvider {
+  const _StructuredFiscalQrProvider(super.result);
+
+  @override
+  bool get canResolveStructuredReceipt => true;
+}
+
 void main() {
   test('reconhece QR fiscal válido com dados estruturados', () async {
     final useCase = LookupFiscalQrUseCase(
@@ -70,5 +77,20 @@ void main() {
 
     expect(result.status, FiscalQrLookupStatus.unavailable);
     expect(result.receipt, isNull);
+  });
+
+  test('só provider estruturado habilita a entrada de QR na UI', () {
+    expect(
+      const LookupFiscalQrUseCase(
+        providers: [_FakeFiscalQrProvider(null)],
+      ).hasStructuredProvider,
+      isFalse,
+    );
+    expect(
+      const LookupFiscalQrUseCase(
+        providers: [_StructuredFiscalQrProvider(null)],
+      ).hasStructuredProvider,
+      isTrue,
+    );
   });
 }
