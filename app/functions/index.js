@@ -18,6 +18,8 @@ const WALLETS = "wallets";
 const TOKEN_COLLECTION = "fcm_tokens";
 const COOLDOWNS = "household_reminder_cooldowns";
 const PARTNER_COOLDOWN_MS = 2 * 60 * 60 * 1000;
+const DELIVERY_LEASE_MS = 2 * 60 * 1000;
+const MAX_DELIVERY_ATTEMPTS = 5;
 const DISPATCH_FUNCTION = "dispatchHouseholdReminder";
 
 function hash(value) {
@@ -125,11 +127,21 @@ exports.getLatestHouseholdReminder = onCall(async (request) => {
 async function enqueueReminder(reminderId, remindAt) {
   const queue = adminFunctions.taskQueue(DISPATCH_FUNCTION);
   const options = {dispatchDeadlineSeconds: 60};
-  const now = Date.now();
-  if (remindAt.getTime() > now) {
+  if (remindAt.getTime() > Date.now()) {
     options.scheduleTime = remindAt;
   }
   await queue.enqueue({reminderId}, options);
+}
+
+async function releasePartnerCooldown(cooldownRef, expectedLastSentAt) {
+  if (!cooldownRef) return;
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(cooldownRef);
+    if (!snapshot.exists) return;
+    if (String(snapshot.data().lastSentAt || "") === expectedLastSentAt) {
+      transaction.delete(cooldownRef);
+    }
+  });
 }
 
 exports.createHouseholdReminder = onCall(async (request) => {
@@ -171,6 +183,7 @@ exports.createHouseholdReminder = onCall(async (request) => {
   }
 
   const now = new Date();
+  const nowIso = now.toISOString();
   const isPartnerReminder = recipientUserId !== uid;
   let remindAt = now;
 
@@ -194,20 +207,31 @@ exports.createHouseholdReminder = onCall(async (request) => {
     kind: isPartnerReminder ? "partner" : "self",
     status: remindAt.getTime() > now.getTime() ? "scheduled" : "pendingDelivery",
     remindAt: remindAt.toISOString(),
-    createdAt: now.toISOString(),
+    createdAt: nowIso,
     deliveredAt: null,
+    deliveryAttempts: 0,
   };
 
   const reminderRef = db.collection(REMINDERS).doc(reminderId);
+  let cooldownRef = null;
 
   if (!isPartnerReminder) {
+    const existing = await reminderRef.get();
+    if (existing.exists) {
+      throw new HttpsError("already-exists", "Reminder already exists.");
+    }
     await reminderRef.set(reminder);
   } else {
-    const cooldownRef = db.collection(COOLDOWNS).doc(
+    cooldownRef = db.collection(COOLDOWNS).doc(
         hash(`${taskId}|${uid}|${recipientUserId}`),
     );
 
     await db.runTransaction(async (transaction) => {
+      const reminderSnapshot = await transaction.get(reminderRef);
+      if (reminderSnapshot.exists) {
+        throw new HttpsError("already-exists", "Reminder already exists.");
+      }
+
       const cooldownSnapshot = await transaction.get(cooldownRef);
       if (cooldownSnapshot.exists) {
         const lastSentAt = new Date(String(cooldownSnapshot.data().lastSentAt || ""));
@@ -228,7 +252,7 @@ exports.createHouseholdReminder = onCall(async (request) => {
         taskId,
         senderUserId: uid,
         recipientUserId,
-        lastSentAt: now.toISOString(),
+        lastSentAt: nowIso,
       });
       transaction.set(reminderRef, reminder);
     });
@@ -242,6 +266,7 @@ exports.createHouseholdReminder = onCall(async (request) => {
       failureReason: "queue-enqueue-failed",
       failedAt: new Date().toISOString(),
     }, {merge: true});
+    await releasePartnerCooldown(cooldownRef, nowIso);
     throw new HttpsError("internal", "Could not schedule reminder delivery.");
   }
 
@@ -251,25 +276,56 @@ exports.createHouseholdReminder = onCall(async (request) => {
 async function claimReminder(reference) {
   return db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(reference);
-    if (!snapshot.exists) return null;
+    if (!snapshot.exists) return {state: "missing"};
 
     const data = snapshot.data();
     if (
       data.status === "delivered" ||
       data.status === "failed" ||
-      data.status === "cancelled" ||
-      data.deliveryStartedAt
+      data.status === "cancelled"
     ) {
-      return null;
+      return {state: "terminal"};
     }
 
+    const now = new Date();
+    const previousLease = data.deliveryStartedAt
+      ? new Date(String(data.deliveryStartedAt))
+      : null;
+    if (
+      previousLease &&
+      !Number.isNaN(previousLease.getTime()) &&
+      now.getTime() - previousLease.getTime() < DELIVERY_LEASE_MS
+    ) {
+      return {state: "busy"};
+    }
+
+    const attempt = Number(data.deliveryAttempts || 0) + 1;
     transaction.update(reference, {
       status: "pendingDelivery",
-      deliveryStartedAt: new Date().toISOString(),
+      deliveryStartedAt: now.toISOString(),
+      deliveryAttempts: attempt,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return data;
+    return {state: "claimed", reminder: data, attempt};
   });
+}
+
+async function releaseDeliveryLease(reference, reason) {
+  await reference.set({
+    status: "pendingDelivery",
+    deliveryStartedAt: FieldValue.delete(),
+    lastDeliveryError: String(reason || "transient-delivery-error"),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, {merge: true});
+}
+
+async function markFailed(reference, reason) {
+  await reference.set({
+    status: "failed",
+    deliveryStartedAt: FieldValue.delete(),
+    failureReason: reason,
+    failedAt: new Date().toISOString(),
+  }, {merge: true});
 }
 
 async function getRecipientTokens(userId) {
@@ -295,24 +351,27 @@ async function buildNotification(reminder) {
     : {title: "DuoSpend • Lembrete", body: taskTitle};
 }
 
-async function deliverReminder(reference, reminder) {
+function isTransientMessagingCode(code) {
+  return code === "messaging/internal-error" ||
+    code === "messaging/server-unavailable" ||
+    code === "messaging/quota-exceeded" ||
+    code === "messaging/message-rate-exceeded" ||
+    code === "messaging/device-message-rate-exceeded";
+}
+
+async function deliverReminder(reference, reminder, attempt) {
   const recipientUserId = String(reminder.recipientUserId || "").trim();
   if (!recipientUserId) {
-    await reference.update({
-      status: "failed",
-      failureReason: "missing-recipient",
-      failedAt: new Date().toISOString(),
-    });
+    await markFailed(reference, "missing-recipient");
     return;
   }
 
   const tokenRecords = await getRecipientTokens(recipientUserId);
   if (tokenRecords.length === 0) {
-    await reference.update({
-      status: "failed",
-      failureReason: "no-device-token",
-      failedAt: new Date().toISOString(),
-    });
+    if (attempt < MAX_DELIVERY_ATTEMPTS) {
+      throw new Error("no-device-token-yet");
+    }
+    await markFailed(reference, "no-device-token");
     return;
   }
 
@@ -337,6 +396,7 @@ async function deliverReminder(reference, reminder) {
   });
 
   const invalidTokenRefs = [];
+  let hasTransientFailure = false;
   response.responses.forEach((result, index) => {
     if (result.success) return;
     const code = result.error && result.error.code;
@@ -345,30 +405,34 @@ async function deliverReminder(reference, reminder) {
       code === "messaging/invalid-registration-token"
     ) {
       invalidTokenRefs.push(tokenRecords[index].reference);
+    } else if (isTransientMessagingCode(code)) {
+      hasTransientFailure = true;
     }
   });
   await Promise.all(invalidTokenRefs.map((ref) => ref.delete()));
 
-  if (response.successCount === 0) {
-    await reference.update({
-      status: "failed",
-      failureReason: "fcm-delivery-failed",
-      failedAt: new Date().toISOString(),
-    });
+  if (response.successCount > 0) {
+    await reference.set({
+      status: "delivered",
+      deliveredAt: new Date().toISOString(),
+      deliveryStartedAt: FieldValue.delete(),
+      failureReason: FieldValue.delete(),
+      lastDeliveryError: FieldValue.delete(),
+    }, {merge: true});
     return;
   }
 
-  await reference.update({
-    status: "delivered",
-    deliveredAt: new Date().toISOString(),
-    failureReason: FieldValue.delete(),
-  });
+  if (hasTransientFailure && attempt < MAX_DELIVERY_ATTEMPTS) {
+    throw new Error("transient-fcm-delivery-error");
+  }
+
+  await markFailed(reference, "fcm-delivery-failed");
 }
 
 exports.dispatchHouseholdReminder = onTaskDispatched(
     {
       retryConfig: {
-        maxAttempts: 5,
+        maxAttempts: MAX_DELIVERY_ATTEMPTS,
         minBackoffSeconds: 30,
       },
       rateLimits: {
@@ -380,8 +444,17 @@ exports.dispatchHouseholdReminder = onTaskDispatched(
       if (!reminderId) return;
 
       const reminderRef = db.collection(REMINDERS).doc(reminderId);
-      const reminder = await claimReminder(reminderRef);
-      if (!reminder) return;
-      await deliverReminder(reminderRef, reminder);
+      const claim = await claimReminder(reminderRef);
+      if (claim.state === "missing" || claim.state === "terminal") return;
+      if (claim.state === "busy") {
+        throw new Error("Reminder delivery is already in progress.");
+      }
+
+      try {
+        await deliverReminder(reminderRef, claim.reminder, claim.attempt);
+      } catch (error) {
+        await releaseDeliveryLease(reminderRef, error && error.message);
+        throw error;
+      }
     },
 );
