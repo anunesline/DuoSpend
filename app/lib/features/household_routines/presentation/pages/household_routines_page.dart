@@ -38,71 +38,117 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     final titleController = TextEditingController();
     final notesController = TextEditingController();
     String? assigneeId = widget.currentUserId;
+    DateTime? dueAt;
 
     final shouldCreate = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Nova tarefa'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  autofocus: true,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Tarefa',
-                    hintText: 'Ex.: Tirar o lixo',
+        builder: (context, setDialogState) {
+          Future<void> pickDueAt() async {
+            final now = DateTime.now();
+            final initial = dueAt ?? now.add(const Duration(hours: 1));
+            final date = await showDatePicker(
+              context: dialogContext,
+              initialDate: initial,
+              firstDate: DateTime(now.year, now.month, now.day),
+              lastDate: DateTime(now.year + 5),
+            );
+            if (date == null || !dialogContext.mounted) return;
+            final time = await showTimePicker(
+              context: dialogContext,
+              initialTime: TimeOfDay.fromDateTime(initial),
+            );
+            if (time == null) return;
+            setDialogState(() {
+              dueAt = DateTime(
+                date.year,
+                date.month,
+                date.day,
+                time.hour,
+                time.minute,
+              );
+            });
+          }
+
+          return AlertDialog(
+            title: const Text('Nova tarefa'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'Tarefa',
+                      hintText: 'Ex.: Tirar o lixo',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: notesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Observações (opcional)',
-                  ),
-                ),
-                if (widget.scope == HouseholdTaskScope.shared &&
-                    widget.memberIds.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: widget.memberIds.contains(assigneeId)
-                        ? assigneeId
-                        : null,
-                    decoration: const InputDecoration(labelText: 'Responsável'),
-                    items: widget.memberIds
-                        .map(
-                          (memberId) => DropdownMenuItem(
-                            value: memberId,
-                            child: Text(
-                              memberId == widget.currentUserId
-                                  ? 'Eu'
-                                  : 'Outro membro',
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setDialogState(() {
-                      assigneeId = value;
-                    }),
+                  TextField(
+                    controller: notesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Observações (opcional)',
+                    ),
                   ),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.schedule_rounded),
+                    title: Text(
+                      dueAt == null ? 'Definir data e horário' : _formatDueAt(dueAt!),
+                    ),
+                    subtitle: const Text('Opcional'),
+                    onTap: pickDueAt,
+                    trailing: dueAt == null
+                        ? const Icon(Icons.chevron_right_rounded)
+                        : IconButton(
+                            tooltip: 'Remover horário',
+                            onPressed: () => setDialogState(() => dueAt = null),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                  ),
+                  if (widget.scope == HouseholdTaskScope.shared &&
+                      widget.memberIds.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: widget.memberIds.contains(assigneeId)
+                          ? assigneeId
+                          : null,
+                      decoration: const InputDecoration(labelText: 'Responsável'),
+                      items: widget.memberIds
+                          .map(
+                            (memberId) => DropdownMenuItem(
+                              value: memberId,
+                              child: Text(
+                                memberId == widget.currentUserId
+                                    ? 'Eu'
+                                    : 'Outro membro',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) => setDialogState(() {
+                        assigneeId = value;
+                      }),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Criar'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Criar'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -113,6 +159,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
         title: titleController.text,
         notes: notesController.text,
         assigneeId: assigneeId,
+        dueAt: dueAt,
       );
     }
 
@@ -308,6 +355,14 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   }
 }
 
+String _formatDueAt(DateTime date) {
+  final day = date.day.toString().padLeft(2, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return '$day/$month/${date.year} às $hour:$minute';
+}
+
 class _SectionTitle extends StatelessWidget {
   final String title;
 
@@ -390,10 +445,7 @@ class _TaskTile extends StatelessWidget {
       );
     }
     if (task.dueAt != null) {
-      final date = task.dueAt!;
-      final hour = date.hour.toString().padLeft(2, '0');
-      final minute = date.minute.toString().padLeft(2, '0');
-      subtitleParts.add('${date.day}/${date.month} às $hour:$minute');
+      subtitleParts.add(_formatDueAt(task.dueAt!));
     }
     if (task.belongsToRoutine) {
       subtitleParts.add('Etapa ${(task.routineStepIndex ?? 0) + 1}');
