@@ -1,6 +1,6 @@
 # Rotinas da Casa — notificações
 
-A Sprint 30 separa dois tipos de lembrete para evitar dependência de Cloud Functions/Cloud Tasks no V1:
+A Sprint 30 separa dois tipos de lembrete sem depender de Cloud Functions/Cloud Tasks:
 
 - **Lembrete pessoal**: notificação local agendada no próprio dispositivo com `flutter_local_notifications`.
 - **Lembrar responsável**: push remoto pelo OneSignal, enviado através de um Cloudflare Worker seguro.
@@ -65,11 +65,11 @@ Binding obrigatório:
 
 - `DB` apontando para o banco D1 criado com `notification-worker/schema.sql`
 
-## Firebase Functions existentes
+## Cloud Functions / FCM
 
-`app/functions/` permanece no repositório apenas como implementação anterior/deferida. A Sprint 30 não depende de deploy de Functions, FCM token registry ou Cloud Tasks para funcionar com a arquitetura nova.
+A implementação intermediária baseada em `firebase_messaging`, Cloud Functions e Cloud Tasks foi removida do closeout. O Flutter da Sprint 30 não registra tokens FCM diretamente e não depende de deploy no plano Blaze.
 
-Antes do Release da Sprint 32, decidir se esse backend legado será removido definitivamente ou mantido apenas como referência técnica.
+O Firebase continua sendo usado normalmente para autenticação e dados do DuoSpend.
 
 ## Validação funcional
 
