@@ -1,22 +1,24 @@
 const crypto = require("crypto");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore, FieldValue} = require("firebase-admin/firestore");
+const {getFunctions} = require("firebase-admin/functions");
 const {getMessaging} = require("firebase-admin/messaging");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
-const {onDocumentCreated} = require("firebase-functions/v2/firestore");
-const {onSchedule} = require("firebase-functions/v2/scheduler");
-const {logger} = require("firebase-functions");
+const {onTaskDispatched} = require("firebase-functions/v2/tasks");
 
 initializeApp();
 
 const db = getFirestore();
 const messaging = getMessaging();
+const adminFunctions = getFunctions();
 
 const REMINDERS = "household_task_reminders";
 const TASKS = "household_tasks";
+const WALLETS = "wallets";
 const TOKEN_COLLECTION = "fcm_tokens";
 const COOLDOWNS = "household_reminder_cooldowns";
 const PARTNER_COOLDOWN_MS = 2 * 60 * 60 * 1000;
+const DISPATCH_FUNCTION = "dispatchHouseholdReminder";
 
 function hash(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -45,6 +47,31 @@ function sharedMembers(scopeId) {
       .split("|")
       .map((value) => value.trim())
       .filter(Boolean);
+}
+
+async function validateConnectedHousehold(senderUserId, recipientUserId) {
+  if (senderUserId === recipientUserId) return;
+
+  const walletSnapshot = await db
+      .collection(WALLETS)
+      .where("memberIds", "array-contains", senderUserId)
+      .get();
+
+  const connected = walletSnapshot.docs.some((doc) => {
+    const data = doc.data();
+    if (String(data.type || "") !== "shared") return false;
+    const members = Array.isArray(data.memberIds)
+      ? data.memberIds.map((value) => String(value).trim())
+      : [];
+    return members.includes(senderUserId) && members.includes(recipientUserId);
+  });
+
+  if (!connected) {
+    throw new HttpsError(
+        "permission-denied",
+        "The users are not connected in a shared household.",
+    );
+  }
 }
 
 exports.registerPushToken = onCall(async (request) => {
@@ -95,6 +122,16 @@ exports.getLatestHouseholdReminder = onCall(async (request) => {
   return {reminder: matches.length > 0 ? matches[0] : null};
 });
 
+async function enqueueReminder(reminderId, remindAt) {
+  const queue = adminFunctions.taskQueue(DISPATCH_FUNCTION);
+  const options = {dispatchDeadlineSeconds: 60};
+  const now = Date.now();
+  if (remindAt.getTime() > now) {
+    options.scheduleTime = remindAt;
+  }
+  await queue.enqueue({reminderId}, options);
+}
+
 exports.createHouseholdReminder = onCall(async (request) => {
   const uid = requireAuthenticatedUser(request);
   const reminderId = requireString(request.data, "reminderId");
@@ -128,6 +165,7 @@ exports.createHouseholdReminder = onCall(async (request) => {
     if (!recipientUserId || !members.includes(recipientUserId)) {
       throw new HttpsError("failed-precondition", "The task needs a valid household assignee.");
     }
+    await validateConnectedHousehold(uid, recipientUserId);
   } else {
     throw new HttpsError("failed-precondition", "Unsupported household task scope.");
   }
@@ -164,60 +202,64 @@ exports.createHouseholdReminder = onCall(async (request) => {
 
   if (!isPartnerReminder) {
     await reminderRef.set(reminder);
-    return {reminder};
-  }
+  } else {
+    const cooldownRef = db.collection(COOLDOWNS).doc(
+        hash(`${taskId}|${uid}|${recipientUserId}`),
+    );
 
-  const cooldownRef = db.collection(COOLDOWNS).doc(
-      hash(`${taskId}|${uid}|${recipientUserId}`),
-  );
-
-  await db.runTransaction(async (transaction) => {
-    const cooldownSnapshot = await transaction.get(cooldownRef);
-    if (cooldownSnapshot.exists) {
-      const lastSentAt = new Date(String(cooldownSnapshot.data().lastSentAt || ""));
-      if (!Number.isNaN(lastSentAt.getTime())) {
-        const elapsed = now.getTime() - lastSentAt.getTime();
-        if (elapsed < PARTNER_COOLDOWN_MS) {
-          const retryAfterSeconds = Math.ceil((PARTNER_COOLDOWN_MS - elapsed) / 1000);
-          throw new HttpsError(
-              "resource-exhausted",
-              "Wait before reminding this person again.",
-              {retryAfterSeconds},
-          );
+    await db.runTransaction(async (transaction) => {
+      const cooldownSnapshot = await transaction.get(cooldownRef);
+      if (cooldownSnapshot.exists) {
+        const lastSentAt = new Date(String(cooldownSnapshot.data().lastSentAt || ""));
+        if (!Number.isNaN(lastSentAt.getTime())) {
+          const elapsed = now.getTime() - lastSentAt.getTime();
+          if (elapsed < PARTNER_COOLDOWN_MS) {
+            const retryAfterSeconds = Math.ceil((PARTNER_COOLDOWN_MS - elapsed) / 1000);
+            throw new HttpsError(
+                "resource-exhausted",
+                "Wait before reminding this person again.",
+                {retryAfterSeconds},
+            );
+          }
         }
       }
-    }
 
-    transaction.set(cooldownRef, {
-      taskId,
-      senderUserId: uid,
-      recipientUserId,
-      lastSentAt: now.toISOString(),
+      transaction.set(cooldownRef, {
+        taskId,
+        senderUserId: uid,
+        recipientUserId,
+        lastSentAt: now.toISOString(),
+      });
+      transaction.set(reminderRef, reminder);
     });
-    transaction.set(reminderRef, reminder);
-  });
+  }
+
+  try {
+    await enqueueReminder(reminderId, remindAt);
+  } catch (error) {
+    await reminderRef.set({
+      status: "failed",
+      failureReason: "queue-enqueue-failed",
+      failedAt: new Date().toISOString(),
+    }, {merge: true});
+    throw new HttpsError("internal", "Could not schedule reminder delivery.");
+  }
 
   return {reminder};
 });
 
-function isDue(reminder, now = new Date()) {
-  const value = reminder.remindAt;
-  if (!value) return true;
-  const due = new Date(value);
-  return !Number.isNaN(due.getTime()) && due.getTime() <= now.getTime();
-}
-
-async function claimReminder(reference, expectedStatus) {
+async function claimReminder(reference) {
   return db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(reference);
     if (!snapshot.exists) return null;
 
     const data = snapshot.data();
-    if (data.status !== expectedStatus || data.deliveryStartedAt) {
-      return null;
-    }
-
-    if (expectedStatus === "scheduled" && !isDue(data)) {
+    if (
+      data.status === "delivered" ||
+      data.status === "failed" ||
+      data.status === "cancelled" ||
+      data.deliveryStartedAt
+    ) {
       return null;
     }
 
@@ -323,48 +365,23 @@ async function deliverReminder(reference, reminder) {
   });
 }
 
-exports.deliverHouseholdReminder = onDocumentCreated(
-    `${REMINDERS}/{reminderId}`,
-    async (event) => {
-      const snapshot = event.data;
-      if (!snapshot) return;
-      const reminder = snapshot.data();
-      if (reminder.status !== "pendingDelivery") return;
-
-      const claimed = await claimReminder(snapshot.ref, "pendingDelivery");
-      if (!claimed) return;
-      await deliverReminder(snapshot.ref, claimed);
+exports.dispatchHouseholdReminder = onTaskDispatched(
+    {
+      retryConfig: {
+        maxAttempts: 5,
+        minBackoffSeconds: 30,
+      },
+      rateLimits: {
+        maxConcurrentDispatches: 20,
+      },
     },
-);
+    async (request) => {
+      const reminderId = String((request.data && request.data.reminderId) || "").trim();
+      if (!reminderId) return;
 
-exports.processScheduledHouseholdReminders = onSchedule(
-    "* * * * *",
-    async () => {
-      const nowIso = new Date().toISOString();
-      const scheduled = await db
-          .collection(REMINDERS)
-          .where("status", "==", "scheduled")
-          .where("remindAt", "<=", nowIso)
-          .orderBy("remindAt")
-          .limit(200)
-          .get();
-
-      await Promise.all(scheduled.docs.map(async (doc) => {
-        const claimed = await claimReminder(doc.ref, "scheduled");
-        if (!claimed) return;
-        try {
-          await deliverReminder(doc.ref, claimed);
-        } catch (error) {
-          logger.error("Failed to deliver scheduled household reminder", {
-            reminderId: doc.id,
-            error,
-          });
-          await doc.ref.update({
-            status: "failed",
-            failureReason: "unexpected-delivery-error",
-            failedAt: new Date().toISOString(),
-          });
-        }
-      }));
+      const reminderRef = db.collection(REMINDERS).doc(reminderId);
+      const reminder = await claimReminder(reminderRef);
+      if (!reminder) return;
+      await deliverReminder(reminderRef, reminder);
     },
 );
