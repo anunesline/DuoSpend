@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "household_task_reminders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "remindAt", "order": "ASCENDING"}
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
