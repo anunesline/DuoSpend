@@ -1,21 +1,20 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../budgets/data/repositories/budget_repository.dart';
-import '../../../budgets/domain/models/budget_consumption.dart';
 import '../../../budgets/domain/services/budget_consumption_service.dart';
 import '../../../goals/data/repositories/savings_goal_repository.dart';
-import '../../../goals/domain/models/savings_goal.dart';
 import '../../../transactions/data/models/transaction_model.dart';
-import '../../data/models/credit_card_invoice_model.dart';
 import '../../data/models/wallet_model.dart';
 import '../../data/repositories/credit_card_repository.dart';
 import '../../domain/models/orbit_dashboard_summary.dart';
+import '../../domain/services/orbit_dashboard_summary_builder.dart';
 
 class OrbitDashboardController extends ChangeNotifier {
   final BudgetRepository _budgetRepository;
   final SavingsGoalRepository _goalRepository;
   final CreditCardRepository _creditCardRepository;
   final BudgetConsumptionService _budgetConsumptionService;
+  final OrbitDashboardSummaryBuilder _summaryBuilder;
 
   OrbitDashboardSummary summary = OrbitDashboardSummary.empty;
   bool isLoading = false;
@@ -26,10 +25,12 @@ class OrbitDashboardController extends ChangeNotifier {
     SavingsGoalRepository? goalRepository,
     CreditCardRepository? creditCardRepository,
     BudgetConsumptionService budgetConsumptionService = const BudgetConsumptionService(),
+    OrbitDashboardSummaryBuilder summaryBuilder = const OrbitDashboardSummaryBuilder(),
   })  : _budgetRepository = budgetRepository ?? BudgetRepository(),
         _goalRepository = goalRepository ?? SavingsGoalRepository(),
         _creditCardRepository = creditCardRepository ?? CreditCardRepository(),
-        _budgetConsumptionService = budgetConsumptionService;
+        _budgetConsumptionService = budgetConsumptionService,
+        _summaryBuilder = summaryBuilder;
 
   Future<void> load({
     required WalletModel wallet,
@@ -62,10 +63,11 @@ class OrbitDashboardController extends ChangeNotifier {
               ))
           .toList();
 
-      summary = OrbitDashboardSummary(
-        budget: _buildBudgetSummary(consumptions),
-        goal: _buildGoalSummary(goals),
-        invoice: _buildInvoiceSummary(invoices, reference),
+      summary = _summaryBuilder.build(
+        consumptions: consumptions,
+        goals: goals,
+        invoices: invoices,
+        reference: reference,
       );
     } catch (_) {
       summary = OrbitDashboardSummary.empty;
@@ -74,55 +76,5 @@ class OrbitDashboardController extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     }
-  }
-
-  OrbitBudgetSummary? _buildBudgetSummary(List<BudgetConsumption> consumptions) {
-    if (consumptions.isEmpty) return null;
-    final totalLimit = consumptions.fold<double>(0, (sum, item) => sum + item.budget.limitAmount);
-    final totalSpent = consumptions.fold<double>(0, (sum, item) => sum + item.spentAmount);
-    final ranked = [...consumptions]
-      ..sort((a, b) {
-        final aUsage = a.budget.limitAmount <= 0 ? 0 : a.spentAmount / a.budget.limitAmount;
-        final bUsage = b.budget.limitAmount <= 0 ? 0 : b.spentAmount / b.budget.limitAmount;
-        return bUsage.compareTo(aUsage);
-      });
-    return OrbitBudgetSummary(
-      limitAmount: totalLimit,
-      spentAmount: totalSpent,
-      activeBudgetCount: consumptions.length,
-      highestRiskCategory: ranked.first.budget.category,
-    );
-  }
-
-  OrbitGoalSummary? _buildGoalSummary(List<SavingsGoal> goals) {
-    final active = goals.where((goal) => goal.isActive).toList();
-    if (active.isEmpty) return null;
-    active.sort((a, b) {
-      if (a.deadline == null && b.deadline == null) return b.progress.compareTo(a.progress);
-      if (a.deadline == null) return 1;
-      if (b.deadline == null) return -1;
-      return a.deadline!.compareTo(b.deadline!);
-    });
-    final goal = active.first;
-    return OrbitGoalSummary(
-      name: goal.name,
-      targetAmount: goal.targetAmount,
-      savedAmount: goal.savedAmount,
-      deadline: goal.deadline,
-    );
-  }
-
-  OrbitInvoiceSummary? _buildInvoiceSummary(List<CreditCardInvoiceModel> invoices, DateTime reference) {
-    final current = invoices.where((invoice) =>
-        !invoice.isPaid &&
-        invoice.referenceYear == reference.year &&
-        invoice.referenceMonth == reference.month).toList();
-    if (current.isEmpty) return null;
-    current.sort((a, b) => a.dueDate.compareTo(b.dueDate));
-    return OrbitInvoiceSummary(
-      total: current.fold<double>(0, (sum, invoice) => sum + invoice.total),
-      dueDate: current.first.dueDate,
-      invoiceCount: current.length,
-    );
   }
 }
