@@ -11,6 +11,7 @@ import 'package:app/features/home/data/repositories/wallet_repository.dart';
 import 'package:app/features/receipt_scanner/application/receipt_transaction_item_mapper.dart';
 import 'package:app/features/receipt_scanner/domain/models/receipt_scan_item.dart';
 import 'package:app/features/receipt_scanner/domain/models/receipt_transaction_draft.dart';
+import 'package:app/features/transactions/data/repositories/balance_settlement_repository.dart';
 import 'package:app/features/transactions/data/repositories/transaction_repository.dart';
 import 'package:app/features/transactions/data/models/transaction_item_model.dart';
 import 'package:app/features/transactions/data/models/transaction_model.dart';
@@ -115,6 +116,10 @@ void main() {
       financialSplitService: const FinancialSplitService(),
       settlementSynchronizer: BalanceSettlementSynchronizer(
         transactionRepository: transactionRepository,
+        settlementRepository: BalanceSettlementRepository(
+          firestore: firestore,
+          auth: signedInAuth,
+        ),
       ),
     );
   }
@@ -134,14 +139,12 @@ void main() {
       final value = draft();
 
       expect(value.canContinueToTransaction, isTrue);
-      expect(
-        await firestore
-            .collection('users')
-            .doc(userId)
-            .collection('transactions')
-            .get(),
-        hasLength(0),
-      );
+      final transactions = await firestore
+          .collection('users')
+          .doc(userId)
+          .collection('transactions')
+          .get();
+      expect(transactions.docs, isEmpty);
     });
 
     test('confirma draft em carteira individual pelo fluxo financeiro normal',
@@ -308,6 +311,10 @@ void main() {
         financialSplitService: const FinancialSplitService(),
         settlementSynchronizer: BalanceSettlementSynchronizer(
           transactionRepository: repository,
+          settlementRepository: BalanceSettlementRepository(
+            firestore: firestore,
+            auth: signedInAuth,
+          ),
         ),
       );
       final controller = TransactionController(createTransactionUseCase: create);
