@@ -76,6 +76,8 @@ class HouseholdTaskReminderService {
       );
     }
 
+    // UX-side cooldown. The callable backend repeats this check atomically, so
+    // concurrent taps or an altered client cannot bypass the protection.
     if (isPartnerReminder) {
       final latest = await repository.getLatestReminder(
         taskId: task.id,
@@ -107,29 +109,5 @@ class HouseholdTaskReminderService {
     );
     await repository.saveReminder(reminder);
     return HouseholdTaskReminderResult.sent(reminder);
-  }
-
-  /// Minimal delivery adapter for V1: reminders are persisted as an outbox and
-  /// consumed when the recipient opens Rotinas da Casa. A future push/local
-  /// notification transport can consume the same repository contract without
-  /// changing task or reminder rules.
-  Future<List<HouseholdTaskReminder>> consumeDueReminders({
-    required String recipientUserId,
-    required DateTime now,
-  }) async {
-    final recipient = recipientUserId.trim();
-    if (recipient.isEmpty) return const [];
-
-    final due = await repository.getDueReminders(
-      recipientUserId: recipient,
-      now: now,
-    );
-    for (final reminder in due) {
-      await repository.markDelivered(
-        reminderId: reminder.id,
-        deliveredAt: now,
-      );
-    }
-    return List.unmodifiable(due);
   }
 }
