@@ -42,91 +42,106 @@ void main() {
         subcategory: 'Geral',
       );
 
-  Future<void> savePending(
-    TransactionRepository repository,
-    TransactionModel transaction,
-  ) {
-    return repository.addTransaction(transaction, wallet: wallet);
-  }
-
-  test('aceite persiste resposta e bloqueia confirmação duplicada', () async {
-    final firestore = FakeFirebaseFirestore();
+  Future<TransactionRepository> pendingRepository(
+    FakeFirebaseFirestore firestore,
+  ) async {
     final payerRepository = TransactionRepository(
       firestore: firestore,
       auth: auth('aline'),
     );
-    final original = pendingTransaction();
-    await savePending(payerRepository, original);
-
-    final responderRepository = TransactionRepository(
+    await payerRepository.addTransaction(
+      pendingTransaction(),
+      wallet: wallet,
+    );
+    return TransactionRepository(
       firestore: firestore,
       auth: auth('matheus'),
     );
-    final accept = AcceptSharedTransactionUseCase(
-      transactionRepository: responderRepository,
+  }
+
+  AcceptSharedTransactionUseCase acceptUseCase(
+    FakeFirebaseFirestore firestore,
+    TransactionRepository repository,
+  ) {
+    return AcceptSharedTransactionUseCase(
+      transactionRepository: repository,
       settlementSynchronizer: BalanceSettlementSynchronizer(
-        transactionRepository: responderRepository,
+        transactionRepository: repository,
         settlementRepository: BalanceSettlementRepository(
           firestore: firestore,
           auth: auth('matheus'),
         ),
       ),
     );
+  }
+
+  test('repetir aceite preserva a decisão persistida', () async {
+    final firestore = FakeFirebaseFirestore();
+    final repository = await pendingRepository(firestore);
+    final accept = acceptUseCase(firestore, repository);
+    final original = pendingTransaction();
 
     final accepted = await accept(
       transaction: original,
       wallet: wallet,
       respondingMemberId: 'matheus',
     );
-
-    expect(
-      accepted.confirmationStatus,
-      SharedTransactionConfirmationStatus.accepted,
-    );
-    expect(accepted.confirmationRespondedByMemberId, 'matheus');
-    await expectLater(
-      accept(
-        transaction: original,
-        wallet: wallet,
-        respondingMemberId: 'matheus',
-      ),
-      throwsException,
-    );
-  });
-
-  test('recusa só aceita resposta do outro membro', () async {
-    final firestore = FakeFirebaseFirestore();
-    final payerRepository = TransactionRepository(
-      firestore: firestore,
-      auth: auth('aline'),
-    );
-    final original = pendingTransaction();
-    await savePending(payerRepository, original);
-    final responderRepository = TransactionRepository(
-      firestore: firestore,
-      auth: auth('matheus'),
-    );
-    final reject = RejectSharedTransactionUseCase(
-      transactionRepository: responderRepository,
-    );
-
-    final rejected = await reject(
+    final repeated = await accept(
       transaction: original,
       wallet: wallet,
       respondingMemberId: 'matheus',
     );
 
+    expect(repeated.confirmationStatus, accepted.confirmationStatus);
     expect(
-      rejected.confirmationStatus,
-      SharedTransactionConfirmationStatus.rejected,
+      repeated.confirmationResolvedAt,
+      accepted.confirmationResolvedAt,
     );
+    expect(
+      repeated.confirmationRespondedByMemberId,
+      accepted.confirmationRespondedByMemberId,
+    );
+  });
+
+  test('decisão oposta após aceite é bloqueada', () async {
+    final firestore = FakeFirebaseFirestore();
+    final repository = await pendingRepository(firestore);
+    final original = pendingTransaction();
+    final accept = acceptUseCase(firestore, repository);
+    final reject = RejectSharedTransactionUseCase(
+      transactionRepository: repository,
+    );
+
+    await accept(
+      transaction: original,
+      wallet: wallet,
+      respondingMemberId: 'matheus',
+    );
+
     await expectLater(
       reject(
         transaction: original,
         wallet: wallet,
         respondingMemberId: 'matheus',
       ),
-      throwsException,
+      throwsStateError,
+    );
+  });
+
+  test('membro inválido não pode responder à confirmação', () async {
+    final firestore = FakeFirebaseFirestore();
+    final repository = await pendingRepository(firestore);
+    final reject = RejectSharedTransactionUseCase(
+      transactionRepository: repository,
+    );
+
+    await expectLater(
+      reject(
+        transaction: pendingTransaction(),
+        wallet: wallet,
+        respondingMemberId: 'externo',
+      ),
+      throwsStateError,
     );
   });
 }
