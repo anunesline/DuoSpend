@@ -29,7 +29,22 @@ class BalanceCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Expanded(
-                child: _AvailableLabel(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Visão financeira',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: DuoColors.primaryLight,
+                        letterSpacing: .2,
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    _AvailableLabel(),
+                  ],
+                ),
               ),
               Container(
                 width: 46,
@@ -45,30 +60,24 @@ class BalanceCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
           DuoAmount(
             value: balance,
             amountFontSize: 34,
           ),
-
           const SizedBox(height: 22),
-
           Container(
             height: 1,
             color: DuoColors.divider,
           ),
-
           const SizedBox(height: 18),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: _FlowStat(
                   icon: Icons.arrow_upward_rounded,
-                  label: 'Entradas',
+                  label: 'Entradas no mês',
                   value: income,
                   accentColor: DuoColors.success,
                 ),
@@ -82,7 +91,7 @@ class BalanceCard extends StatelessWidget {
               Expanded(
                 child: _FlowStat(
                   icon: Icons.arrow_downward_rounded,
-                  label: 'Saídas',
+                  label: 'Saídas no mês',
                   value: expense,
                   accentColor: DuoColors.error,
                   amountColor: DuoColors.textPrimary,
@@ -105,7 +114,7 @@ class _AvailableLabel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const Text(
-          'Saldo disponível',
+          'Saldo atual',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -148,12 +157,16 @@ class _FlowStat extends StatelessWidget {
           children: [
             Icon(icon, size: 14, color: accentColor),
             const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: accentColor,
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: accentColor,
+                ),
               ),
             ),
           ],
