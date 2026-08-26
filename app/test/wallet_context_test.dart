@@ -12,6 +12,7 @@ void main() {
     return WalletModel(
       id: id,
       name: id,
+      balance: 0,
       type: type,
       ownerId: 'owner',
       memberIds: memberIds,
