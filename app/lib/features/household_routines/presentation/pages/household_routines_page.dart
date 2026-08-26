@@ -269,20 +269,24 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                 const _SectionTitle('Pendentes'),
                 const SizedBox(height: 8),
                 ...pending.map(
-                  (task) => _TaskTile(
-                    task: task,
-                    currentUserId: widget.currentUserId,
-                    onComplete: () => widget.controller.completeTask(task.id),
-                    onCancel: () => widget.controller.cancelTask(task.id),
-                    onRemind: task.scope == HouseholdTaskScope.shared &&
-                            task.assigneeId != null &&
-                            task.assigneeId != widget.currentUserId
-                        ? () => widget.controller.remindAssignee(
-                              task: task,
-                              currentUserId: widget.currentUserId,
-                            )
-                        : null,
-                  ),
+                  (task) {
+                    final isPartnerTask = task.scope == HouseholdTaskScope.shared &&
+                        task.assigneeId != null &&
+                        task.assigneeId != widget.currentUserId;
+                    return _TaskTile(
+                      task: task,
+                      currentUserId: widget.currentUserId,
+                      onComplete: () => widget.controller.completeTask(task.id),
+                      onCancel: () => widget.controller.cancelTask(task.id),
+                      reminderLabel: isPartnerTask
+                          ? 'Lembrar responsável'
+                          : 'Criar lembrete',
+                      onRemind: () => widget.controller.remindTask(
+                        task: task,
+                        currentUserId: widget.currentUserId,
+                      ),
+                    );
+                  },
                 ),
               ],
               if (completed.isNotEmpty) ...[
@@ -364,6 +368,7 @@ class _TaskTile extends StatelessWidget {
   final VoidCallback? onComplete;
   final VoidCallback? onCancel;
   final VoidCallback? onRemind;
+  final String? reminderLabel;
 
   const _TaskTile({
     required this.task,
@@ -371,6 +376,7 @@ class _TaskTile extends StatelessWidget {
     this.onComplete,
     this.onCancel,
     this.onRemind,
+    this.reminderLabel,
   });
 
   @override
@@ -422,9 +428,9 @@ class _TaskTile extends StatelessWidget {
                     child: Text('Concluir'),
                   ),
                   if (onRemind != null)
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'remind',
-                      child: Text('Lembrar responsável'),
+                      child: Text(reminderLabel ?? 'Criar lembrete'),
                     ),
                   const PopupMenuItem(
                     value: 'cancel',
