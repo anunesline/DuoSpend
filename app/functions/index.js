@@ -1,6 +1,8 @@
+const crypto = require("crypto");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore, FieldValue} = require("firebase-admin/firestore");
 const {getMessaging} = require("firebase-admin/messaging");
+const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {logger} = require("firebase-functions");
@@ -13,6 +15,59 @@ const messaging = getMessaging();
 const REMINDERS = "household_task_reminders";
 const TASKS = "household_tasks";
 const TOKEN_COLLECTION = "fcm_tokens";
+
+function tokenDocumentId(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function requireAuthenticatedUser(request) {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Authentication is required.");
+  }
+  return uid;
+}
+
+function requireToken(data) {
+  const token = String((data && data.token) || "").trim();
+  if (!token) {
+    throw new HttpsError("invalid-argument", "A valid FCM token is required.");
+  }
+  return token;
+}
+
+exports.registerPushToken = onCall(async (request) => {
+  const uid = requireAuthenticatedUser(request);
+  const token = requireToken(request.data);
+  const platform = String((request.data && request.data.platform) || "unknown").trim();
+
+  await db
+      .collection("users")
+      .doc(uid)
+      .collection(TOKEN_COLLECTION)
+      .doc(tokenDocumentId(token))
+      .set({
+        token,
+        platform,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+
+  return {ok: true};
+});
+
+exports.unregisterPushToken = onCall(async (request) => {
+  const uid = requireAuthenticatedUser(request);
+  const token = requireToken(request.data);
+
+  await db
+      .collection("users")
+      .doc(uid)
+      .collection(TOKEN_COLLECTION)
+      .doc(tokenDocumentId(token))
+      .delete();
+
+  return {ok: true};
+});
 
 function isDue(reminder, now = new Date()) {
   const value = reminder.remindAt;
