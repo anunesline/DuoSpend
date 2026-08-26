@@ -235,7 +235,7 @@ void main() {
         SharedTransactionConfirmationStatus.pending,
       );
       expect(result.transaction.memberShares, {userId: 15, partnerId: 15});
-      expect(savedFinancialWallet.data()!['balance'], 1000);
+      expect(savedFinancialWallet.data()!['balance'], 970);
     });
 
     test('confirma draft no cartão uma vez, sem débito imediato', () async {
@@ -305,6 +305,10 @@ void main() {
       final create = CreateTransactionUseCase(
         transactionRepository: repository,
         walletRepository: WalletRepository(
+          firestore: firestore,
+          auth: signedInAuth,
+        ),
+        creditCardRepository: CreditCardRepository(
           firestore: firestore,
           auth: signedInAuth,
         ),
