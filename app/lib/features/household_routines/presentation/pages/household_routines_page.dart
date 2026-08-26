@@ -34,9 +34,28 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     widget.controller.load(widget.scopeId);
   }
 
+  Future<DateTime?> _pickDateTime({DateTime? initialValue}) async {
+    final now = DateTime.now();
+    final initial = initialValue ?? now.add(const Duration(hours: 1));
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (date == null || !mounted) return null;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
   Future<void> _createTask() async {
     final titleController = TextEditingController();
     final notesController = TextEditingController();
+    final repeatController = TextEditingController();
     String? assigneeId = widget.currentUserId;
     DateTime? dueAt;
 
@@ -45,29 +64,10 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
           Future<void> pickDueAt() async {
-            final now = DateTime.now();
-            final initial = dueAt ?? now.add(const Duration(hours: 1));
-            final date = await showDatePicker(
-              context: dialogContext,
-              initialDate: initial,
-              firstDate: DateTime(now.year, now.month, now.day),
-              lastDate: DateTime(now.year + 5),
-            );
-            if (date == null || !dialogContext.mounted) return;
-            final time = await showTimePicker(
-              context: dialogContext,
-              initialTime: TimeOfDay.fromDateTime(initial),
-            );
-            if (time == null) return;
-            setDialogState(() {
-              dueAt = DateTime(
-                date.year,
-                date.month,
-                date.day,
-                time.hour,
-                time.minute,
-              );
-            });
+            final picked = await _pickDateTime(initialValue: dueAt);
+            if (picked != null && dialogContext.mounted) {
+              setDialogState(() => dueAt = picked);
+            }
           }
 
           return AlertDialog(
@@ -108,6 +108,16 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                             onPressed: () => setDialogState(() => dueAt = null),
                             icon: const Icon(Icons.close_rounded),
                           ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: repeatController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Repetir a cada (dias)',
+                      hintText: 'Ex.: 7',
+                      helperText: 'Opcional',
+                    ),
                   ),
                   if (widget.scope == HouseholdTaskScope.shared &&
                       widget.memberIds.isNotEmpty) ...[
@@ -153,6 +163,9 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     );
 
     if (shouldCreate == true) {
+      final repeatText = repeatController.text.trim();
+      final repeatEveryDays =
+          repeatText.isEmpty ? null : int.tryParse(repeatText);
       await widget.controller.createTask(
         scopeId: widget.scopeId,
         scope: widget.scope,
@@ -160,11 +173,29 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
         notes: notesController.text,
         assigneeId: assigneeId,
         dueAt: dueAt,
+        repeatEveryDays: repeatEveryDays,
       );
     }
 
     titleController.dispose();
     notesController.dispose();
+    repeatController.dispose();
+  }
+
+  Future<void> _remindTask(HouseholdTask task) async {
+    final isPartnerTask = task.scope == HouseholdTaskScope.shared &&
+        task.assigneeId != null &&
+        task.assigneeId != widget.currentUserId;
+    DateTime? remindAt;
+    if (!isPartnerTask) {
+      remindAt = await _pickDateTime(initialValue: task.dueAt);
+      if (remindAt == null) return;
+    }
+    await widget.controller.remindTask(
+      task: task,
+      currentUserId: widget.currentUserId,
+      remindAt: remindAt,
+    );
   }
 
   Future<void> _createRoutine() async {
@@ -283,9 +314,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
                     widget.controller.errorMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
                   ),
                 ),
               if (widget.controller.successMessage != null)
@@ -293,9 +322,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
                     widget.controller.successMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
                   ),
                 ),
               if (routines.isNotEmpty) ...[
@@ -327,11 +354,8 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                       onCancel: () => widget.controller.cancelTask(task.id),
                       reminderLabel: isPartnerTask
                           ? 'Lembrar responsável'
-                          : 'Criar lembrete',
-                      onRemind: () => widget.controller.remindTask(
-                        task: task,
-                        currentUserId: widget.currentUserId,
-                      ),
+                          : 'Agendar lembrete',
+                      onRemind: () => _remindTask(task),
                     );
                   },
                 ),
@@ -383,10 +407,7 @@ class _RoutineTile extends StatelessWidget {
   final HouseholdRoutine routine;
   final VoidCallback onStart;
 
-  const _RoutineTile({
-    required this.routine,
-    required this.onStart,
-  });
+  const _RoutineTile({required this.routine, required this.onStart});
 
   @override
   Widget build(BuildContext context) {
@@ -395,18 +416,15 @@ class _RoutineTile extends StatelessWidget {
         : routine.repeatEveryDays == 1
             ? 'repete diariamente'
             : 'repete a cada ${routine.repeatEveryDays} dias';
+    final subtitleParts = <String>[
+      routine.steps.length == 1 ? '1 etapa' : '${routine.steps.length} etapas',
+    ];
+    if (repeatLabel != null) subtitleParts.add(repeatLabel);
     return Card(
       child: ListTile(
         leading: const Icon(Icons.account_tree_rounded),
         title: Text(routine.name),
-        subtitle: Text(
-          [
-            routine.steps.length == 1
-                ? '1 etapa'
-                : '${routine.steps.length} etapas',
-            if (repeatLabel != null) repeatLabel,
-          ].join(' • '),
-        ),
+        subtitle: Text(subtitleParts.join(' • ')),
         trailing: IconButton(
           onPressed: onStart,
           tooltip: 'Iniciar rotina',
@@ -434,6 +452,22 @@ class _TaskTile extends StatelessWidget {
     this.reminderLabel,
   });
 
+  List<PopupMenuEntry<String>> _menuItems() {
+    final items = <PopupMenuEntry<String>>[
+      const PopupMenuItem(value: 'complete', child: Text('Concluir')),
+    ];
+    if (onRemind != null) {
+      items.add(
+        PopupMenuItem(
+          value: 'remind',
+          child: Text(reminderLabel ?? 'Agendar lembrete'),
+        ),
+      );
+    }
+    items.add(const PopupMenuItem(value: 'cancel', child: Text('Cancelar')));
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) {
     final subtitleParts = <String>[];
@@ -444,8 +478,13 @@ class _TaskTile extends StatelessWidget {
             : 'Responsável: outro membro',
       );
     }
-    if (task.dueAt != null) {
-      subtitleParts.add(_formatDueAt(task.dueAt!));
+    if (task.dueAt != null) subtitleParts.add(_formatDueAt(task.dueAt!));
+    if (task.isRecurring) {
+      subtitleParts.add(
+        task.repeatEveryDays == 1
+            ? 'repete diariamente'
+            : 'repete a cada ${task.repeatEveryDays} dias',
+      );
     }
     if (task.belongsToRoutine) {
       subtitleParts.add('Etapa ${(task.routineStepIndex ?? 0) + 1}');
@@ -464,9 +503,7 @@ class _TaskTile extends StatelessWidget {
               ? const TextStyle(decoration: TextDecoration.lineThrough)
               : null,
         ),
-        subtitle: subtitleParts.isEmpty
-            ? null
-            : Text(subtitleParts.join(' • ')),
+        subtitle: subtitleParts.isEmpty ? null : Text(subtitleParts.join(' • ')),
         trailing: task.isPending
             ? PopupMenuButton<String>(
                 onSelected: (value) {
@@ -474,21 +511,7 @@ class _TaskTile extends StatelessWidget {
                   if (value == 'remind') onRemind?.call();
                   if (value == 'cancel') onCancel?.call();
                 },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'complete',
-                    child: Text('Concluir'),
-                  ),
-                  if (onRemind != null)
-                    PopupMenuItem(
-                      value: 'remind',
-                      child: Text(reminderLabel ?? 'Criar lembrete'),
-                    ),
-                  const PopupMenuItem(
-                    value: 'cancel',
-                    child: Text('Cancelar'),
-                  ),
-                ],
+                itemBuilder: (context) => _menuItems(),
               )
             : null,
         onTap: task.isPending ? onComplete : null,
