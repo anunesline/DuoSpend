@@ -1,26 +1,21 @@
 {
-  "functions": {
-    "source": "functions",
-    "runtime": "nodejs22"
-  },
   "flutter": {
     "platforms": {
       "android": {
         "default": {
-          "projectId": "saturn-duospend",
-          "appId": "1:443825984909:android:2dfc8c679b963e2ccd99c4",
+          "projectId": "saturnduospend",
+          "appId": "1:286653865904:android:df51825d4c949474a8c075",
           "fileOutput": "android/app/google-services.json"
         }
       },
       "dart": {
         "lib/firebase_options.dart": {
-          "projectId": "saturn-duospend",
+          "projectId": "saturnduospend",
           "configurations": {
-            "android": "1:443825984909:android:2dfc8c679b963e2ccd99c4",
-            "ios": "1:443825984909:ios:d88fdb937643469dcd99c4",
-            "macos": "1:443825984909:ios:d88fdb937643469dcd99c4",
-            "web": "1:443825984909:web:b55c40ca3d775758cd99c4",
-            "windows": "1:443825984909:web:6c7ee3ff25cb9630cd99c4"
+            "android": "1:286653865904:android:df51825d4c949474a8c075",
+            "ios": "1:286653865904:ios:69f730766f1e3c3ea8c075",
+            "web": "1:286653865904:web:20552034e78998aba8c075",
+            "windows": "1:286653865904:web:20552034e78998aba8c075"
           }
         }
       }
