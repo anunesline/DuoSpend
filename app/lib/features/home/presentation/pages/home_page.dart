@@ -5,12 +5,12 @@ import '../../../../core/context/wallet_context.dart';
 import '../../../../core/design_system/duo_card.dart';
 import '../../../../core/design_system/duo_colors.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
-import '../../../consumers/presentation/controllers/consumer_controller.dart';
-import '../../../shopping/presentation/controllers/shopping_controller.dart';
-import '../../../reports/presentation/pages/monthly_report_page.dart';
-import '../../../goals/presentation/pages/savings_goals_page.dart';
 import '../../../budgets/presentation/pages/budgets_page.dart';
+import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../financial_intelligence/presentation/pages/insights_page.dart';
+import '../../../goals/presentation/pages/savings_goals_page.dart';
+import '../../../reports/presentation/pages/monthly_report_page.dart';
+import '../../../shopping/presentation/controllers/shopping_controller.dart';
 import '../../../transactions/domain/purchase/services/balance_summary.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
@@ -20,6 +20,7 @@ import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../../../wallet/presentation/pages/credit_cards_page.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/balance_card.dart';
+import '../widgets/orbit_insight_card.dart';
 import '../widgets/transactions_preview.dart';
 import '../widgets/wallet_card.dart';
 
@@ -50,90 +51,44 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-
-    controller = HomeController(
-      walletContext: widget.walletContext,
-    );
-
+    controller = HomeController(walletContext: widget.walletContext);
     transactionController = TransactionController();
-
     _loadHome();
   }
 
   String get _greeting {
     final hour = DateTime.now().hour;
-
-    if (hour >= 5 && hour < 12) {
-      return 'Bom dia';
-    }
-
-    if (hour >= 12 && hour < 18) {
-      return 'Boa tarde';
-    }
-
+    if (hour >= 5 && hour < 12) return 'Bom dia';
+    if (hour >= 12 && hour < 18) return 'Boa tarde';
     return 'Boa noite';
   }
 
   String get _greetingEmoji {
     final hour = DateTime.now().hour;
-
-    if (hour >= 5 && hour < 12) {
-      return '☀️';
-    }
-
-    if (hour >= 12 && hour < 18) {
-      return '🌤️';
-    }
-
+    if (hour >= 5 && hour < 12) return '☀️';
+    if (hour >= 12 && hour < 18) return '🌤️';
     return '🌙';
   }
 
   String get _formattedDate {
     const weekDays = [
-      'segunda-feira',
-      'terça-feira',
-      'quarta-feira',
-      'quinta-feira',
-      'sexta-feira',
-      'sábado',
-      'domingo',
+      'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira',
+      'sexta-feira', 'sábado', 'domingo',
     ];
-
     const months = [
-      'janeiro',
-      'fevereiro',
-      'março',
-      'abril',
-      'maio',
-      'junho',
-      'julho',
-      'agosto',
-      'setembro',
-      'outubro',
-      'novembro',
-      'dezembro',
+      'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
     ];
-
     final now = DateTime.now();
-
-    return '${weekDays[now.weekday - 1]}, '
-        '${now.day} de ${months[now.month - 1]}';
+    return '${weekDays[now.weekday - 1]}, ${now.day} de ${months[now.month - 1]}';
   }
 
-  Future<void> _loadHome() async {
-    await controller.loadHome();
-  }
+  Future<void> _loadHome() async => controller.loadHome();
 
   Future<void> _openCreditCardsPage() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CreditCardsPage(
-          individualWallets: controller.individualWallets,
-        ),
-      ),
-    );
-
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => CreditCardsPage(individualWallets: controller.individualWallets),
+    ));
     await _loadHome();
   }
 
@@ -142,14 +97,12 @@ class _HomePageState extends State<HomePage> {
       await _showCreateIndividualWalletDialog();
       return;
     }
-
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (sheetContext) {
         final wallets = controller.wallets;
         final selectedWalletId = controller.selectedWalletId;
-
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
@@ -157,13 +110,8 @@ class _HomePageState extends State<HomePage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const ListTile(
-                  title: Text(
-                    'Suas carteiras',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  subtitle: Text(
-                    'Escolha qual carteira deseja visualizar.',
-                  ),
+                  title: Text('Suas carteiras', style: TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text('Escolha qual carteira deseja visualizar.'),
                 ),
                 Flexible(
                   child: ListView.builder(
@@ -171,24 +119,11 @@ class _HomePageState extends State<HomePage> {
                     itemCount: wallets.length,
                     itemBuilder: (context, index) {
                       final wallet = wallets[index];
-                      final isSelected =
-                          wallet.id == selectedWalletId;
-
                       return ListTile(
-                        leading: Icon(
-                          wallet.isShared
-                              ? Icons.groups_rounded
-                              : Icons.account_balance_wallet_rounded,
-                        ),
+                        leading: Icon(wallet.isShared ? Icons.groups_rounded : Icons.account_balance_wallet_rounded),
                         title: Text(wallet.name),
-                        subtitle: Text(
-                          wallet.isShared
-                              ? 'Compartilhada'
-                              : 'Individual',
-                        ),
-                        trailing: isSelected
-                            ? const Icon(Icons.check_circle_rounded)
-                            : null,
+                        subtitle: Text(wallet.isShared ? 'Compartilhada' : 'Individual'),
+                        trailing: wallet.id == selectedWalletId ? const Icon(Icons.check_circle_rounded) : null,
                         onTap: () {
                           controller.selectWallet(wallet);
                           Navigator.pop(sheetContext);
@@ -201,9 +136,7 @@ class _HomePageState extends State<HomePage> {
                 ListTile(
                   leading: const Icon(Icons.credit_card_rounded),
                   title: const Text('Cartões e faturas'),
-                  subtitle: const Text(
-                    'Gerencie cartões, limites e pagamentos.',
-                  ),
+                  subtitle: const Text('Gerencie cartões, limites e pagamentos.'),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _openCreditCardsPage();
@@ -212,9 +145,7 @@ class _HomePageState extends State<HomePage> {
                 ListTile(
                   leading: const Icon(Icons.add_rounded),
                   title: const Text('Nova carteira'),
-                  subtitle: const Text(
-                    'Adicione outra conta ou carteira individual.',
-                  ),
+                  subtitle: const Text('Adicione outra conta ou carteira individual.'),
                   onTap: () {
                     Navigator.pop(sheetContext);
                     _showCreateIndividualWalletDialog();
@@ -231,325 +162,185 @@ class _HomePageState extends State<HomePage> {
   Future<void> _showCreateIndividualWalletDialog() async {
     final nameController = TextEditingController();
     final balanceController = TextEditingController(text: '0,00');
-
     final shouldCreate = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Nova carteira'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Nome',
-                  hintText: 'Ex.: Banco Inter',
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: balanceController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Saldo atual',
-                  prefixText: 'R\$ ',
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('Cancelar'),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Nova carteira'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Nome', hintText: 'Ex.: Banco Inter'),
             ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-              child: const Text('Criar'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: balanceController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+              decoration: const InputDecoration(labelText: 'Saldo atual', prefixText: 'R\$ '),
             ),
           ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Criar')),
+        ],
+      ),
     );
-
     if (shouldCreate != true || !mounted) {
       nameController.dispose();
       balanceController.dispose();
       return;
     }
-
     final name = nameController.text.trim();
-    final balance = double.tryParse(
-      balanceController.text
-          .trim()
-          .replaceAll('.', '')
-          .replaceAll(',', '.'),
-    );
-
+    final balance = double.tryParse(balanceController.text.trim().replaceAll('.', '').replaceAll(',', '.'));
     nameController.dispose();
     balanceController.dispose();
-
     if (name.isEmpty || balance == null) {
       _showMessage('Informe um nome e um saldo válido.');
       return;
     }
-
-    final createdWallet = await controller.createIndividualWallet(
-      name: name,
-      initialBalance: balance,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
+    final createdWallet = await controller.createIndividualWallet(name: name, initialBalance: balance);
+    if (!mounted) return;
     if (createdWallet == null) {
-      _showMessage(
-        controller.errorMessage ??
-            'Não foi possível criar a carteira.',
-      );
+      _showMessage(controller.errorMessage ?? 'Não foi possível criar a carteira.');
       return;
     }
-
     _showMessage('Carteira criada.');
   }
 
   void _showMessage(String message) {
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
   }
 
   Future<void> _openNewTransactionPage() async {
     final wallet = controller.wallet;
-
-    if (wallet == null) {
-      return;
-    }
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => NewTransactionPage(
-          walletContext: widget.walletContext,
-          walletId: wallet.id,
-          consumerController: widget.consumerController,
-          purchaseController: widget.purchaseController,
-          productRepository: widget.productRepository,
-        ),
+    if (wallet == null) return;
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => NewTransactionPage(
+        walletContext: widget.walletContext,
+        walletId: wallet.id,
+        consumerController: widget.consumerController,
+        purchaseController: widget.purchaseController,
+        productRepository: widget.productRepository,
       ),
-    );
-
+    ));
     await _loadHome();
   }
 
   Future<void> _openSavingsGoalsPage() async {
     final wallet = controller.wallet;
     final currentUserId = controller.user?.uid;
-
-    if (wallet == null ||
-        currentUserId == null ||
-        currentUserId.isEmpty) {
-      return;
-    }
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SavingsGoalsPage(
-          contextWallet: wallet,
-          individualWallets: controller.individualWallets,
-          currentUserId: currentUserId,
-        ),
+    if (wallet == null || currentUserId == null || currentUserId.isEmpty) return;
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => SavingsGoalsPage(
+        contextWallet: wallet,
+        individualWallets: controller.individualWallets,
+        currentUserId: currentUserId,
       ),
-    );
-
+    ));
     await _loadHome();
   }
 
   Future<void> _openBudgetsPage() async {
     final wallet = controller.wallet;
     final currentUserId = controller.user?.uid;
-
-    if (wallet == null || currentUserId == null || currentUserId.isEmpty) {
-      return;
-    }
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BudgetsPage(
-          wallet: wallet,
-          transactions: controller.transactions,
-          currentUserId: currentUserId,
-        ),
-      ),
-    );
-
+    if (wallet == null || currentUserId == null || currentUserId.isEmpty) return;
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => BudgetsPage(wallet: wallet, transactions: controller.transactions, currentUserId: currentUserId),
+    ));
     await _loadHome();
   }
 
   Future<void> _openMonthlyReportPage() async {
     final wallet = controller.wallet;
-
-    if (wallet == null) {
-      return;
-    }
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MonthlyReportPage(
-          wallet: wallet,
-          transactions: controller.transactions,
-          currentUserId: controller.user?.uid,
-        ),
+    if (wallet == null) return;
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => MonthlyReportPage(
+        wallet: wallet,
+        transactions: controller.transactions,
+        currentUserId: controller.user?.uid,
       ),
-    );
-
+    ));
     await _loadHome();
   }
 
   Future<void> _openInsightsPage() async {
     final wallet = controller.wallet;
     if (wallet == null) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => InsightsPage(wallet: wallet)),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => InsightsPage(wallet: wallet)));
   }
 
   Future<void> _openFinancialCalendarPage() async {
     final wallet = controller.wallet;
-
-    if (wallet == null) {
-      return;
-    }
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FinancialCalendarPage(
-          wallet: wallet,
-          transactions: controller.transactions,
-        ),
-      ),
-    );
-
+    if (wallet == null) return;
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => FinancialCalendarPage(wallet: wallet, transactions: controller.transactions),
+    ));
     await _loadHome();
   }
 
   Future<void> _openHistoryPage() async {
     final wallet = controller.wallet;
     final currentUserId = controller.user?.uid;
-
-    if (wallet == null ||
-        currentUserId == null ||
-        currentUserId.isEmpty) {
-      return;
-    }
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => HistoryPage(
-          wallet: wallet,
-          transactions: controller.transactions,
-          transactionController: transactionController,
-          currentUserId: currentUserId,
-        ),
+    if (wallet == null || currentUserId == null || currentUserId.isEmpty) return;
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => HistoryPage(
+        wallet: wallet,
+        transactions: controller.transactions,
+        transactionController: transactionController,
+        currentUserId: currentUserId,
       ),
-    );
-
+    ));
     await _loadHome();
   }
 
   void _toggleWalletContext() {
-    if (!controller.hasConnectedPartner) {
-      return;
-    }
-
+    if (!controller.hasConnectedPartner) return;
     if (controller.isSharedWalletSelected) {
       for (final wallet in controller.individualWallets) {
         controller.selectWalletById(wallet.id);
         return;
       }
-
       return;
     }
-
     final sharedWallet = controller.connectedSharedWallet;
-
-    if (sharedWallet == null) {
-      return;
-    }
-
-    controller.selectWalletById(sharedWallet.id);
+    if (sharedWallet != null) controller.selectWalletById(sharedWallet.id);
   }
 
   Widget _buildSharedBalanceRow(BalanceSummary summary) {
     IconData icon;
     Color color;
     String subtitle;
-
     if (summary.hasCredit) {
       icon = Icons.call_received_rounded;
       color = DuoColors.success;
-      subtitle =
-          'Você tem ${_formatMoney(summary.amountToReceive)} para receber';
+      subtitle = 'Você tem ${_formatMoney(summary.amountToReceive)} para receber';
     } else if (summary.hasDebt) {
       icon = Icons.call_made_rounded;
       color = DuoColors.error;
-      subtitle =
-          'Você deve ${_formatMoney(summary.amountToPay)} ao parceiro';
+      subtitle = 'Você deve ${_formatMoney(summary.amountToPay)} ao parceiro';
     } else {
       icon = Icons.check_circle_rounded;
       color = DuoColors.primaryLight;
       subtitle = 'Nenhum acerto pendente';
     }
-
-    return _QuickAccessRow(
-      icon: icon,
-      iconColor: color,
-      title: 'Saldo entre vocês',
-      subtitle: subtitle,
-      onTap: _openHistoryPage,
-    );
+    return _QuickAccessRow(icon: icon, iconColor: color, title: 'Saldo entre vocês', subtitle: subtitle, onTap: _openHistoryPage);
   }
 
-  String _formatMoney(double value) {
-    final formatter = NumberFormat.currency(
-      locale: 'pt_BR',
-      symbol: 'R\$',
-      decimalDigits: 2,
-    );
-
-    return formatter.format(value);
-  }
+  String _formatMoney(double value) => NumberFormat.currency(
+    locale: 'pt_BR', symbol: 'R\$', decimalDigits: 2,
+  ).format(value);
 
   @override
   void dispose() {
     transactionController.dispose();
     controller.dispose();
-
     super.dispose();
   }
 
@@ -560,52 +351,34 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final wallet = controller.wallet;
         final hasConnectedPartner = controller.hasConnectedPartner;
-        final pendingConfirmationCount =
-            controller.pendingSharedConfirmationCount;
+        final pendingConfirmationCount = controller.pendingSharedConfirmationCount;
 
-        final quickAccessRows = <Widget>[
+        final overviewRows = <Widget>[
           if (wallet != null)
             _QuickAccessRow(
-              icon: Icons.auto_awesome_rounded,
-              iconColor: DuoColors.primaryLight,
-              title: 'Insights',
-              subtitle: 'Leituras do seu cenário financeiro',
-              onTap: _openInsightsPage,
+              icon: Icons.pie_chart_rounded,
+              iconColor: DuoColors.warning,
+              title: 'Orçamento do mês',
+              subtitle: 'Acompanhe limites e gastos por categoria',
+              onTap: _openBudgetsPage,
             ),
           if (wallet != null)
             _QuickAccessRow(
               icon: Icons.savings_rounded,
               iconColor: DuoColors.success,
               title: 'Metas',
-              subtitle: 'Reserve dinheiro para seus planos',
+              subtitle: 'Veja o progresso dos seus planos',
               onTap: _openSavingsGoalsPage,
             ),
           if (wallet != null)
             _QuickAccessRow(
-              icon: Icons.pie_chart_rounded,
-              iconColor: DuoColors.warning,
-              title: 'Orçamentos',
-              subtitle: 'Limites e gastos por categoria',
-              onTap: _openBudgetsPage,
-            ),
-          if (wallet != null)
-            _QuickAccessRow(
-              icon: Icons.insights_rounded,
+              icon: Icons.credit_card_rounded,
               iconColor: DuoColors.primaryLight,
-              title: 'Relatório mensal',
-              subtitle: 'Receitas, despesas e gastos por categoria',
-              onTap: _openMonthlyReportPage,
+              title: 'Cartões e faturas',
+              subtitle: 'Limites, faturas e próximos vencimentos',
+              onTap: _openCreditCardsPage,
             ),
-          if (wallet != null)
-            _QuickAccessRow(
-              icon: Icons.calendar_month_rounded,
-              iconColor: DuoColors.primaryLight,
-              title: 'Calendário financeiro',
-              subtitle: 'Saldo previsto e próximos compromissos',
-              onTap: _openFinancialCalendarPage,
-            ),
-          if (hasConnectedPartner &&
-              controller.hasPendingSharedConfirmations)
+          if (hasConnectedPartner && controller.hasPendingSharedConfirmations)
             _QuickAccessRow(
               icon: Icons.pending_actions_rounded,
               iconColor: DuoColors.warning,
@@ -621,13 +394,8 @@ class _HomePageState extends State<HomePage> {
 
         return Scaffold(
           backgroundColor: DuoColors.background,
-          floatingActionButtonLocation:
-              FloatingActionButtonLocation.centerFloat,
-          floatingActionButton: wallet == null
-              ? null
-              : _NewTransactionButton(
-                  onPressed: _openNewTransactionPage,
-                ),
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+          floatingActionButton: wallet == null ? null : _NewTransactionButton(onPressed: _openNewTransactionPage),
           body: controller.isLoading
               ? const _PremiumLoadingState()
               : SafeArea(
@@ -637,18 +405,12 @@ class _HomePageState extends State<HomePage> {
                     onRefresh: _loadHome,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(
-                        20,
-                        12,
-                        20,
-                        112,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 112),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _HomeTopBar(
-                            isSharedSelected:
-                                controller.isSharedWalletSelected,
+                            isSharedSelected: controller.isSharedWalletSelected,
                             hasConnectedPartner: hasConnectedPartner,
                             onToggleWallet: _toggleWalletContext,
                           ),
@@ -665,39 +427,49 @@ class _HomePageState extends State<HomePage> {
                             income: controller.totalIncome,
                             expense: controller.totalExpense,
                           ),
-                          if (quickAccessRows.isNotEmpty) ...[
-                            const SizedBox(height: 20),
-                            _QuickAccessCard(rows: quickAccessRows),
+                          if (wallet != null) ...[
+                            const SizedBox(height: 18),
+                            OrbitInsightCard(wallet: wallet, onTap: _openInsightsPage),
+                            const SizedBox(height: 26),
+                            const _SectionTitle(title: 'Seu mês'),
+                            const SizedBox(height: 12),
+                            _QuickAccessCard(rows: overviewRows),
+                            const SizedBox(height: 26),
+                            _SectionTitle(
+                              title: 'Explorar',
+                              actionLabel: 'Insights',
+                              onAction: _openInsightsPage,
+                            ),
+                            const SizedBox(height: 12),
+                            _ExploreGrid(
+                              onReport: _openMonthlyReportPage,
+                              onCalendar: _openFinancialCalendarPage,
+                              onWallet: _openWalletSelector,
+                              onCards: _openCreditCardsPage,
+                            ),
                           ],
-                          const SizedBox(height: 28),
-                          const _SectionTitle(
-                            title: 'Carteira',
-                          ),
-                          const SizedBox(height: 14),
-                          WalletCard(
-                            walletName:
-                                wallet?.name ?? 'Nenhuma carteira',
-                            balance: wallet?.balance ?? 0,
-                            isShared:
-                                wallet?.isShared ?? false,
-                            onTap: _openWalletSelector,
-                          ),
                           const SizedBox(height: 28),
                           _SectionTitle(
                             title: 'Últimas movimentações',
                             actionLabel: 'Ver todas',
-                            onAction: wallet == null
-                                ? null
-                                : _openHistoryPage,
+                            onAction: wallet == null ? null : _openHistoryPage,
                           ),
                           const SizedBox(height: 14),
                           TransactionsPreview(
-                            transactions:
-                                controller.transactions,
-                            onViewAll: wallet == null
-                                ? null
-                                : _openHistoryPage,
+                            transactions: controller.transactions,
+                            onViewAll: wallet == null ? null : _openHistoryPage,
                           ),
+                          if (wallet == null) ...[
+                            const SizedBox(height: 28),
+                            const _SectionTitle(title: 'Carteira'),
+                            const SizedBox(height: 14),
+                            WalletCard(
+                              walletName: 'Nenhuma carteira',
+                              balance: 0,
+                              isShared: false,
+                              onTap: _openWalletSelector,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -713,49 +485,22 @@ class _HomeTopBar extends StatelessWidget {
   final bool isSharedSelected;
   final bool hasConnectedPartner;
   final VoidCallback onToggleWallet;
-
-  const _HomeTopBar({
-    required this.isSharedSelected,
-    required this.hasConnectedPartner,
-    required this.onToggleWallet,
-  });
+  const _HomeTopBar({required this.isSharedSelected, required this.hasConnectedPartner, required this.onToggleWallet});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         const Expanded(
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: 'Duo',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                    color: DuoColors.textPrimary,
-                    letterSpacing: -.6,
-                  ),
-                ),
-                TextSpan(
-                  text: 'Spend',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                    color: DuoColors.primaryLight,
-                    letterSpacing: -.6,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          child: Text.rich(TextSpan(children: [
+            TextSpan(text: 'Duo', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: DuoColors.textPrimary, letterSpacing: -.6)),
+            TextSpan(text: 'Spend', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: DuoColors.primaryLight, letterSpacing: -.6)),
+          ])),
         ),
         if (hasConnectedPartner)
           _WalletContextChip(
             label: isSharedSelected ? 'Eu' : 'Nós',
-            icon: isSharedSelected
-                ? Icons.person_rounded
-                : Icons.group_rounded,
+            icon: isSharedSelected ? Icons.person_rounded : Icons.group_rounded,
             onTap: onToggleWallet,
           ),
       ],
@@ -767,12 +512,7 @@ class _WalletContextChip extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
-
-  const _WalletContextChip({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
+  const _WalletContextChip({required this.label, required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -782,36 +522,17 @@ class _WalletContextChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 11,
-            vertical: 8,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
           decoration: BoxDecoration(
             color: DuoColors.surface,
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: DuoColors.border,
-            ),
+            border: Border.all(color: DuoColors.border),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: DuoColors.primaryLight,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: DuoColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 16, color: DuoColors.primaryLight),
+            const SizedBox(width: 6),
+            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: DuoColors.textPrimary)),
+          ]),
         ),
       ),
     );
@@ -823,67 +544,34 @@ class _GreetingBlock extends StatelessWidget {
   final String userName;
   final String emoji;
   final String date;
-
-  const _GreetingBlock({
-    required this.greeting,
-    required this.userName,
-    required this.emoji,
-    required this.date,
-  });
+  const _GreetingBlock({required this.greeting, required this.userName, required this.emoji, required this.date});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$greeting, $userName $emoji',
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: DuoColors.textPrimary,
-            letterSpacing: -.35,
-          ),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          date,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: DuoColors.textSecondary,
-          ),
-        ),
-      ],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('$greeting, $userName $emoji', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: DuoColors.textPrimary, letterSpacing: -.35)),
+      const SizedBox(height: 5),
+      Text(date, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: DuoColors.textSecondary)),
+    ]);
   }
 }
 
 class _QuickAccessCard extends StatelessWidget {
   final List<Widget> rows;
-
-  const _QuickAccessCard({
-    required this.rows,
-  });
+  const _QuickAccessCard({required this.rows});
 
   @override
   Widget build(BuildContext context) {
     return DuoCard(
       borderRadius: 20,
       padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          for (var i = 0; i < rows.length; i++) ...[
-            rows[i],
-            if (i != rows.length - 1)
-              Container(
-                height: 1,
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                color: DuoColors.divider,
-              ),
-          ],
+      child: Column(children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          rows[i],
+          if (i != rows.length - 1)
+            Container(height: 1, margin: const EdgeInsets.symmetric(horizontal: 16), color: DuoColors.divider),
         ],
-      ),
+      ]),
     );
   }
 }
@@ -894,14 +582,7 @@ class _QuickAccessRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
-
-  const _QuickAccessRow({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-  });
+  const _QuickAccessRow({required this.icon, required this.iconColor, required this.title, required this.subtitle, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -910,58 +591,77 @@ class _QuickAccessRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: .14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: DuoColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: DuoColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: DuoColors.textHint,
-                size: 20,
-              ),
-            ],
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(children: [
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(color: iconColor.withValues(alpha: .14), borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: DuoColors.textPrimary)),
+              const SizedBox(height: 3),
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: DuoColors.textSecondary)),
+            ])),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded, color: DuoColors.textHint, size: 20),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExploreGrid extends StatelessWidget {
+  final VoidCallback onReport;
+  final VoidCallback onCalendar;
+  final VoidCallback onWallet;
+  final VoidCallback onCards;
+  const _ExploreGrid({required this.onReport, required this.onCalendar, required this.onWallet, required this.onCards});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: 1.65,
+      children: [
+        _ExploreTile(icon: Icons.insights_rounded, label: 'Relatório', onTap: onReport),
+        _ExploreTile(icon: Icons.calendar_month_rounded, label: 'Calendário', onTap: onCalendar),
+        _ExploreTile(icon: Icons.account_balance_wallet_rounded, label: 'Carteiras', onTap: onWallet),
+        _ExploreTile(icon: Icons.credit_card_rounded, label: 'Cartões', onTap: onCards),
+      ],
+    );
+  }
+}
+
+class _ExploreTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _ExploreTile({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return DuoCard(
+      borderRadius: 18,
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(children: [
+              Icon(icon, color: DuoColors.primaryLight, size: 20),
+              const SizedBox(width: 9),
+              Expanded(child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: DuoColors.textPrimary))),
+            ]),
           ),
         ),
       ),
@@ -973,89 +673,41 @@ class _SectionTitle extends StatelessWidget {
   final String title;
   final String? actionLabel;
   final VoidCallback? onAction;
-
-  const _SectionTitle({
-    required this.title,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _SectionTitle({required this.title, this.actionLabel, this.onAction});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: DuoColors.textPrimary,
-              letterSpacing: -.35,
-            ),
-          ),
+    return Row(children: [
+      Expanded(child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: DuoColors.textPrimary, letterSpacing: -.35))),
+      if (actionLabel != null)
+        TextButton(
+          onPressed: onAction,
+          child: Text(actionLabel!, style: const TextStyle(color: DuoColors.primaryLight, fontWeight: FontWeight.w700, fontSize: 12)),
         ),
-        if (actionLabel != null)
-          TextButton(
-            onPressed: onAction,
-            child: Text(
-              actionLabel!,
-              style: const TextStyle(
-                color: DuoColors.primaryLight,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
-          ),
-      ],
-    );
+    ]);
   }
 }
 
 class _NewTransactionButton extends StatelessWidget {
   final VoidCallback onPressed;
-
-  const _NewTransactionButton({
-    required this.onPressed,
-  });
+  const _NewTransactionButton({required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: DuoColors.primaryGradient,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: DuoColors.primaryGlow,
-      ),
+      decoration: BoxDecoration(gradient: DuoColors.primaryGradient, borderRadius: BorderRadius.circular(18), boxShadow: DuoColors.primaryGlow),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: onPressed,
           child: const Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 14,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.add_rounded,
-                  size: 21,
-                  color: DuoColors.textPrimary,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'Nova transação',
-                  style: TextStyle(
-                    color: DuoColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.add_rounded, size: 21, color: DuoColors.textPrimary),
+              SizedBox(width: 8),
+              Text('Nova transação', style: TextStyle(color: DuoColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 14)),
+            ]),
           ),
         ),
       ),
@@ -1065,13 +717,6 @@ class _NewTransactionButton extends StatelessWidget {
 
 class _PremiumLoadingState extends StatelessWidget {
   const _PremiumLoadingState();
-
   @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(
-        color: DuoColors.primary,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const Center(child: CircularProgressIndicator(color: DuoColors.primary));
 }
