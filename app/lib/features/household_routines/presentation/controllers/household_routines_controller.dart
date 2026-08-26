@@ -118,6 +118,59 @@ class HouseholdRoutinesController extends ChangeNotifier {
     }
   }
 
+  Future<HouseholdTask?> updateTask({
+    required HouseholdTask task,
+    required String title,
+    String? notes,
+    String? assigneeId,
+    DateTime? dueAt,
+    int? repeatEveryDays,
+  }) async {
+    if (!task.isPending) {
+      _setError('Apenas tarefas pendentes podem ser editadas.');
+      return null;
+    }
+    final normalizedTitle = title.trim();
+    if (normalizedTitle.isEmpty) {
+      _setError('Informe o nome da tarefa.');
+      return null;
+    }
+    if (repeatEveryDays != null && repeatEveryDays <= 0) {
+      _setError('A recorrência deve ser maior que zero dias.');
+      return null;
+    }
+
+    final updated = HouseholdTask(
+      id: task.id,
+      scopeId: task.scopeId,
+      scope: task.scope,
+      title: normalizedTitle,
+      notes: _emptyToNull(notes),
+      assigneeId: _emptyToNull(assigneeId),
+      status: task.status,
+      dueAt: dueAt,
+      repeatEveryDays: repeatEveryDays,
+      createdAt: task.createdAt,
+      updatedAt: DateTime.now(),
+      completedAt: task.completedAt,
+      routineId: task.routineId,
+      routineStepIndex: task.routineStepIndex,
+      previousTaskId: task.previousTaskId,
+    );
+
+    try {
+      _clearMessages();
+      await taskRepository.saveTask(updated);
+      _replaceTask(updated);
+      _successMessage = 'Tarefa atualizada.';
+      notifyListeners();
+      return updated;
+    } catch (_) {
+      _setError('Não foi possível atualizar a tarefa.');
+      return null;
+    }
+  }
+
   Future<HouseholdRoutine?> createRoutine({
     required String scopeId,
     required HouseholdTaskScope scope,
@@ -127,31 +180,12 @@ class HouseholdRoutinesController extends ChangeNotifier {
     int? repeatEveryDays,
   }) async {
     final normalizedName = name.trim();
-    final normalizedSteps = steps
-        .where((step) => step.title.trim().isNotEmpty)
-        .map(
-          (step) => HouseholdRoutineStep(
-            title: step.title.trim(),
-            notes: _emptyToNull(step.notes),
-            delayAfterPrevious: step.delayAfterPrevious,
-            assigneeId: _emptyToNull(step.assigneeId),
-          ),
-        )
-        .toList();
-    if (normalizedName.isEmpty) {
-      _setError('Informe o nome da rotina.');
-      return null;
-    }
-    if (normalizedSteps.isEmpty) {
-      _setError('Adicione pelo menos uma etapa à rotina.');
-      return null;
-    }
-    if (normalizedSteps.any((step) => step.delayAfterPrevious.isNegative)) {
-      _setError('O tempo entre etapas não pode ser negativo.');
-      return null;
-    }
-    if (repeatEveryDays != null && repeatEveryDays <= 0) {
-      _setError('A recorrência deve ser maior que zero dias.');
+    final normalizedSteps = _normalizeSteps(steps);
+    if (!_validateRoutineInput(
+      name: normalizedName,
+      steps: normalizedSteps,
+      repeatEveryDays: repeatEveryDays,
+    )) {
       return null;
     }
     final now = DateTime.now();
@@ -178,6 +212,45 @@ class HouseholdRoutinesController extends ChangeNotifier {
       return routine;
     } catch (_) {
       _setError('Não foi possível criar a rotina.');
+      return null;
+    }
+  }
+
+  Future<HouseholdRoutine?> updateRoutine({
+    required HouseholdRoutine routine,
+    required String name,
+    required List<HouseholdRoutineStep> steps,
+    int? repeatEveryDays,
+  }) async {
+    final normalizedName = name.trim();
+    final normalizedSteps = _normalizeSteps(steps);
+    if (!_validateRoutineInput(
+      name: normalizedName,
+      steps: normalizedSteps,
+      repeatEveryDays: repeatEveryDays,
+    )) {
+      return null;
+    }
+
+    final updated = HouseholdRoutine(
+      id: routine.id,
+      scopeId: routine.scopeId,
+      name: normalizedName,
+      steps: normalizedSteps,
+      repeatEveryDays: repeatEveryDays,
+      createdAt: routine.createdAt,
+      updatedAt: DateTime.now(),
+    );
+
+    try {
+      _clearMessages();
+      await routineRepository.saveRoutine(updated);
+      _replaceRoutine(updated);
+      _successMessage = 'Rotina atualizada. As etapas já concluídas foram preservadas.';
+      notifyListeners();
+      return updated;
+    } catch (_) {
+      _setError('Não foi possível atualizar a rotina.');
       return null;
     }
   }
@@ -277,12 +350,61 @@ class HouseholdRoutinesController extends ChangeNotifier {
     }
   }
 
+  List<HouseholdRoutineStep> _normalizeSteps(
+    List<HouseholdRoutineStep> steps,
+  ) {
+    return steps
+        .where((step) => step.title.trim().isNotEmpty)
+        .map(
+          (step) => HouseholdRoutineStep(
+            title: step.title.trim(),
+            notes: _emptyToNull(step.notes),
+            delayAfterPrevious: step.delayAfterPrevious,
+            assigneeId: _emptyToNull(step.assigneeId),
+          ),
+        )
+        .toList();
+  }
+
+  bool _validateRoutineInput({
+    required String name,
+    required List<HouseholdRoutineStep> steps,
+    required int? repeatEveryDays,
+  }) {
+    if (name.isEmpty) {
+      _setError('Informe o nome da rotina.');
+      return false;
+    }
+    if (steps.isEmpty) {
+      _setError('Adicione pelo menos uma etapa à rotina.');
+      return false;
+    }
+    if (steps.any((step) => step.delayAfterPrevious.isNegative)) {
+      _setError('O tempo entre etapas não pode ser negativo.');
+      return false;
+    }
+    if (repeatEveryDays != null && repeatEveryDays <= 0) {
+      _setError('A recorrência deve ser maior que zero dias.');
+      return false;
+    }
+    return true;
+  }
+
   void _replaceTask(HouseholdTask task) {
     final index = _tasks.indexWhere((item) => item.id == task.id);
     if (index == -1) {
       _tasks.add(task);
     } else {
       _tasks[index] = task;
+    }
+  }
+
+  void _replaceRoutine(HouseholdRoutine routine) {
+    final index = _routines.indexWhere((item) => item.id == routine.id);
+    if (index == -1) {
+      _routines.add(routine);
+    } else {
+      _routines[index] = routine;
     }
   }
 
