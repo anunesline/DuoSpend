@@ -76,8 +76,6 @@ class HouseholdTaskReminderService {
       );
     }
 
-    // UX-side cooldown. The callable backend repeats this check atomically, so
-    // concurrent taps or an altered client cannot bypass the protection.
     if (isPartnerReminder) {
       final latest = await repository.getLatestReminder(
         taskId: task.id,
@@ -107,7 +105,12 @@ class HouseholdTaskReminderService {
       remindAt: scheduledAt,
       createdAt: now,
     );
-    await repository.saveReminder(reminder);
-    return HouseholdTaskReminderResult.sent(reminder);
+
+    try {
+      await repository.saveReminder(reminder);
+      return HouseholdTaskReminderResult.sent(reminder);
+    } on HouseholdReminderCooldownException catch (error) {
+      return HouseholdTaskReminderResult.blocked(error.retryAfter);
+    }
   }
 }
