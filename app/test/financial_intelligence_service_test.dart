@@ -99,6 +99,36 @@ void main() {
     expect(insight.amount, 900);
   });
 
+  test('não classifica como atrasada meta com prazo futuro no mês atual', () {
+    final goal = SavingsGoal(
+      id: 'future-current-month', name: 'Viagem', targetAmount: 1000,
+      savedAmount: 400, deadline: DateTime(2026, 8, 31), walletId: 'w',
+      createdByUserId: 'u', createdAt: now, updatedAt: now,
+    );
+    final insights = service.build(input(goals: [goal]));
+    expect(
+      insights.any((item) => item.id == 'goal-late-future-current-month'),
+      isFalse,
+    );
+    expect(
+      insights.firstWhere((item) => item.id == 'goal-monthly-future-current-month').amount,
+      600,
+    );
+  });
+
+  test('classifica como atrasada meta cujo prazo foi ontem', () {
+    final goal = SavingsGoal(
+      id: 'past-current-month', name: 'Reforma', targetAmount: 1000,
+      savedAmount: 100, deadline: DateTime(2026, 8, 14), walletId: 'w',
+      createdByUserId: 'u', createdAt: now, updatedAt: now,
+    );
+    final insights = service.build(input(goals: [goal]));
+    expect(
+      insights.any((item) => item.id == 'goal-late-past-current-month'),
+      isTrue,
+    );
+  });
+
   test('compara despesas e categorias apenas quando há histórico suficiente', () {
     final insights = service.build(input(
       current: report(expense: 150, categories: const [FinancialCategoryTotal(category: 'Lazer', amount: 100, percentage: 1)]),
