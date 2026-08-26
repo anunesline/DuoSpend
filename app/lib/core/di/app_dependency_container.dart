@@ -24,9 +24,12 @@ import '../../features/consumers/presentation/controllers/consumer_controller.da
 
 import '../../features/household_routines/data/repositories/firestore_household_routine_repository.dart';
 import '../../features/household_routines/data/repositories/firestore_household_task_repository.dart';
+import '../../features/household_routines/data/repositories/firestore_household_task_reminder_repository.dart';
 import '../../features/household_routines/domain/repositories/household_routine_repository.dart';
 import '../../features/household_routines/domain/repositories/household_task_repository.dart';
+import '../../features/household_routines/domain/repositories/household_task_reminder_repository.dart';
 import '../../features/household_routines/domain/services/household_routine_service.dart';
+import '../../features/household_routines/domain/services/household_task_reminder_service.dart';
 import '../../features/household_routines/presentation/controllers/household_routines_controller.dart';
 
 import '../../features/shopping/data/repositories/firestore_shopping_repository.dart';
@@ -104,7 +107,9 @@ class AppDependencyContainer {
 
   late final HouseholdTaskRepository householdTaskRepository;
   late final HouseholdRoutineRepository householdRoutineRepository;
+  late final HouseholdTaskReminderRepository householdTaskReminderRepository;
   late final HouseholdRoutineService householdRoutineService;
+  late final HouseholdTaskReminderService householdTaskReminderService;
   late final HouseholdRoutinesController householdRoutinesController;
 
   late final ConsumerController consumerController;
@@ -131,21 +136,30 @@ class AppDependencyContainer {
     consumerMemoryRepository = InMemoryConsumerMemoryRepository();
     householdTaskRepository = FirestoreHouseholdTaskRepository();
     householdRoutineRepository = FirestoreHouseholdRoutineRepository();
+    householdTaskReminderRepository =
+        FirestoreHouseholdTaskReminderRepository();
   }
 
   void _registerProductServices() {
     productPersistenceRepository = FirestoreProductPersistenceRepository();
-    productRepository = ProductRepository(persistenceRepository: productPersistenceRepository);
+    productRepository = ProductRepository(
+      persistenceRepository: productPersistenceRepository,
+    );
     productBootstrap = ProductBootstrap(productRepository: productRepository);
   }
 
   void _registerProductIntelligence() {
-    productIntelligenceEngine = ProductIntelligenceEngine(repository: productMemoryRepository);
-    processProductIntelligenceUseCase = ProcessProductIntelligenceUseCase(productIntelligenceEngine);
+    productIntelligenceEngine = ProductIntelligenceEngine(
+      repository: productMemoryRepository,
+    );
+    processProductIntelligenceUseCase =
+        ProcessProductIntelligenceUseCase(productIntelligenceEngine);
   }
 
   void _registerConsumerIntelligence() {
-    consumerMemoryLoader = ConsumerMemoryLoader(repository: consumerMemoryRepository);
+    consumerMemoryLoader = ConsumerMemoryLoader(
+      repository: consumerMemoryRepository,
+    );
     consumerHabitAnalyzer = const ConsumerHabitAnalyzer();
     consumerHabitUpdater = const ConsumerHabitUpdater();
     consumerIntelligenceEngine = DefaultConsumerIntelligenceEngine(
@@ -163,12 +177,16 @@ class AppDependencyContainer {
     updateShoppingItemUseCase = UpdateShoppingItemUseCase(shoppingRepository);
     deleteShoppingItemUseCase = DeleteShoppingItemUseCase(shoppingRepository);
     getAllShoppingItemsUseCase = GetAllShoppingItemsUseCase(shoppingRepository);
-    getPendingShoppingItemsUseCase = GetPendingShoppingItemsUseCase(shoppingRepository);
-    getPurchasedShoppingItemsUseCase = GetPurchasedShoppingItemsUseCase(shoppingRepository);
-    markShoppingItemAsPurchasedUseCase = MarkShoppingItemAsPurchasedUseCase(shoppingRepository);
+    getPendingShoppingItemsUseCase =
+        GetPendingShoppingItemsUseCase(shoppingRepository);
+    getPurchasedShoppingItemsUseCase =
+        GetPurchasedShoppingItemsUseCase(shoppingRepository);
+    markShoppingItemAsPurchasedUseCase =
+        MarkShoppingItemAsPurchasedUseCase(shoppingRepository);
     archiveShoppingItemUseCase = ArchiveShoppingItemUseCase(shoppingRepository);
     searchShoppingItemsUseCase = SearchShoppingItemsUseCase(shoppingRepository);
-    getShoppingSuggestionsUseCase = GetShoppingSuggestionsUseCase(shoppingRepository);
+    getShoppingSuggestionsUseCase =
+        GetShoppingSuggestionsUseCase(shoppingRepository);
   }
 
   void _registerShoppingFlow() {
@@ -189,14 +207,17 @@ class AppDependencyContainer {
 
   void _registerConsumers() {
     consumerBootstrap = ConsumerBootstrap(consumerProfileRepository);
-    consumerLifecycleService = ConsumerLifecycleService(consumerProfileRepository);
+    consumerLifecycleService =
+        ConsumerLifecycleService(consumerProfileRepository);
     createConsumerUseCase = CreateConsumerUseCase(consumerLifecycleService);
     saveConsumerUseCase = SaveConsumerUseCase(consumerLifecycleService);
     deleteConsumerUseCase = DeleteConsumerUseCase(consumerLifecycleService);
     getAllConsumersUseCase = GetAllConsumersUseCase(consumerProfileRepository);
     getConsumerByIdUseCase = GetConsumerByIdUseCase(consumerLifecycleService);
-    getConsumersByWalletIdUseCase = GetConsumersByWalletIdUseCase(consumerLifecycleService);
-    getDefaultConsumerUseCase = GetDefaultConsumerUseCase(consumerLifecycleService);
+    getConsumersByWalletIdUseCase =
+        GetConsumersByWalletIdUseCase(consumerLifecycleService);
+    getDefaultConsumerUseCase =
+        GetDefaultConsumerUseCase(consumerLifecycleService);
     consumerFlowService = ConsumerFlowService(
       consumerBootstrap: consumerBootstrap,
       createConsumer: createConsumerUseCase,
@@ -213,10 +234,14 @@ class AppDependencyContainer {
       taskRepository: householdTaskRepository,
       routineRepository: householdRoutineRepository,
     );
+    householdTaskReminderService = HouseholdTaskReminderService(
+      repository: householdTaskReminderRepository,
+    );
     householdRoutinesController = HouseholdRoutinesController(
       taskRepository: householdTaskRepository,
       routineRepository: householdRoutineRepository,
       routineService: householdRoutineService,
+      reminderService: householdTaskReminderService,
     );
   }
 
