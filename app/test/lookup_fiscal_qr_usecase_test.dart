@@ -10,6 +10,9 @@ class _FakeFiscalQrProvider implements FiscalQrLookupProvider {
   const _FakeFiscalQrProvider(this.result);
 
   @override
+  bool get canResolveStructuredReceipt => false;
+
+  @override
   Future<ReceiptScanResult?> lookup(Uri uri) async => result;
 
   @override
@@ -17,6 +20,9 @@ class _FakeFiscalQrProvider implements FiscalQrLookupProvider {
 }
 
 class _FailingFiscalQrProvider implements FiscalQrLookupProvider {
+  @override
+  bool get canResolveStructuredReceipt => false;
+
   @override
   Future<ReceiptScanResult?> lookup(Uri uri) async {
     throw StateError('Portal temporariamente indisponível');
@@ -37,7 +43,7 @@ void main() {
   test('reconhece QR fiscal válido com dados estruturados', () async {
     final useCase = LookupFiscalQrUseCase(
       providers: [
-        _FakeFiscalQrProvider(
+        _StructuredFiscalQrProvider(
           const ReceiptScanResult(
             rawText: '',
             merchant: 'Mercado fiscal',

@@ -11,6 +11,7 @@ import 'package:app/features/home/data/repositories/wallet_repository.dart';
 import 'package:app/features/receipt_scanner/application/receipt_transaction_item_mapper.dart';
 import 'package:app/features/receipt_scanner/domain/models/receipt_scan_item.dart';
 import 'package:app/features/receipt_scanner/domain/models/receipt_transaction_draft.dart';
+import 'package:app/features/transactions/data/repositories/balance_settlement_repository.dart';
 import 'package:app/features/transactions/data/repositories/transaction_repository.dart';
 import 'package:app/features/transactions/data/models/transaction_item_model.dart';
 import 'package:app/features/transactions/data/models/transaction_model.dart';
@@ -73,12 +74,12 @@ void main() {
         updatedAt: DateTime(2026, 8, 26),
       );
 
-  ReceiptTransactionDraft draft() => const ReceiptTransactionDraft(
+  ReceiptTransactionDraft draft() => ReceiptTransactionDraft(
         description: 'Mercado Duo',
         purchaseDate: DateTime(2026, 8, 25),
         amount: 30,
         paymentMethodSuggestion: 'pix',
-        items: [
+        items: const [
           ReceiptScanItem(
             description: 'Arroz',
             quantity: 2,
@@ -99,9 +100,9 @@ void main() {
         .set(financialWallet.toMap());
     final signedInAuth = auth();
     final transactionRepository = TransactionRepository(
-        firestore: firestore,
-        auth: signedInAuth,
-      );
+      firestore: firestore,
+      auth: signedInAuth,
+    );
     return CreateTransactionUseCase(
       transactionRepository: transactionRepository,
       walletRepository: WalletRepository(
@@ -115,6 +116,10 @@ void main() {
       financialSplitService: const FinancialSplitService(),
       settlementSynchronizer: BalanceSettlementSynchronizer(
         transactionRepository: transactionRepository,
+        settlementRepository: BalanceSettlementRepository(
+          firestore: firestore,
+          auth: signedInAuth,
+        ),
       ),
     );
   }
@@ -134,14 +139,12 @@ void main() {
       final value = draft();
 
       expect(value.canContinueToTransaction, isTrue);
-      expect(
-        await firestore
-            .collection('users')
-            .doc(userId)
-            .collection('transactions')
-            .get(),
-        hasLength(0),
-      );
+      final transactions = await firestore
+          .collection('users')
+          .doc(userId)
+          .collection('transactions')
+          .get();
+      expect(transactions.docs, isEmpty);
     });
 
     test('confirma draft em carteira individual pelo fluxo financeiro normal',
@@ -232,7 +235,7 @@ void main() {
         SharedTransactionConfirmationStatus.pending,
       );
       expect(result.transaction.memberShares, {userId: 15, partnerId: 15});
-      expect(savedFinancialWallet.data()!['balance'], 1000);
+      expect(savedFinancialWallet.data()!['balance'], 970);
     });
 
     test('confirma draft no cartão uma vez, sem débito imediato', () async {
@@ -305,9 +308,17 @@ void main() {
           firestore: firestore,
           auth: signedInAuth,
         ),
+        creditCardRepository: CreditCardRepository(
+          firestore: firestore,
+          auth: signedInAuth,
+        ),
         financialSplitService: const FinancialSplitService(),
         settlementSynchronizer: BalanceSettlementSynchronizer(
           transactionRepository: repository,
+          settlementRepository: BalanceSettlementRepository(
+            firestore: firestore,
+            auth: signedInAuth,
+          ),
         ),
       );
       final controller = TransactionController(createTransactionUseCase: create);

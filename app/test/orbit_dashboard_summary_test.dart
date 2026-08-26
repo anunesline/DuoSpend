@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:duospend/features/home/domain/models/orbit_dashboard_summary.dart';
+import 'package:app/features/home/domain/models/orbit_dashboard_summary.dart';
 
 void main() {
   group('OrbitBudgetSummary', () {
