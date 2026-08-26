@@ -89,25 +89,23 @@ class PushNotificationService {
     try {
       final previousUserId = _lastUserId;
       final nextUserId = user?.uid.trim();
-      final token = _lastToken ?? await messaging.getToken();
 
       if (previousUserId != null &&
           previousUserId.isNotEmpty &&
-          previousUserId != nextUserId &&
-          token != null &&
-          token.isNotEmpty) {
-        await _unregisterToken(token);
+          previousUserId != nextUserId) {
+        // Once sign-out finishes the callable endpoint is no longer authorized.
+        // Deleting the registration token locally invalidates it at FCM; any
+        // stale server record is removed automatically after a failed send.
+        await messaging.deleteToken();
+        _lastToken = null;
       }
 
       _lastUserId = nextUserId;
-      _lastToken = token;
+      if (nextUserId == null || nextUserId.isEmpty) return;
 
-      if (nextUserId == null ||
-          nextUserId.isEmpty ||
-          token == null ||
-          token.isEmpty) {
-        return;
-      }
+      final token = await messaging.getToken();
+      _lastToken = token;
+      if (token == null || token.isEmpty) return;
       await _registerToken(token);
     } catch (error) {
       debugPrint('Could not sync FCM token: $error');
