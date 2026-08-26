@@ -230,19 +230,24 @@ class HouseholdRoutinesController extends ChangeNotifier {
     }
   }
 
-  Future<bool> remindAssignee({
+  Future<bool> remindTask({
     required HouseholdTask task,
     required String currentUserId,
   }) async {
     try {
       _clearMessages();
+      final isPartnerReminder = task.scope == HouseholdTaskScope.shared &&
+          task.assigneeId != null &&
+          task.assigneeId != currentUserId;
       final result = await reminderService.remindAssignee(
         task: task,
         senderUserId: currentUserId,
         now: DateTime.now(),
       );
       if (result.sent) {
-        _successMessage = 'Lembrete enviado ao responsável.';
+        _successMessage = isPartnerReminder
+            ? 'Lembrete enviado ao responsável.'
+            : 'Lembrete da tarefa criado.';
         notifyListeners();
         return true;
       }
@@ -256,10 +261,10 @@ class HouseholdRoutinesController extends ChangeNotifier {
         );
         return false;
       }
-      _setError(result.errorMessage ?? 'Não foi possível enviar o lembrete.');
+      _setError(result.errorMessage ?? 'Não foi possível criar o lembrete.');
       return false;
     } catch (_) {
-      _setError('Não foi possível enviar o lembrete.');
+      _setError('Não foi possível criar o lembrete.');
       return false;
     }
   }
