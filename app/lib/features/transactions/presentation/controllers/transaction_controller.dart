@@ -46,19 +46,23 @@ class TransactionController extends ChangeNotifier {
                 ),
         _acceptSharedTransactionUseCase =
             acceptSharedTransactionUseCase ??
-                AcceptSharedTransactionUseCase(
-                  transactionRepository:
-                      repository ?? TransactionRepository(),
-                  settlementSynchronizer:
-                      settlementSynchronizer ??
-                          BalanceSettlementSynchronizer(),
-                ),
+                (createTransactionUseCase != null
+                    ? _UnavailableAcceptSharedTransactionUseCase()
+                    : AcceptSharedTransactionUseCase(
+                        transactionRepository:
+                            repository ?? TransactionRepository(),
+                        settlementSynchronizer:
+                            settlementSynchronizer ??
+                                BalanceSettlementSynchronizer(),
+                      )),
         _rejectSharedTransactionUseCase =
             rejectSharedTransactionUseCase ??
-                RejectSharedTransactionUseCase(
-                  transactionRepository:
-                      repository ?? TransactionRepository(),
-                );
+                (createTransactionUseCase != null
+                    ? _UnavailableRejectSharedTransactionUseCase()
+                    : RejectSharedTransactionUseCase(
+                        transactionRepository:
+                            repository ?? TransactionRepository(),
+                      ));
 
   final List<TransactionItemModel> _items = [];
 
@@ -171,9 +175,6 @@ class TransactionController extends ChangeNotifier {
     PaymentMethod? paymentMethod,
     String? paymentSourceId,
     DateTime? transactionDate,
-
-    // Compatibilidade temporária com a NewTransactionPage antiga.
-    // O split agora é calculado pelo CreateTransactionUseCase.
     String? splitType,
     Map<String, double>? memberShares,
   }) async {
@@ -326,5 +327,29 @@ class TransactionController extends ChangeNotifier {
     }
 
     return message;
+  }
+}
+
+class _UnavailableAcceptSharedTransactionUseCase
+    implements AcceptSharedTransactionUseCase {
+  @override
+  Future<TransactionModel> call({
+    required TransactionModel transaction,
+    required WalletModel wallet,
+    required String respondingMemberId,
+  }) {
+    throw StateError('Fluxo de aceite compartilhado não configurado.');
+  }
+}
+
+class _UnavailableRejectSharedTransactionUseCase
+    implements RejectSharedTransactionUseCase {
+  @override
+  Future<TransactionModel> call({
+    required TransactionModel transaction,
+    required WalletModel wallet,
+    required String respondingMemberId,
+  }) {
+    throw StateError('Fluxo de rejeição compartilhado não configurado.');
   }
 }
