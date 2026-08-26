@@ -5,9 +5,11 @@ import 'dart:typed_data';
 class ReceiptScanImage {
   final Uint8List bytes;
   final String mimeType;
+  final String? filePath;
 
   const ReceiptScanImage({
     required this.bytes,
     required this.mimeType,
+    this.filePath,
   });
 }

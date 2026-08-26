@@ -1,0 +1,4 @@
+enum ReceiptCaptureSource {
+  camera,
+  gallery,
+}
