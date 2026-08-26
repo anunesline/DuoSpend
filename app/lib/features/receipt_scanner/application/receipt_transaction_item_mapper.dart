@@ -34,7 +34,7 @@ class ReceiptTransactionItemMapper {
           name: name,
           brand: '',
           quantity: quantity,
-          unit: 'un',
+          unit: item.unit?.trim().isNotEmpty == true ? item.unit! : 'un',
           unitPrice: unitPrice,
           totalPrice: totalPrice,
           taxonomyId: taxonomyId,

@@ -22,6 +22,8 @@ class ReceiptScanReviewPage extends StatefulWidget {
 class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _amountController;
+  late DateTime? _purchaseDate;
+  late String? _paymentMethodSuggestion;
 
   @override
   void initState() {
@@ -32,6 +34,8 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
     _amountController = TextEditingController(
       text: _formatAmount(widget.draft.amount),
     );
+    _purchaseDate = widget.draft.purchaseDate;
+    _paymentMethodSuggestion = widget.draft.paymentMethodSuggestion;
   }
 
   @override
@@ -52,7 +56,21 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
   ReceiptTransactionDraft get _draft => widget.draft.copyWith(
     description: _descriptionController.text.trim(),
     amount: _amount,
+    purchaseDate: _purchaseDate,
+    paymentMethodSuggestion: _paymentMethodSuggestion,
   );
+
+  Future<void> _selectDate() async {
+    final initialDate = _purchaseDate ?? DateTime.now();
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (selectedDate == null || !mounted) return;
+    setState(() => _purchaseDate = selectedDate);
+  }
 
   double? get _itemsTotal {
     if (widget.draft.items.isEmpty ||
@@ -153,20 +171,38 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
               ),
               onChanged: (_) => setState(() {}),
             ),
-            if (widget.draft.purchaseDate != null) ...[
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                'Data reconhecida: '
-                '${_formatDate(widget.draft.purchaseDate!)}',
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton.icon(
+              onPressed: _selectDate,
+              icon: const Icon(Icons.calendar_today_outlined),
+              label: Text(
+                _purchaseDate == null
+                    ? 'Informar data da compra'
+                    : 'Data: ${_formatDate(_purchaseDate!)}',
               ),
-            ],
-            if (widget.draft.paymentMethodSuggestion != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Pagamento sugerido: '
-                '${widget.draft.paymentMethodSuggestion}',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            DropdownButtonFormField<String>(
+              initialValue: _paymentMethodSuggestion,
+              decoration: const InputDecoration(
+                labelText: 'Forma de pagamento sugerida',
               ),
-            ],
+              items: const [
+                DropdownMenuItem(value: 'pix', child: Text('Pix')),
+                DropdownMenuItem(
+                  value: 'creditCard',
+                  child: Text('Cartão de crédito'),
+                ),
+                DropdownMenuItem(
+                  value: 'debitCard',
+                  child: Text('Cartão de débito'),
+                ),
+                DropdownMenuItem(value: 'cash', child: Text('Dinheiro')),
+              ],
+              onChanged: (value) {
+                setState(() => _paymentMethodSuggestion = value);
+              },
+            ),
             if (widget.draft.items.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.xl),
               const Text(
