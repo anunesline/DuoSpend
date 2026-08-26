@@ -37,6 +37,7 @@ void main() {
       type: 'expense',
       date: DateTime(2026, 8, 26),
       walletId: walletId,
+      financialStatus: 'pending',
       category: 'Outros',
       subcategory: 'Geral',
     );
