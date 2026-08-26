@@ -65,7 +65,7 @@ class WalletContext extends ChangeNotifier {
       ..clear()
       ..addAll(sharedWalletIds);
 
-    _removeUnknownSharedWalletIds();
+    _synchronizeSharedWalletIds();
 
     if (_wallets.isEmpty) {
       _selectedWallet = null;
@@ -90,7 +90,7 @@ class WalletContext extends ChangeNotifier {
   void updateWallets(List<WalletModel> wallets) {
     _wallets = List.from(wallets);
 
-    _removeUnknownSharedWalletIds();
+    _synchronizeSharedWalletIds();
 
     if (_wallets.isEmpty) {
       _selectedWallet = null;
@@ -251,12 +251,15 @@ class WalletContext extends ChangeNotifier {
     return null;
   }
 
-  void _removeUnknownSharedWalletIds() {
+  void _synchronizeSharedWalletIds() {
     final availableWalletIds = _wallets.map(
       (wallet) => wallet.id,
     );
 
     _sharedWalletIds.retainAll(availableWalletIds);
+    _sharedWalletIds.addAll(
+      _wallets.where((wallet) => wallet.isShared).map((wallet) => wallet.id),
+    );
   }
 
   void _synchronizeUsageMode() {
