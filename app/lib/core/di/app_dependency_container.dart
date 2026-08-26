@@ -215,6 +215,7 @@ class AppDependencyContainer {
     );
     householdRoutinesController = HouseholdRoutinesController(
       taskRepository: householdTaskRepository,
+      routineRepository: householdRoutineRepository,
       routineService: householdRoutineService,
     );
   }
