@@ -54,4 +54,21 @@ void main() {
     expect(context.selectedWallet?.id, 'solo');
     expect(context.isSoloMode, isTrue);
   });
+
+  test('atualização direta seleciona carteira compartilhada no contexto certo', () {
+    final context = WalletContext();
+    final solo = wallet(id: 'solo', type: WalletType.individual);
+    final shared = wallet(
+      id: 'shared',
+      type: WalletType.shared,
+      memberIds: const ['owner', 'member'],
+    );
+    context.initialize(wallets: [solo]);
+
+    context.updateSelectedWallet(shared);
+
+    expect(context.selectedWalletIsShared, isTrue);
+    expect(context.isCoupleMode, isTrue);
+    expect(context.sharedWallets, contains(shared));
+  })
 }
