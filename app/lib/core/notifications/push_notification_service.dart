@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -20,7 +20,7 @@ class PushNotificationMessage {
 class PushNotificationService {
   final FirebaseMessaging messaging;
   final FirebaseAuth auth;
-  final FirebaseFirestore firestore;
+  final FirebaseFunctions functions;
 
   final ValueNotifier<PushNotificationMessage?> foregroundMessage =
       ValueNotifier<PushNotificationMessage?>(null);
@@ -29,15 +29,16 @@ class PushNotificationService {
   StreamSubscription<String>? _tokenSubscription;
   StreamSubscription<RemoteMessage>? _messageSubscription;
   String? _lastUserId;
+  String? _lastToken;
   bool _initialized = false;
 
   PushNotificationService({
     FirebaseMessaging? messaging,
     FirebaseAuth? auth,
-    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
   })  : messaging = messaging ?? FirebaseMessaging.instance,
         auth = auth ?? FirebaseAuth.instance,
-        firestore = firestore ?? FirebaseFirestore.instance;
+        functions = functions ?? FirebaseFunctions.instance;
 
   bool get _supportsMessaging {
     if (kIsWeb) return false;
@@ -68,7 +69,7 @@ class PushNotificationService {
         unawaited(_handleAuthChanged(user));
       });
       _tokenSubscription = messaging.onTokenRefresh.listen((token) {
-        unawaited(_saveTokenForCurrentUser(token));
+        unawaited(_handleTokenRefresh(token));
       });
       _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
         foregroundMessage.value = PushNotificationMessage(
@@ -88,16 +89,18 @@ class PushNotificationService {
     try {
       final previousUserId = _lastUserId;
       final nextUserId = user?.uid.trim();
-      _lastUserId = nextUserId;
+      final token = _lastToken ?? await messaging.getToken();
 
-      final token = await messaging.getToken();
       if (previousUserId != null &&
           previousUserId.isNotEmpty &&
           previousUserId != nextUserId &&
           token != null &&
           token.isNotEmpty) {
-        await _tokenReference(previousUserId, token).delete();
+        await _unregisterToken(token);
       }
+
+      _lastUserId = nextUserId;
+      _lastToken = token;
 
       if (nextUserId == null ||
           nextUserId.isEmpty ||
@@ -105,40 +108,38 @@ class PushNotificationService {
           token.isEmpty) {
         return;
       }
-      await _saveToken(nextUserId, token);
+      await _registerToken(token);
     } catch (error) {
       debugPrint('Could not sync FCM token: $error');
     }
   }
 
-  Future<void> _saveTokenForCurrentUser(String token) async {
+  Future<void> _handleTokenRefresh(String token) async {
     try {
-      final userId = auth.currentUser?.uid.trim();
-      if (userId == null || userId.isEmpty || token.isEmpty) return;
-      await _saveToken(userId, token);
+      final oldToken = _lastToken;
+      _lastToken = token;
+      if (auth.currentUser == null || token.isEmpty) return;
+
+      if (oldToken != null && oldToken.isNotEmpty && oldToken != token) {
+        await _unregisterToken(oldToken);
+      }
+      await _registerToken(token);
     } catch (error) {
       debugPrint('Could not refresh FCM token: $error');
     }
   }
 
-  Future<void> _saveToken(String userId, String token) async {
-    await _tokenReference(userId, token).set({
+  Future<void> _registerToken(String token) async {
+    await functions.httpsCallable('registerPushToken').call({
       'token': token,
       'platform': defaultTargetPlatform.name,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    });
   }
 
-  DocumentReference<Map<String, dynamic>> _tokenReference(
-    String userId,
-    String token,
-  ) {
-    final safeToken = token.replaceAll('/', '_');
-    return firestore
-        .collection('users')
-        .doc(userId)
-        .collection('fcm_tokens')
-        .doc(safeToken);
+  Future<void> _unregisterToken(String token) async {
+    await functions.httpsCallable('unregisterPushToken').call({
+      'token': token,
+    });
   }
 
   void clearForegroundMessage() {
