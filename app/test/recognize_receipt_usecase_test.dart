@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:duospend/features/receipt_scanner/domain/models/receipt_scan_image.dart';
-import 'package:duospend/features/receipt_scanner/domain/repositories/receipt_text_recognition_provider.dart';
-import 'package:duospend/features/receipt_scanner/domain/usecases/recognize_receipt_usecase.dart';
+import 'package:app/features/receipt_scanner/domain/models/receipt_scan_image.dart';
+import 'package:app/features/receipt_scanner/domain/repositories/receipt_text_recognition_provider.dart';
+import 'package:app/features/receipt_scanner/domain/usecases/recognize_receipt_usecase.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeRecognitionProvider implements ReceiptTextRecognitionProvider {
