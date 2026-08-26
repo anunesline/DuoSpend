@@ -8,6 +8,8 @@ import '../../../budgets/presentation/pages/budgets_page.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../financial_intelligence/presentation/pages/insights_page.dart';
 import '../../../goals/presentation/pages/savings_goals_page.dart';
+import '../../../household_routines/presentation/controllers/household_routines_controller.dart';
+import '../../../household_routines/presentation/pages/household_routines_hub_page.dart';
 import '../../../reports/presentation/pages/monthly_report_page.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
 import '../../../transactions/domain/purchase/services/balance_summary.dart';
@@ -31,6 +33,7 @@ class HomePage extends StatefulWidget {
   final ConsumerController consumerController;
   final PurchaseController purchaseController;
   final ProductRepository productRepository;
+  final HouseholdRoutinesController householdRoutinesController;
 
   const HomePage({
     super.key,
@@ -39,6 +42,7 @@ class HomePage extends StatefulWidget {
     required this.consumerController,
     required this.purchaseController,
     required this.productRepository,
+    required this.householdRoutinesController,
   });
 
   @override
@@ -294,6 +298,24 @@ class _HomePageState extends State<HomePage> {
     await _loadHome();
   }
 
+  Future<void> _openHouseholdRoutinesPage() async {
+    final userId = controller.user?.uid.trim();
+    if (userId == null || userId.isEmpty) return;
+
+    final sharedWallet = controller.connectedSharedWallet;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HouseholdRoutinesHubPage(
+          controller: widget.householdRoutinesController,
+          currentUserId: userId,
+          sharedHouseholdId: sharedWallet?.id,
+          sharedMemberIds: sharedWallet?.memberIds ?? const [],
+        ),
+      ),
+    );
+  }
+
   Future<void> _toggleWalletContext() async {
     if (!controller.hasConnectedPartner) return;
     if (controller.isSharedWalletSelected) {
@@ -410,6 +432,7 @@ class _HomePageState extends State<HomePage> {
                             onCalendar: _openFinancialCalendarPage,
                             onWallet: _openWalletSelector,
                             onCards: _openCreditCardsPage,
+                            onRoutines: _openHouseholdRoutinesPage,
                           ),
                         ],
                         const SizedBox(height: 28),
@@ -553,7 +576,8 @@ class _ExploreGrid extends StatelessWidget {
   final VoidCallback onCalendar;
   final VoidCallback onWallet;
   final VoidCallback onCards;
-  const _ExploreGrid({required this.onReport, required this.onCalendar, required this.onWallet, required this.onCards});
+  final VoidCallback onRoutines;
+  const _ExploreGrid({required this.onReport, required this.onCalendar, required this.onWallet, required this.onCards, required this.onRoutines});
 
   @override
   Widget build(BuildContext context) => GridView.count(
@@ -566,6 +590,7 @@ class _ExploreGrid extends StatelessWidget {
     children: [
       _ExploreTile(icon: Icons.insights_rounded, label: 'Relatório', onTap: onReport),
       _ExploreTile(icon: Icons.calendar_month_rounded, label: 'Calendário', onTap: onCalendar),
+      _ExploreTile(icon: Icons.home_work_rounded, label: 'Rotinas da Casa', onTap: onRoutines),
       _ExploreTile(icon: Icons.account_balance_wallet_rounded, label: 'Carteiras', onTap: onWallet),
       _ExploreTile(icon: Icons.credit_card_rounded, label: 'Cartões', onTap: onCards),
     ],
