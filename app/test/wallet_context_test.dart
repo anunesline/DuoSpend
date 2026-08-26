@@ -70,5 +70,5 @@ void main() {
     expect(context.selectedWalletIsShared, isTrue);
     expect(context.isCoupleMode, isTrue);
     expect(context.sharedWallets, contains(shared));
-  })
+  });
 }
