@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:duospend/features/budgets/domain/models/budget.dart';
-import 'package:duospend/features/budgets/domain/models/budget_consumption.dart';
-import 'package:duospend/features/goals/domain/models/savings_goal.dart';
-import 'package:duospend/features/home/data/models/credit_card_invoice_model.dart';
-import 'package:duospend/features/home/domain/services/orbit_dashboard_summary_builder.dart';
+import 'package:app/features/budgets/domain/models/budget.dart';
+import 'package:app/features/budgets/domain/models/budget_consumption.dart';
+import 'package:app/features/goals/domain/models/savings_goal.dart';
+import 'package:app/features/home/data/models/credit_card_invoice_model.dart';
+import 'package:app/features/home/domain/services/orbit_dashboard_summary_builder.dart';
 
 void main() {
   const builder = OrbitDashboardSummaryBuilder();
