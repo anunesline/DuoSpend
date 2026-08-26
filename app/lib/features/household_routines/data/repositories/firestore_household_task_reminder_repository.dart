@@ -37,4 +37,37 @@ class FirestoreHouseholdTaskReminderRepository
 
     return reminders.isEmpty ? null : reminders.first;
   }
+
+  @override
+  Future<List<HouseholdTaskReminder>> getDueReminders({
+    required String recipientUserId,
+    required DateTime now,
+  }) async {
+    final snapshot = await _collection
+        .where('recipientUserId', isEqualTo: recipientUserId.trim())
+        .get();
+    final reminders = snapshot.docs
+        .map((doc) => HouseholdTaskReminder.fromMap(doc.data()))
+        .where(
+          (reminder) =>
+              reminder.isDue && !reminder.remindAt.isAfter(now),
+        )
+        .toList()
+      ..sort((a, b) => a.remindAt.compareTo(b.remindAt));
+    return List.unmodifiable(reminders);
+  }
+
+  @override
+  Future<void> markDelivered({
+    required String reminderId,
+    required DateTime deliveredAt,
+  }) async {
+    await _collection.doc(reminderId).set(
+      {
+        'status': HouseholdTaskReminderStatus.delivered.name,
+        'deliveredAt': deliveredAt.toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+  }
 }
