@@ -29,3 +29,12 @@ impede o usuário de fotografar a nota, usar OCR ou corrigir manualmente. Um
 provider futuro deve morar em `data/providers`, atender apenas os portais para
 os quais exista contrato/API autorizada e normalizar a resposta em
 `ReceiptScanResult`.
+
+### Paraná
+
+O QR oficial da NFC-e/PR é reconhecido pelo `ParanaFiscalQrLookupProvider`
+(host e parâmetros oficiais). A SEFA/PR documenta a URL e a composição do QR,
+mas a consulta pública disponível é uma página de consumidor; não há payload
+JSON/XML de nota e itens documentado para integração por aplicativo. O provider
+portanto retorna `null` deliberadamente, mantendo OCR/revisão manual. Ele não
+faz scraping da página HTML e é o ponto isolado para uma futura API autorizada.
