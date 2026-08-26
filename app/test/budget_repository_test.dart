@@ -29,6 +29,26 @@ void main() {
     await expectLater(memberRepository.changeStatus(budget: budget(), status: BudgetStatus.paused, wallet: sharedWallet), throwsStateError);
   });
 
+
+  test('não membro não consegue consultar orçamento compartilhado', () async {
+    final firestore = FakeFirebaseFirestore();
+    final sharedWallet = wallet(shared: true);
+    final ownerRepository = BudgetRepository(
+      firestore: firestore,
+      auth: auth(owner),
+    );
+    await ownerRepository.create(budget: budget(), wallet: sharedWallet);
+    final outsiderRepository = BudgetRepository(
+      firestore: firestore,
+      auth: auth('outsider'),
+    );
+
+    await expectLater(
+      outsiderRepository.getByWallet(wallet: sharedWallet),
+      throwsStateError,
+    );
+  });
+
   test('atualização mantém um único documento de orçamento', () async {
     final firestore = FakeFirebaseFirestore();
     final repository = BudgetRepository(firestore: firestore, auth: auth(owner));
