@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/models/household_routine.dart';
 import '../../domain/models/household_task.dart';
 import '../controllers/household_routines_controller.dart';
+import 'create_household_routine_page.dart';
 
 class HouseholdRoutinesPage extends StatefulWidget {
   final HouseholdRoutinesController controller;
@@ -64,7 +66,9 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                     widget.memberIds.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: assigneeId,
+                    initialValue: widget.memberIds.contains(assigneeId)
+                        ? assigneeId
+                        : null,
                     decoration: const InputDecoration(labelText: 'Responsável'),
                     items: widget.memberIds
                         .map(
@@ -114,11 +118,37 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     notesController.dispose();
   }
 
+  Future<void> _createRoutine() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateHouseholdRoutinePage(
+          controller: widget.controller,
+          scopeId: widget.scopeId,
+          scope: widget.scope,
+          memberIds: widget.memberIds,
+          currentUserId: widget.currentUserId,
+        ),
+      ),
+    );
+
+    if (created == true) {
+      await widget.controller.load(widget.scopeId);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Rotinas da Casa'),
+        actions: [
+          IconButton(
+            onPressed: _createRoutine,
+            tooltip: 'Nova rotina',
+            icon: const Icon(Icons.account_tree_rounded),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _createTask,
@@ -134,14 +164,26 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
 
           final pending = widget.controller.pendingTasks;
           final completed = widget.controller.completedTasks;
+          final routines = widget.controller.routines;
 
-          if (pending.isEmpty && completed.isEmpty) {
-            return const Center(
+          if (pending.isEmpty && completed.isEmpty && routines.isEmpty) {
+            return Center(
               child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text(
-                  'Nenhuma tarefa por aqui ainda.\nCrie a primeira rotina da casa.',
-                  textAlign: TextAlign.center,
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Nenhuma tarefa por aqui ainda.\nCrie uma tarefa ou uma rotina encadeada.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _createRoutine,
+                      icon: const Icon(Icons.account_tree_rounded),
+                      label: const Text('Criar rotina'),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -157,9 +199,25 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
                       widget.controller.errorMessage!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ),
+                if (routines.isNotEmpty) ...[
+                  const _SectionTitle('Rotinas'),
+                  const SizedBox(height: 8),
+                  ...routines.map(
+                    (routine) => _RoutineTile(
+                      routine: routine,
+                      onStart: () => widget.controller.startRoutine(
+                        routine: routine,
+                        scope: widget.scope,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 if (pending.isNotEmpty) ...[
                   const _SectionTitle('Pendentes'),
                   const SizedBox(height: 8),
@@ -208,6 +266,36 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+class _RoutineTile extends StatelessWidget {
+  final HouseholdRoutine routine;
+  final VoidCallback onStart;
+
+  const _RoutineTile({
+    required this.routine,
+    required this.onStart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.account_tree_rounded),
+        title: Text(routine.name),
+        subtitle: Text(
+          routine.steps.length == 1
+              ? '1 etapa'
+              : '${routine.steps.length} etapas',
+        ),
+        trailing: IconButton(
+          onPressed: onStart,
+          tooltip: 'Iniciar rotina',
+          icon: const Icon(Icons.play_arrow_rounded),
+        ),
+      ),
+    );
+  }
+}
+
 class _TaskTile extends StatelessWidget {
   final HouseholdTask task;
   final String currentUserId;
@@ -225,7 +313,11 @@ class _TaskTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final subtitleParts = <String>[];
     if (task.assigneeId != null) {
-      subtitleParts.add(task.assigneeId == currentUserId ? 'Responsável: você' : 'Responsável: outro membro');
+      subtitleParts.add(
+        task.assigneeId == currentUserId
+            ? 'Responsável: você'
+            : 'Responsável: outro membro',
+      );
     }
     if (task.dueAt != null) {
       final date = task.dueAt!;
@@ -240,7 +332,9 @@ class _TaskTile extends StatelessWidget {
     return Card(
       child: ListTile(
         leading: Icon(
-          task.isCompleted ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+          task.isCompleted
+              ? Icons.check_circle_rounded
+              : Icons.radio_button_unchecked_rounded,
         ),
         title: Text(
           task.title,
@@ -248,7 +342,9 @@ class _TaskTile extends StatelessWidget {
               ? const TextStyle(decoration: TextDecoration.lineThrough)
               : null,
         ),
-        subtitle: subtitleParts.isEmpty ? null : Text(subtitleParts.join(' • ')),
+        subtitle: subtitleParts.isEmpty
+            ? null
+            : Text(subtitleParts.join(' • ')),
         trailing: task.isPending
             ? PopupMenuButton<String>(
                 onSelected: (value) {
@@ -256,8 +352,14 @@ class _TaskTile extends StatelessWidget {
                   if (value == 'cancel') onCancel?.call();
                 },
                 itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'complete', child: Text('Concluir')),
-                  PopupMenuItem(value: 'cancel', child: Text('Cancelar')),
+                  PopupMenuItem(
+                    value: 'complete',
+                    child: Text('Concluir'),
+                  ),
+                  PopupMenuItem(
+                    value: 'cancel',
+                    child: Text('Cancelar'),
+                  ),
                 ],
               )
             : null,
