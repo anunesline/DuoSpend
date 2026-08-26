@@ -22,13 +22,18 @@ class AcceptSharedTransactionUseCase {
     final normalizedRespondingMemberId =
         respondingMemberId.trim();
 
-    _validate(
+    final persistedTransaction = await _getPersistedTransaction(
       transaction: transaction,
+      wallet: wallet,
+    );
+
+    _validate(
+      transaction: persistedTransaction,
       wallet: wallet,
       respondingMemberId: normalizedRespondingMemberId,
     );
 
-    final acceptedTransaction = transaction.copyWith(
+    final acceptedTransaction = persistedTransaction.copyWith(
       confirmationStatus:
           SharedTransactionConfirmationStatus.accepted,
       confirmationResolvedAt: DateTime.now(),
@@ -46,6 +51,23 @@ class AcceptSharedTransactionUseCase {
     );
 
     return acceptedTransaction;
+  }
+
+
+  Future<TransactionModel> _getPersistedTransaction({
+    required TransactionModel transaction,
+    required WalletModel wallet,
+  }) async {
+    final transactions = await _transactionRepository
+        .getTransactionsByWallet(wallet.id, wallet: wallet);
+
+    for (final persistedTransaction in transactions) {
+      if (persistedTransaction.id == transaction.id) {
+        return persistedTransaction;
+      }
+    }
+
+    throw StateError('A transação compartilhada não foi encontrada.');
   }
 
   void _validate({
