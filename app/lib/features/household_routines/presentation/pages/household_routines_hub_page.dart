@@ -53,23 +53,27 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
     );
     if (!mounted || reminders.isEmpty) return;
 
-    final partnerCount = reminders.where((reminder) => reminder.kind.name == 'partner').length;
-    final selfCount = reminders.length - partnerCount;
-    final parts = <String>[];
-    if (selfCount > 0) {
-      parts.add(selfCount == 1 ? '1 lembrete seu' : '$selfCount lembretes seus');
+    final titles = <String>[];
+    for (final reminder in reminders) {
+      final task = await widget.controller.taskRepository.getTaskById(reminder.taskId);
+      final title = task?.title.trim();
+      if (title != null && title.isNotEmpty && !titles.contains(title)) {
+        titles.add(title);
+      }
     }
-    if (partnerCount > 0) {
-      parts.add(
-        partnerCount == 1
-            ? '1 lembrete da casa'
-            : '$partnerCount lembretes da casa',
-      );
-    }
+    if (!mounted) return;
+
+    final message = titles.isEmpty
+        ? (reminders.length == 1
+            ? 'Você tem 1 lembrete de tarefa.'
+            : 'Você tem ${reminders.length} lembretes de tarefas.')
+        : titles.length == 1
+            ? 'Lembrete: ${titles.first}'
+            : 'Lembretes: ${titles.take(3).join(', ')}${titles.length > 3 ? '…' : ''}';
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Você tem ${parts.join(' e ')}.'),
+        content: Text(message),
         behavior: SnackBarBehavior.floating,
       ),
     );
