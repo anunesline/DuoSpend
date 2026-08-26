@@ -10,7 +10,7 @@ void main() {
     test('envia lembrete para outro responsavel em tarefa compartilhada', () async {
       final repository = _FakeReminderRepository();
       final service = HouseholdTaskReminderService(repository: repository);
-      final task = _sharedTask(assigneeId: 'matheus');
+      final task = _task(assigneeId: 'matheus');
 
       final result = await service.remindAssignee(
         task: task,
@@ -23,10 +23,10 @@ void main() {
       expect(repository.reminders, hasLength(1));
     });
 
-    test('bloqueia novo lembrete dentro do cooldown de duas horas', () async {
+    test('bloqueia novo lembrete ao parceiro dentro do cooldown de duas horas', () async {
       final repository = _FakeReminderRepository();
       final service = HouseholdTaskReminderService(repository: repository);
-      final task = _sharedTask(assigneeId: 'matheus');
+      final task = _task(assigneeId: 'matheus');
 
       await service.remindAssignee(
         task: task,
@@ -44,38 +44,74 @@ void main() {
       expect(repository.reminders, hasLength(1));
     });
 
-    test('nao permite lembrar a si mesmo ou tarefa solo', () async {
+    test('tarefa solo pode criar lembrete para o proprio usuario', () async {
       final repository = _FakeReminderRepository();
       final service = HouseholdTaskReminderService(repository: repository);
-
-      final selfResult = await service.remindAssignee(
-        task: _sharedTask(assigneeId: 'aline'),
-        senderUserId: 'aline',
-        now: DateTime(2026, 8, 26, 14),
+      final task = _task(
+        assigneeId: 'aline',
+        scope: HouseholdTaskScope.personal,
       );
-      final soloResult = await service.remindAssignee(
-        task: _sharedTask(
-          assigneeId: 'matheus',
-          scope: HouseholdTaskScope.personal,
-        ),
+
+      final result = await service.remindAssignee(
+        task: task,
         senderUserId: 'aline',
         now: DateTime(2026, 8, 26, 14),
       );
 
-      expect(selfResult.sent, isFalse);
-      expect(soloResult.sent, isFalse);
-      expect(repository.reminders, isEmpty);
+      expect(result.sent, isTrue);
+      expect(result.reminder?.recipientUserId, 'aline');
+      expect(repository.reminders, hasLength(1));
+    });
+
+    test('auto lembrete nao usa cooldown anti-spam de parceiro', () async {
+      final repository = _FakeReminderRepository();
+      final service = HouseholdTaskReminderService(repository: repository);
+      final task = _task(
+        assigneeId: 'aline',
+        scope: HouseholdTaskScope.personal,
+      );
+
+      final first = await service.remindAssignee(
+        task: task,
+        senderUserId: 'aline',
+        now: DateTime(2026, 8, 26, 14),
+      );
+      final second = await service.remindAssignee(
+        task: task,
+        senderUserId: 'aline',
+        now: DateTime(2026, 8, 26, 14, 5),
+      );
+
+      expect(first.sent, isTrue);
+      expect(second.sent, isTrue);
+      expect(second.blocked, isFalse);
+      expect(repository.reminders, hasLength(2));
+    });
+
+    test('tarefa compartilhada atribuida ao proprio usuario aceita auto lembrete', () async {
+      final repository = _FakeReminderRepository();
+      final service = HouseholdTaskReminderService(repository: repository);
+      final task = _task(assigneeId: 'aline');
+
+      final result = await service.remindAssignee(
+        task: task,
+        senderUserId: 'aline',
+        now: DateTime(2026, 8, 26, 14),
+      );
+
+      expect(result.sent, isTrue);
+      expect(result.reminder?.recipientUserId, 'aline');
     });
   });
 }
 
-HouseholdTask _sharedTask({
+HouseholdTask _task({
   required String assigneeId,
   HouseholdTaskScope scope = HouseholdTaskScope.shared,
 }) {
   return HouseholdTask(
     id: 'task-1',
-    scopeId: 'household:casa',
+    scopeId: scope == HouseholdTaskScope.personal ? 'user:aline' : 'household:casa',
     scope: scope,
     title: 'Tirar o lixo',
     assigneeId: assigneeId,
