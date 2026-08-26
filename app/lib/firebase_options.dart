@@ -4,34 +4,23 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Default [FirebaseOptions] for use with your Firebase apps.
-///
-/// Example:
-/// ```dart
-/// import 'firebase_options.dart';
-/// // ...
-/// await Firebase.initializeApp(
-///   options: DefaultFirebaseOptions.currentPlatform,
-/// );
-/// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    if (kIsWeb) {
-      return web;
-    }
+    if (kIsWeb) return web;
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        return macos;
+        throw UnsupportedError(
+          'Firebase has not been configured for macOS in the Saturn Labs project.',
+        );
       case TargetPlatform.windows:
         return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
+          'Firebase has not been configured for Linux.',
         );
       default:
         throw UnsupportedError(
@@ -41,48 +30,33 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDXxMhml8owgrtBLfuCC6LP-4IGHGY0Ek8',
-    appId: '1:443825984909:web:b55c40ca3d775758cd99c4',
-    messagingSenderId: '443825984909',
-    projectId: 'saturn-duospend',
-    authDomain: 'saturn-duospend.firebaseapp.com',
-    storageBucket: 'saturn-duospend.firebasestorage.app',
-    measurementId: 'G-9SWM01YSJH',
+    apiKey: 'AIzaSyAcQsZKnM06cp590D37YVXMl2tptuFvtLM',
+    appId: '1:286653865904:web:20552034e78998aba8c075',
+    messagingSenderId: '286653865904',
+    projectId: 'saturnduospend',
+    authDomain: 'saturnduospend.firebaseapp.com',
+    storageBucket: 'saturnduospend.firebasestorage.app',
+    measurementId: 'G-90PJD9D7WC',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAG_to9J2iHhe0hK2iMyg0MqpHqBB9Nsvs',
-    appId: '1:443825984909:android:2dfc8c679b963e2ccd99c4',
-    messagingSenderId: '443825984909',
-    projectId: 'saturn-duospend',
-    storageBucket: 'saturn-duospend.firebasestorage.app',
+    apiKey: 'AIzaSyD9sNXleIfUMXZDp1pvLcMtgu-C10V8WYg',
+    appId: '1:286653865904:android:df51825d4c949474a8c075',
+    messagingSenderId: '286653865904',
+    projectId: 'saturnduospend',
+    storageBucket: 'saturnduospend.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCqvnb5EF3FJRbxVkGOUilwOxH5j0mfpKg',
-    appId: '1:443825984909:ios:d88fdb937643469dcd99c4',
-    messagingSenderId: '443825984909',
-    projectId: 'saturn-duospend',
-    storageBucket: 'saturn-duospend.firebasestorage.app',
+    apiKey: 'AIzaSyAcQsZKnM06cp590D37YVXMl2tptuFvtLM',
+    appId: '1:286653865904:ios:69f730766f1e3c3ea8c075',
+    messagingSenderId: '286653865904',
+    projectId: 'saturnduospend',
+    storageBucket: 'saturnduospend.firebasestorage.app',
     iosBundleId: 'com.example.app',
   );
 
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyCqvnb5EF3FJRbxVkGOUilwOxH5j0mfpKg',
-    appId: '1:443825984909:ios:d88fdb937643469dcd99c4',
-    messagingSenderId: '443825984909',
-    projectId: 'saturn-duospend',
-    storageBucket: 'saturn-duospend.firebasestorage.app',
-    iosBundleId: 'com.example.app',
-  );
-
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDXxMhml8owgrtBLfuCC6LP-4IGHGY0Ek8',
-    appId: '1:443825984909:web:6c7ee3ff25cb9630cd99c4',
-    messagingSenderId: '443825984909',
-    projectId: 'saturn-duospend',
-    authDomain: 'saturn-duospend.firebaseapp.com',
-    storageBucket: 'saturn-duospend.firebasestorage.app',
-    measurementId: 'G-NKZ0LSXYY2',
-  );
+  // FlutterFire uses a Web Firebase app for Windows. Until a dedicated
+  // Windows registration is generated, reuse the registered DuoSpend Web app.
+  static const FirebaseOptions windows = web;
 }
