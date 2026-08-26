@@ -52,14 +52,22 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
-  Future<void> _createTask() async {
-    final titleController = TextEditingController();
-    final notesController = TextEditingController();
-    final repeatController = TextEditingController();
-    String? assigneeId = widget.currentUserId;
-    DateTime? dueAt;
+  Future<void> _createTask() => _openTaskEditor();
 
-    final shouldCreate = await showDialog<bool>(
+  Future<void> _editTask(HouseholdTask task) =>
+      _openTaskEditor(task: task);
+
+  Future<void> _openTaskEditor({HouseholdTask? task}) async {
+    final isEditing = task != null;
+    final titleController = TextEditingController(text: task?.title ?? '');
+    final notesController = TextEditingController(text: task?.notes ?? '');
+    final repeatController = TextEditingController(
+      text: task?.repeatEveryDays?.toString() ?? '',
+    );
+    String? assigneeId = task?.assigneeId ?? widget.currentUserId;
+    DateTime? dueAt = task?.dueAt;
+
+    final shouldSave = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
@@ -71,14 +79,14 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           }
 
           return AlertDialog(
-            title: const Text('Nova tarefa'),
+            title: Text(isEditing ? 'Editar tarefa' : 'Nova tarefa'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: titleController,
-                    autofocus: true,
+                    autofocus: !isEditing,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: const InputDecoration(
                       labelText: 'Tarefa',
@@ -97,7 +105,9 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.schedule_rounded),
                     title: Text(
-                      dueAt == null ? 'Definir data e horário' : _formatDueAt(dueAt!),
+                      dueAt == null
+                          ? 'Definir data e horário'
+                          : _formatDueAt(dueAt!),
                     ),
                     subtitle: const Text('Opcional'),
                     onTap: pickDueAt,
@@ -105,7 +115,8 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                         ? const Icon(Icons.chevron_right_rounded)
                         : IconButton(
                             tooltip: 'Remover horário',
-                            onPressed: () => setDialogState(() => dueAt = null),
+                            onPressed: () =>
+                                setDialogState(() => dueAt = null),
                             icon: const Icon(Icons.close_rounded),
                           ),
                   ),
@@ -126,7 +137,9 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                       initialValue: widget.memberIds.contains(assigneeId)
                           ? assigneeId
                           : null,
-                      decoration: const InputDecoration(labelText: 'Responsável'),
+                      decoration: const InputDecoration(
+                        labelText: 'Responsável',
+                      ),
                       items: widget.memberIds
                           .map(
                             (memberId) => DropdownMenuItem(
@@ -154,7 +167,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Criar'),
+                child: Text(isEditing ? 'Salvar' : 'Criar'),
               ),
             ],
           );
@@ -162,19 +175,30 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
       ),
     );
 
-    if (shouldCreate == true) {
+    if (shouldSave == true) {
       final repeatText = repeatController.text.trim();
       final repeatEveryDays =
           repeatText.isEmpty ? null : int.tryParse(repeatText);
-      await widget.controller.createTask(
-        scopeId: widget.scopeId,
-        scope: widget.scope,
-        title: titleController.text,
-        notes: notesController.text,
-        assigneeId: assigneeId,
-        dueAt: dueAt,
-        repeatEveryDays: repeatEveryDays,
-      );
+      if (task == null) {
+        await widget.controller.createTask(
+          scopeId: widget.scopeId,
+          scope: widget.scope,
+          title: titleController.text,
+          notes: notesController.text,
+          assigneeId: assigneeId,
+          dueAt: dueAt,
+          repeatEveryDays: repeatEveryDays,
+        );
+      } else {
+        await widget.controller.updateTask(
+          task: task,
+          title: titleController.text,
+          notes: notesController.text,
+          assigneeId: assigneeId,
+          dueAt: dueAt,
+          repeatEveryDays: repeatEveryDays,
+        );
+      }
     }
 
     titleController.dispose();
@@ -198,8 +222,13 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     );
   }
 
-  Future<void> _createRoutine() async {
-    final created = await Navigator.push<bool>(
+  Future<void> _createRoutine() => _openRoutineEditor();
+
+  Future<void> _editRoutine(HouseholdRoutine routine) =>
+      _openRoutineEditor(routine: routine);
+
+  Future<void> _openRoutineEditor({HouseholdRoutine? routine}) async {
+    final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => CreateHouseholdRoutinePage(
@@ -208,11 +237,12 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           scope: widget.scope,
           memberIds: widget.memberIds,
           currentUserId: widget.currentUserId,
+          routine: routine,
         ),
       ),
     );
 
-    if (created == true) {
+    if (saved == true) {
       await widget.controller.load(widget.scopeId);
     }
   }
@@ -314,7 +344,9 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
                     widget.controller.errorMessage!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
               if (widget.controller.successMessage != null)
@@ -322,7 +354,9 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
                     widget.controller.successMessage!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
               if (routines.isNotEmpty) ...[
@@ -331,6 +365,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                 ...routines.map(
                   (routine) => _RoutineTile(
                     routine: routine,
+                    onEdit: () => _editRoutine(routine),
                     onStart: () => widget.controller.startRoutine(
                       routine: routine,
                       scope: widget.scope,
@@ -344,13 +379,15 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                 const SizedBox(height: 8),
                 ...pending.map(
                   (task) {
-                    final isPartnerTask = task.scope == HouseholdTaskScope.shared &&
-                        task.assigneeId != null &&
-                        task.assigneeId != widget.currentUserId;
+                    final isPartnerTask =
+                        task.scope == HouseholdTaskScope.shared &&
+                            task.assigneeId != null &&
+                            task.assigneeId != widget.currentUserId;
                     return _TaskTile(
                       task: task,
                       currentUserId: widget.currentUserId,
                       onComplete: () => widget.controller.completeTask(task.id),
+                      onEdit: () => _editTask(task),
                       onCancel: () => widget.controller.cancelTask(task.id),
                       reminderLabel: isPartnerTask
                           ? 'Lembrar responsável'
@@ -405,9 +442,14 @@ class _SectionTitle extends StatelessWidget {
 
 class _RoutineTile extends StatelessWidget {
   final HouseholdRoutine routine;
+  final VoidCallback onEdit;
   final VoidCallback onStart;
 
-  const _RoutineTile({required this.routine, required this.onStart});
+  const _RoutineTile({
+    required this.routine,
+    required this.onEdit,
+    required this.onStart,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -425,10 +467,20 @@ class _RoutineTile extends StatelessWidget {
         leading: const Icon(Icons.account_tree_rounded),
         title: Text(routine.name),
         subtitle: Text(subtitleParts.join(' • ')),
-        trailing: IconButton(
-          onPressed: onStart,
-          tooltip: 'Iniciar rotina',
-          icon: const Icon(Icons.play_arrow_rounded),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: onEdit,
+              tooltip: 'Editar rotina',
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            IconButton(
+              onPressed: onStart,
+              tooltip: 'Iniciar rotina',
+              icon: const Icon(Icons.play_arrow_rounded),
+            ),
+          ],
         ),
       ),
     );
@@ -439,6 +491,7 @@ class _TaskTile extends StatelessWidget {
   final HouseholdTask task;
   final String currentUserId;
   final VoidCallback? onComplete;
+  final VoidCallback? onEdit;
   final VoidCallback? onCancel;
   final VoidCallback? onRemind;
   final String? reminderLabel;
@@ -447,6 +500,7 @@ class _TaskTile extends StatelessWidget {
     required this.task,
     required this.currentUserId,
     this.onComplete,
+    this.onEdit,
     this.onCancel,
     this.onRemind,
     this.reminderLabel,
@@ -456,6 +510,11 @@ class _TaskTile extends StatelessWidget {
     final items = <PopupMenuEntry<String>>[
       const PopupMenuItem(value: 'complete', child: Text('Concluir')),
     ];
+    if (onEdit != null) {
+      items.add(
+        const PopupMenuItem(value: 'edit', child: Text('Editar tarefa')),
+      );
+    }
     if (onRemind != null) {
       items.add(
         PopupMenuItem(
@@ -503,11 +562,13 @@ class _TaskTile extends StatelessWidget {
               ? const TextStyle(decoration: TextDecoration.lineThrough)
               : null,
         ),
-        subtitle: subtitleParts.isEmpty ? null : Text(subtitleParts.join(' • ')),
+        subtitle:
+            subtitleParts.isEmpty ? null : Text(subtitleParts.join(' • ')),
         trailing: task.isPending
             ? PopupMenuButton<String>(
                 onSelected: (value) {
                   if (value == 'complete') onComplete?.call();
+                  if (value == 'edit') onEdit?.call();
                   if (value == 'remind') onRemind?.call();
                   if (value == 'cancel') onCancel?.call();
                 },
