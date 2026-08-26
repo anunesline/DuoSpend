@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/household_task.dart';
+import '../../domain/services/household_scope_id.dart';
 import '../controllers/household_routines_controller.dart';
 import 'household_routines_page.dart';
 
 class HouseholdRoutinesHubPage extends StatefulWidget {
   final HouseholdRoutinesController controller;
   final String currentUserId;
+
+  /// Kept temporarily for call-site compatibility. Household identity is no
+  /// longer derived from a financial wallet id.
   final String? sharedHouseholdId;
   final List<String> sharedMemberIds;
 
@@ -18,8 +22,13 @@ class HouseholdRoutinesHubPage extends StatefulWidget {
     this.sharedMemberIds = const [],
   });
 
-  bool get hasSharedHousehold =>
-      sharedHouseholdId != null && sharedHouseholdId!.trim().isNotEmpty;
+  bool get hasSharedHousehold {
+    final members = sharedMemberIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    return members.length >= 2 && members.contains(currentUserId.trim());
+  }
 
   @override
   State<HouseholdRoutinesHubPage> createState() =>
@@ -29,13 +38,13 @@ class HouseholdRoutinesHubPage extends StatefulWidget {
 class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
   bool _showShared = false;
 
-  String get _personalScopeId => 'user:${widget.currentUserId}';
+  String get _personalScopeId => HouseholdScopeId.personal(widget.currentUserId);
 
   @override
   Widget build(BuildContext context) {
     final isShared = _showShared && widget.hasSharedHousehold;
     final scopeId = isShared
-        ? 'household:${widget.sharedHouseholdId}'
+        ? HouseholdScopeId.shared(widget.sharedMemberIds)
         : _personalScopeId;
     final scope = isShared
         ? HouseholdTaskScope.shared
