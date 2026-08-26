@@ -1,21 +1,22 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../domain/models/household_task_reminder.dart';
 import '../../domain/repositories/household_task_reminder_repository.dart';
 
 class FirestoreHouseholdTaskReminderRepository
     implements HouseholdTaskReminderRepository {
-  final FirebaseFirestore firestore;
+  final FirebaseFunctions functions;
 
-  FirestoreHouseholdTaskReminderRepository({FirebaseFirestore? firestore})
-      : firestore = firestore ?? FirebaseFirestore.instance;
-
-  CollectionReference<Map<String, dynamic>> get _collection =>
-      firestore.collection('household_task_reminders');
+  FirestoreHouseholdTaskReminderRepository({FirebaseFunctions? functions})
+      : functions = functions ?? FirebaseFunctions.instance;
 
   @override
   Future<void> saveReminder(HouseholdTaskReminder reminder) async {
-    await _collection.doc(reminder.id).set(reminder.toMap());
+    await functions.httpsCallable('createHouseholdReminder').call({
+      'reminderId': reminder.id,
+      'taskId': reminder.taskId,
+      'remindAt': reminder.remindAt.toUtc().toIso8601String(),
+    });
   }
 
   @override
@@ -24,50 +25,16 @@ class FirestoreHouseholdTaskReminderRepository
     required String senderUserId,
     required String recipientUserId,
   }) async {
-    final snapshot = await _collection.where('taskId', isEqualTo: taskId).get();
-    final reminders = snapshot.docs
-        .map((doc) => HouseholdTaskReminder.fromMap(doc.data()))
-        .where(
-          (reminder) =>
-              reminder.senderUserId == senderUserId &&
-              reminder.recipientUserId == recipientUserId,
-        )
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    return reminders.isEmpty ? null : reminders.first;
-  }
-
-  @override
-  Future<List<HouseholdTaskReminder>> getDueReminders({
-    required String recipientUserId,
-    required DateTime now,
-  }) async {
-    final snapshot = await _collection
-        .where('recipientUserId', isEqualTo: recipientUserId.trim())
-        .get();
-    final reminders = snapshot.docs
-        .map((doc) => HouseholdTaskReminder.fromMap(doc.data()))
-        .where(
-          (reminder) =>
-              reminder.isDue && !reminder.remindAt.isAfter(now),
-        )
-        .toList()
-      ..sort((a, b) => a.remindAt.compareTo(b.remindAt));
-    return List.unmodifiable(reminders);
-  }
-
-  @override
-  Future<void> markDelivered({
-    required String reminderId,
-    required DateTime deliveredAt,
-  }) async {
-    await _collection.doc(reminderId).set(
-      {
-        'status': HouseholdTaskReminderStatus.delivered.name,
-        'deliveredAt': deliveredAt.toIso8601String(),
-      },
-      SetOptions(merge: true),
+    final result = await functions.httpsCallable('getLatestHouseholdReminder').call({
+      'taskId': taskId,
+      'recipientUserId': recipientUserId,
+    });
+    final data = result.data;
+    if (data is! Map) return null;
+    final rawReminder = data['reminder'];
+    if (rawReminder is! Map) return null;
+    return HouseholdTaskReminder.fromMap(
+      Map<String, dynamic>.from(rawReminder),
     );
   }
 }
