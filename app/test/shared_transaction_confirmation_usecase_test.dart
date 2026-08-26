@@ -90,7 +90,7 @@ void main() {
         wallet: wallet,
         respondingMemberId: 'matheus',
       ),
-      throwsStateError,
+      throwsException,
     );
   });
 
@@ -126,7 +126,7 @@ void main() {
         wallet: wallet,
         respondingMemberId: 'matheus',
       ),
-      throwsStateError,
+      throwsException,
     );
   });
 }
