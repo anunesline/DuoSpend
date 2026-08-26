@@ -54,7 +54,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(
                     labelText: 'Tarefa',
-                    hintText: 'Ex.: Lavar roupa',
+                    hintText: 'Ex.: Tirar o lixo',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -241,6 +241,16 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                     ),
                   ),
                 ),
+              if (widget.controller.successMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    widget.controller.successMessage!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
               if (routines.isNotEmpty) ...[
                 const _SectionTitle('Rotinas'),
                 const SizedBox(height: 8),
@@ -264,6 +274,14 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                     currentUserId: widget.currentUserId,
                     onComplete: () => widget.controller.completeTask(task.id),
                     onCancel: () => widget.controller.cancelTask(task.id),
+                    onRemind: task.scope == HouseholdTaskScope.shared &&
+                            task.assigneeId != null &&
+                            task.assigneeId != widget.currentUserId
+                        ? () => widget.controller.remindAssignee(
+                              task: task,
+                              currentUserId: widget.currentUserId,
+                            )
+                        : null,
                   ),
                 ),
               ],
@@ -313,14 +331,22 @@ class _RoutineTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final repeatLabel = routine.repeatEveryDays == null
+        ? null
+        : routine.repeatEveryDays == 1
+            ? 'repete diariamente'
+            : 'repete a cada ${routine.repeatEveryDays} dias';
     return Card(
       child: ListTile(
         leading: const Icon(Icons.account_tree_rounded),
         title: Text(routine.name),
         subtitle: Text(
-          routine.steps.length == 1
-              ? '1 etapa'
-              : '${routine.steps.length} etapas',
+          [
+            routine.steps.length == 1
+                ? '1 etapa'
+                : '${routine.steps.length} etapas',
+            if (repeatLabel != null) repeatLabel,
+          ].join(' • '),
         ),
         trailing: IconButton(
           onPressed: onStart,
@@ -337,12 +363,14 @@ class _TaskTile extends StatelessWidget {
   final String currentUserId;
   final VoidCallback? onComplete;
   final VoidCallback? onCancel;
+  final VoidCallback? onRemind;
 
   const _TaskTile({
     required this.task,
     required this.currentUserId,
     this.onComplete,
     this.onCancel,
+    this.onRemind,
   });
 
   @override
@@ -385,14 +413,20 @@ class _TaskTile extends StatelessWidget {
             ? PopupMenuButton<String>(
                 onSelected: (value) {
                   if (value == 'complete') onComplete?.call();
+                  if (value == 'remind') onRemind?.call();
                   if (value == 'cancel') onCancel?.call();
                 },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
                     value: 'complete',
                     child: Text('Concluir'),
                   ),
-                  PopupMenuItem(
+                  if (onRemind != null)
+                    const PopupMenuItem(
+                      value: 'remind',
+                      child: Text('Lembrar responsável'),
+                    ),
+                  const PopupMenuItem(
                     value: 'cancel',
                     child: Text('Cancelar'),
                   ),
