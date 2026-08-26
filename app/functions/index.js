@@ -110,7 +110,6 @@ async function deliverReminder(reference, reminder) {
     android: {
       priority: "high",
       notification: {
-        channelId: "household_reminders",
         priority: "high",
       },
     },
