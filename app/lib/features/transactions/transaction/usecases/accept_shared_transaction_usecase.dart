@@ -33,6 +33,16 @@ class AcceptSharedTransactionUseCase {
       respondingMemberId: normalizedRespondingMemberId,
     );
 
+    if (persistedTransaction.confirmationStatus.isAccepted) {
+      return persistedTransaction;
+    }
+
+    if (persistedTransaction.confirmationStatus.isRejected) {
+      throw StateError(
+        'A despesa compartilhada já foi recusada e não pode ser aceita.',
+      );
+    }
+
     final acceptedTransaction = persistedTransaction.copyWith(
       confirmationStatus:
           SharedTransactionConfirmationStatus.accepted,
@@ -76,51 +86,45 @@ class AcceptSharedTransactionUseCase {
     required String respondingMemberId,
   }) {
     if (!wallet.isShared) {
-      throw Exception(
+      throw StateError(
         'A confirmação bilateral exige uma carteira compartilhada.',
       );
     }
 
     if (transaction.walletId.trim() != wallet.id.trim()) {
-      throw Exception(
+      throw StateError(
         'A transação não pertence à carteira compartilhada informada.',
       );
     }
 
     if (respondingMemberId.isEmpty) {
-      throw Exception(
+      throw StateError(
         'O membro responsável pela confirmação não foi informado.',
       );
     }
 
     if (!wallet.memberIds.contains(respondingMemberId)) {
-      throw Exception(
+      throw StateError(
         'O membro informado não pertence à carteira compartilhada.',
       );
     }
 
     if (!transaction.isSharedExpense) {
-      throw Exception(
+      throw StateError(
         'Somente despesas compartilhadas podem ser confirmadas.',
-      );
-    }
-
-    if (!transaction.confirmationStatus.isPending) {
-      throw Exception(
-        'A despesa compartilhada não está aguardando confirmação.',
       );
     }
 
     final payerMemberId = transaction.paidByMemberId?.trim();
 
     if (payerMemberId == null || payerMemberId.isEmpty) {
-      throw Exception(
+      throw StateError(
         'Não foi possível identificar o autor da despesa compartilhada.',
       );
     }
 
     if (payerMemberId == respondingMemberId) {
-      throw Exception(
+      throw StateError(
         'O autor da despesa não pode confirmar a própria solicitação.',
       );
     }
