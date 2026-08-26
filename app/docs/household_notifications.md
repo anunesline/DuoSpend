@@ -1,57 +1,81 @@
-# Rotinas da Casa — notificações push
+# Rotinas da Casa — notificações
 
-A Sprint 30 usa Firebase Cloud Messaging (FCM) com Cloud Functions e Cloud Tasks.
+A Sprint 30 separa dois tipos de lembrete para evitar dependência de Cloud Functions/Cloud Tasks no V1:
 
-## Fluxo
+- **Lembrete pessoal**: notificação local agendada no próprio dispositivo com `flutter_local_notifications`.
+- **Lembrar responsável**: push remoto pelo OneSignal, enviado através de um Cloudflare Worker seguro.
 
-1. O app solicita permissão de notificação e obtém o token FCM do dispositivo.
-2. O token é registrado por uma Callable Function autenticada em `users/{uid}/fcm_tokens`.
-3. `createHouseholdReminder` valida o usuário, a tarefa, o responsável e o vínculo compartilhado.
-4. Lembretes ao parceiro passam por cooldown autoritativo de 2 horas.
-5. O backend grava o lembrete e cria uma Cloud Task para `dispatchHouseholdReminder` no horário solicitado.
-6. A task envia a notificação via FCM e marca o lembrete como `delivered` ou `failed`.
-7. Em foreground, o Flutter mostra a mensagem via `ScaffoldMessenger`; em background/encerrado, o sistema operacional apresenta o push do FCM.
+## Identidade de push
 
-Nenhuma credencial de servidor FCM fica no aplicativo Flutter.
+O Flutter inicializa o OneSignal com `ONESIGNAL_APP_ID` e usa o Firebase UID como `external_id` através de `OneSignal.login(uid)`. Ao sair da conta, o SDK executa `OneSignal.logout()`.
 
-## Deploy do backend
+A App API Key do OneSignal nunca fica no aplicativo.
 
-O projeto Firebase é `saturn-duospend`.
+## Lembrete pessoal
 
-A partir de `app/`:
+Quando o usuário agenda um lembrete para si:
+
+1. o domínio valida que a tarefa está pendente e que o horário não está no passado;
+2. o app busca o título da tarefa;
+3. agenda uma notificação local no fuso horário do dispositivo;
+4. no Android, o app solicita permissão de notificações e de alarme exato quando necessário;
+5. o lembrete continua independente de backend e de plano Blaze.
+
+## Lembrar responsável
+
+Quando uma tarefa compartilhada está atribuída a outro membro:
+
+1. o app obtém um Firebase ID token da sessão atual;
+2. envia somente `reminderId` e `taskId` ao Worker;
+3. o Worker valida a sessão no Firebase Auth;
+4. lê a tarefa e valida o escopo compartilhado no Firestore usando o token do próprio usuário;
+5. confirma que remetente e responsável fazem parte de uma carteira compartilhada conectada;
+6. aplica cooldown autoritativo de 2 horas em D1;
+7. envia o push pelo OneSignal para `external_id = Firebase UID` do responsável;
+8. registra o envio no D1.
+
+O destinatário não é aceito livremente do cliente: ele é derivado da tarefa persistida.
+
+## Configuração da build Flutter
+
+A build precisa dos dois valores abaixo:
 
 ```bash
-cd functions
-npm install
-npm run lint
-cd ..
-npx firebase-tools deploy --project saturn-duospend --only functions
+--dart-define=ONESIGNAL_APP_ID=<onesignal-app-id>
+--dart-define=HOUSEHOLD_REMINDER_ENDPOINT=https://<worker>/household/reminders
 ```
 
-Task Queue Functions usam Cloud Tasks e exigem projeto no plano Blaze. No primeiro deploy, o Firebase cria/configura a fila associada à função. Se o deploy solicitar APIs ou permissões adicionais, habilite Cloud Tasks e as permissões de enfileiramento/invocação indicadas pelo Firebase CLI.
+`ONESIGNAL_APP_ID` não é uma credencial secreta. Já a App API Key do OneSignal é secreta e existe somente no Worker.
 
-## Android
+## Worker
 
-`POST_NOTIFICATIONS` está declarado no `AndroidManifest.xml`. Em Android 13+, o app solicitará a permissão em runtime através do Firebase Messaging.
+A implementação está em `notification-worker/`.
 
-Teste em aparelho físico ou emulador com Google Play Services.
+Variáveis públicas/configuráveis do Worker:
 
-## iOS
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_WEB_API_KEY`
+- `ONESIGNAL_APP_ID`
 
-Além do código Flutter, FCM em iOS exige configuração na conta Apple/Firebase:
+Secret obrigatório:
 
-- habilitar **Push Notifications** em Signing & Capabilities no target Runner;
-- habilitar **Background Modes**, incluindo Remote notifications (e Background fetch quando aplicável);
-- criar/obter a chave APNs no Apple Developer;
-- enviar a chave APNs na configuração Cloud Messaging do projeto Firebase.
+- `ONESIGNAL_REST_API_KEY`
 
-Essa etapa requer macOS/Xcode e credenciais da conta Apple Developer; não há chave APNs versionada no repositório.
+Binding obrigatório:
+
+- `DB` apontando para o banco D1 criado com `notification-worker/schema.sql`
+
+## Firebase Functions existentes
+
+`app/functions/` permanece no repositório apenas como implementação anterior/deferida. A Sprint 30 não depende de deploy de Functions, FCM token registry ou Cloud Tasks para funcionar com a arquitetura nova.
+
+Antes do Release da Sprint 32, decidir se esse backend legado será removido definitivamente ou mantido apenas como referência técnica.
 
 ## Validação funcional
 
-- lembrete pessoal agendado para alguns minutos à frente deve chegar com o app em background;
-- `Lembrar responsável` deve chegar imediatamente ao outro usuário;
-- nova tentativa de lembrar o mesmo responsável antes de 2 horas deve ser bloqueada;
-- com o app em foreground, a mensagem deve aparecer dentro do DuoSpend;
-- token inválido deve ser removido pelo backend após resposta do FCM;
-- o documento do lembrete deve terminar como `delivered` em sucesso ou `failed` em falha.
+- lembrete pessoal deve disparar no horário escolhido mesmo sem backend;
+- `Lembrar responsável` deve chegar ao outro usuário pelo OneSignal;
+- nova tentativa para a mesma tarefa/remetente/responsável antes de 2 horas deve retornar cooldown;
+- usuário não conectado ao mesmo contexto compartilhado não pode disparar push;
+- build sem `ONESIGNAL_APP_ID` deve continuar abrindo normalmente, apenas com push remoto desabilitado;
+- build sem `HOUSEHOLD_REMINDER_ENDPOINT` deve permitir tarefas e lembretes locais, mas bloquear envio ao responsável com erro controlado.
