@@ -5,7 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class PushNotificationService {
-  static const _appId = String.fromEnvironment('ONESIGNAL_APP_ID');
+  static const _appId = String.fromEnvironment(
+    'ONESIGNAL_APP_ID',
+    defaultValue: '08277467-a5c9-49e0-81ec-ecdbb671e4c0',
+  );
 
   final FirebaseAuth auth;
 
@@ -28,7 +31,7 @@ class PushNotificationService {
 
     if (_appId.trim().isEmpty) {
       debugPrint(
-        'OneSignal disabled: build without --dart-define=ONESIGNAL_APP_ID.',
+        'OneSignal disabled: missing OneSignal App ID.',
       );
       return;
     }
