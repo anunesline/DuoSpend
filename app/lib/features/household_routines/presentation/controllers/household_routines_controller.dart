@@ -81,10 +81,15 @@ class HouseholdRoutinesController extends ChangeNotifier {
     String? notes,
     String? assigneeId,
     DateTime? dueAt,
+    int? repeatEveryDays,
   }) async {
     final normalizedTitle = title.trim();
     if (normalizedTitle.isEmpty) {
       _setError('Informe o nome da tarefa.');
+      return null;
+    }
+    if (repeatEveryDays != null && repeatEveryDays <= 0) {
+      _setError('A recorrência deve ser maior que zero dias.');
       return null;
     }
     final now = DateTime.now();
@@ -97,6 +102,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
       assigneeId: _emptyToNull(assigneeId),
       status: HouseholdTaskStatus.pending,
       dueAt: dueAt,
+      repeatEveryDays: repeatEveryDays,
       createdAt: now,
       updatedAt: now,
     );
@@ -233,6 +239,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
   Future<bool> remindTask({
     required HouseholdTask task,
     required String currentUserId,
+    DateTime? remindAt,
   }) async {
     try {
       _clearMessages();
@@ -243,11 +250,12 @@ class HouseholdRoutinesController extends ChangeNotifier {
         task: task,
         senderUserId: currentUserId,
         now: DateTime.now(),
+        remindAt: remindAt,
       );
       if (result.sent) {
         _successMessage = isPartnerReminder
             ? 'Lembrete enviado ao responsável.'
-            : 'Lembrete da tarefa criado.';
+            : 'Lembrete agendado.';
         notifyListeners();
         return true;
       }
