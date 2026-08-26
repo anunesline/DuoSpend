@@ -11,6 +11,7 @@ class HouseholdRoutinesPage extends StatefulWidget {
   final HouseholdTaskScope scope;
   final List<String> memberIds;
   final String currentUserId;
+  final bool embedInScaffold;
 
   const HouseholdRoutinesPage({
     super.key,
@@ -19,6 +20,7 @@ class HouseholdRoutinesPage extends StatefulWidget {
     required this.scope,
     required this.memberIds,
     required this.currentUserId,
+    this.embedInScaffold = false,
   });
 
   @override
@@ -139,6 +141,36 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final content = _buildContent();
+
+    if (widget.embedInScaffold) {
+      return Stack(
+        children: [
+          content,
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton.extended(
+              heroTag: 'household-task-${widget.scopeId}',
+              onPressed: _createTask,
+              icon: const Icon(Icons.add_task_rounded),
+              label: const Text('Nova tarefa'),
+            ),
+          ),
+          Positioned(
+            right: 16,
+            bottom: 82,
+            child: FloatingActionButton.small(
+              heroTag: 'household-routine-${widget.scopeId}',
+              onPressed: _createRoutine,
+              tooltip: 'Nova rotina',
+              child: const Icon(Icons.account_tree_rounded),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Rotinas da Casa'),
@@ -155,97 +187,101 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
         icon: const Icon(Icons.add_task_rounded),
         label: const Text('Nova tarefa'),
       ),
-      body: ListenableBuilder(
-        listenable: widget.controller,
-        builder: (context, _) {
-          if (widget.controller.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: content,
+    );
+  }
 
-          final pending = widget.controller.pendingTasks;
-          final completed = widget.controller.completedTasks;
-          final routines = widget.controller.routines;
+  Widget _buildContent() {
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        if (widget.controller.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          if (pending.isEmpty && completed.isEmpty && routines.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Nenhuma tarefa por aqui ainda.\nCrie uma tarefa ou uma rotina encadeada.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: _createRoutine,
-                      icon: const Icon(Icons.account_tree_rounded),
-                      label: const Text('Criar rotina'),
-                    ),
-                  ],
-                ),
+        final pending = widget.controller.pendingTasks;
+        final completed = widget.controller.completedTasks;
+        final routines = widget.controller.routines;
+
+        if (pending.isEmpty && completed.isEmpty && routines.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Nenhuma tarefa por aqui ainda.\nCrie uma tarefa ou uma rotina encadeada.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _createRoutine,
+                    icon: const Icon(Icons.account_tree_rounded),
+                    label: const Text('Criar rotina'),
+                  ),
+                ],
               ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () => widget.controller.load(widget.scopeId),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
-              children: [
-                if (widget.controller.errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      widget.controller.errorMessage!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-                if (routines.isNotEmpty) ...[
-                  const _SectionTitle('Rotinas'),
-                  const SizedBox(height: 8),
-                  ...routines.map(
-                    (routine) => _RoutineTile(
-                      routine: routine,
-                      onStart: () => widget.controller.startRoutine(
-                        routine: routine,
-                        scope: widget.scope,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-                if (pending.isNotEmpty) ...[
-                  const _SectionTitle('Pendentes'),
-                  const SizedBox(height: 8),
-                  ...pending.map(
-                    (task) => _TaskTile(
-                      task: task,
-                      currentUserId: widget.currentUserId,
-                      onComplete: () => widget.controller.completeTask(task.id),
-                      onCancel: () => widget.controller.cancelTask(task.id),
-                    ),
-                  ),
-                ],
-                if (completed.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  const _SectionTitle('Concluídas'),
-                  const SizedBox(height: 8),
-                  ...completed.map(
-                    (task) => _TaskTile(
-                      task: task,
-                      currentUserId: widget.currentUserId,
-                    ),
-                  ),
-                ],
-              ],
             ),
           );
-        },
-      ),
+        }
+
+        return RefreshIndicator(
+          onRefresh: () => widget.controller.load(widget.scopeId),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
+            children: [
+              if (widget.controller.errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    widget.controller.errorMessage!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              if (routines.isNotEmpty) ...[
+                const _SectionTitle('Rotinas'),
+                const SizedBox(height: 8),
+                ...routines.map(
+                  (routine) => _RoutineTile(
+                    routine: routine,
+                    onStart: () => widget.controller.startRoutine(
+                      routine: routine,
+                      scope: widget.scope,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+              if (pending.isNotEmpty) ...[
+                const _SectionTitle('Pendentes'),
+                const SizedBox(height: 8),
+                ...pending.map(
+                  (task) => _TaskTile(
+                    task: task,
+                    currentUserId: widget.currentUserId,
+                    onComplete: () => widget.controller.completeTask(task.id),
+                    onCancel: () => widget.controller.cancelTask(task.id),
+                  ),
+                ),
+              ],
+              if (completed.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                const _SectionTitle('Concluídas'),
+                const SizedBox(height: 8),
+                ...completed.map(
+                  (task) => _TaskTile(
+                    task: task,
+                    currentUserId: widget.currentUserId,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
