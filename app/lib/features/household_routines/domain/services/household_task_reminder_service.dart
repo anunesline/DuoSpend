@@ -41,6 +41,11 @@ class HouseholdTaskReminderService {
     this.uuid = const Uuid(),
   });
 
+  /// Creates a reminder request for a pending task.
+  ///
+  /// Personal tasks can remind their owner and are not subject to partner
+  /// anti-spam cooldown. Shared tasks assigned to another member use the
+  /// partner-reminder flow and keep the cooldown protection.
   Future<HouseholdTaskReminderResult> remindAssignee({
     required HouseholdTask task,
     required String senderUserId,
@@ -51,23 +56,47 @@ class HouseholdTaskReminderService {
         'Só tarefas pendentes podem receber lembretes.',
       );
     }
-    if (task.scope != HouseholdTaskScope.shared) {
+
+    final sender = senderUserId.trim();
+    if (sender.isEmpty) {
       return HouseholdTaskReminderResult.invalid(
-        'Lembretes para parceiro só existem em tarefas compartilhadas.',
+        'Não foi possível identificar quem receberá o lembrete.',
       );
     }
 
+    if (task.scope == HouseholdTaskScope.personal) {
+      final reminder = HouseholdTaskReminder(
+        id: uuid.v4(),
+        taskId: task.id,
+        scopeId: task.scopeId,
+        senderUserId: sender,
+        recipientUserId: sender,
+        createdAt: now,
+      );
+      await repository.saveReminder(reminder);
+      return HouseholdTaskReminderResult.sent(reminder);
+    }
+
     final recipientUserId = task.assigneeId?.trim();
-    final sender = senderUserId.trim();
     if (recipientUserId == null || recipientUserId.isEmpty) {
       return HouseholdTaskReminderResult.invalid(
         'Defina um responsável antes de enviar um lembrete.',
       );
     }
-    if (sender.isEmpty || sender == recipientUserId) {
-      return HouseholdTaskReminderResult.invalid(
-        'Você só pode lembrar outro responsável.',
+
+    // A shared task assigned to the current user behaves like a self-reminder.
+    // Anti-spam exists only when one household member nudges another.
+    if (recipientUserId == sender) {
+      final reminder = HouseholdTaskReminder(
+        id: uuid.v4(),
+        taskId: task.id,
+        scopeId: task.scopeId,
+        senderUserId: sender,
+        recipientUserId: sender,
+        createdAt: now,
       );
+      await repository.saveReminder(reminder);
+      return HouseholdTaskReminderResult.sent(reminder);
     }
 
     final latest = await repository.getLatestReminder(
