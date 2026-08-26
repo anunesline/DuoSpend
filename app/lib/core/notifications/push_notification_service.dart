@@ -50,60 +50,75 @@ class PushNotificationService {
     if (_initialized || !_supportsMessaging) return;
     _initialized = true;
 
-    await messaging.setAutoInitEnabled(true);
-    await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
-
-    // Foreground messages are rendered by DuoSpendApp to avoid duplicate
-    // banners on Apple platforms. Background/terminated notification payloads
-    // remain handled by the OS through FCM.
-    await messaging.setForegroundNotificationPresentationOptions(
-      alert: false,
-      badge: true,
-      sound: false,
-    );
-
-    _authSubscription = auth.authStateChanges().listen(_handleAuthChanged);
-    _tokenSubscription = messaging.onTokenRefresh.listen(_saveTokenForCurrentUser);
-    _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
-      foregroundMessage.value = PushNotificationMessage(
-        title: message.notification?.title ?? 'DuoSpend',
-        body: message.notification?.body ?? 'Você tem um novo lembrete.',
-        data: Map<String, dynamic>.from(message.data),
+    try {
+      await messaging.setAutoInitEnabled(true);
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
       );
-    });
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: false,
+        badge: true,
+        sound: false,
+      );
 
-    await _handleAuthChanged(auth.currentUser);
+      _authSubscription = auth.authStateChanges().listen((user) {
+        unawaited(_handleAuthChanged(user));
+      });
+      _tokenSubscription = messaging.onTokenRefresh.listen((token) {
+        unawaited(_saveTokenForCurrentUser(token));
+      });
+      _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
+        foregroundMessage.value = PushNotificationMessage(
+          title: message.notification?.title ?? 'DuoSpend',
+          body: message.notification?.body ?? 'Você tem um novo lembrete.',
+          data: Map<String, dynamic>.from(message.data),
+        );
+      });
+
+      await _handleAuthChanged(auth.currentUser);
+    } catch (error, stackTrace) {
+      debugPrint('Push notifications unavailable: $error\n$stackTrace');
+    }
   }
 
   Future<void> _handleAuthChanged(User? user) async {
-    final previousUserId = _lastUserId;
-    final nextUserId = user?.uid.trim();
-    _lastUserId = nextUserId;
+    try {
+      final previousUserId = _lastUserId;
+      final nextUserId = user?.uid.trim();
+      _lastUserId = nextUserId;
 
-    final token = await messaging.getToken();
-    if (previousUserId != null &&
-        previousUserId.isNotEmpty &&
-        previousUserId != nextUserId &&
-        token != null &&
-        token.isNotEmpty) {
-      await _tokenReference(previousUserId, token).delete();
-    }
+      final token = await messaging.getToken();
+      if (previousUserId != null &&
+          previousUserId.isNotEmpty &&
+          previousUserId != nextUserId &&
+          token != null &&
+          token.isNotEmpty) {
+        await _tokenReference(previousUserId, token).delete();
+      }
 
-    if (nextUserId == null || nextUserId.isEmpty || token == null || token.isEmpty) {
-      return;
+      if (nextUserId == null ||
+          nextUserId.isEmpty ||
+          token == null ||
+          token.isEmpty) {
+        return;
+      }
+      await _saveToken(nextUserId, token);
+    } catch (error) {
+      debugPrint('Could not sync FCM token: $error');
     }
-    await _saveToken(nextUserId, token);
   }
 
   Future<void> _saveTokenForCurrentUser(String token) async {
-    final userId = auth.currentUser?.uid.trim();
-    if (userId == null || userId.isEmpty || token.isEmpty) return;
-    await _saveToken(userId, token);
+    try {
+      final userId = auth.currentUser?.uid.trim();
+      if (userId == null || userId.isEmpty || token.isEmpty) return;
+      await _saveToken(userId, token);
+    } catch (error) {
+      debugPrint('Could not refresh FCM token: $error');
+    }
   }
 
   Future<void> _saveToken(String userId, String token) async {
