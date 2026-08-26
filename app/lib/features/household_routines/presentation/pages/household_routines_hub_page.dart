@@ -41,6 +41,41 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
   String get _personalScopeId => HouseholdScopeId.personal(widget.currentUserId);
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _deliverDueReminders());
+  }
+
+  Future<void> _deliverDueReminders() async {
+    final reminders = await widget.controller.reminderService.consumeDueReminders(
+      recipientUserId: widget.currentUserId,
+      now: DateTime.now(),
+    );
+    if (!mounted || reminders.isEmpty) return;
+
+    final partnerCount = reminders.where((reminder) => reminder.kind.name == 'partner').length;
+    final selfCount = reminders.length - partnerCount;
+    final parts = <String>[];
+    if (selfCount > 0) {
+      parts.add(selfCount == 1 ? '1 lembrete seu' : '$selfCount lembretes seus');
+    }
+    if (partnerCount > 0) {
+      parts.add(
+        partnerCount == 1
+            ? '1 lembrete da casa'
+            : '$partnerCount lembretes da casa',
+      );
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Você tem ${parts.join(' e ')}.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isShared = _showShared && widget.hasSharedHousehold;
     final scopeId = isShared
