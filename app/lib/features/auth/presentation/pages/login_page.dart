@@ -56,6 +56,8 @@ class _LoginPageState extends State<LoginPage> {
             consumerController: widget.dependencies.consumerController,
             purchaseController: widget.dependencies.purchaseController,
             productRepository: widget.dependencies.productRepository,
+            householdRoutinesController:
+                widget.dependencies.householdRoutinesController,
           ),
         ),
       );
