@@ -1,6 +1,12 @@
 enum HouseholdTaskReminderKind { self, partner }
 
-enum HouseholdTaskReminderStatus { scheduled, pendingDelivery, delivered, cancelled }
+enum HouseholdTaskReminderStatus {
+  scheduled,
+  pendingDelivery,
+  delivered,
+  failed,
+  cancelled,
+}
 
 class HouseholdTaskReminder {
   final String id;
@@ -39,9 +45,9 @@ class HouseholdTaskReminder {
         'recipientUserId': recipientUserId,
         'kind': kind.name,
         'status': status.name,
-        'remindAt': remindAt.toIso8601String(),
-        'createdAt': createdAt.toIso8601String(),
-        'deliveredAt': deliveredAt?.toIso8601String(),
+        'remindAt': remindAt.toUtc().toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        'deliveredAt': deliveredAt?.toUtc().toIso8601String(),
       };
 
   factory HouseholdTaskReminder.fromMap(Map<String, dynamic> map) {
@@ -59,7 +65,7 @@ class HouseholdTaskReminder {
       ),
       status: HouseholdTaskReminderStatus.values.firstWhere(
         (value) => value.name == map['status']?.toString(),
-        orElse: () => HouseholdTaskReminderStatus.scheduled,
+        orElse: () => HouseholdTaskReminderStatus.failed,
       ),
       remindAt: DateTime.tryParse(map['remindAt']?.toString() ?? '') ?? createdAt,
       createdAt: createdAt,
