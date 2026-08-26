@@ -30,9 +30,11 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Firebase Functions
-/functions/node_modules/
-/functions/.runtimeconfig.json
+# Cloudflare Worker local state/secrets
+/notification-worker/node_modules/
+/notification-worker/.wrangler/
+/notification-worker/wrangler.toml
+/notification-worker/.dev.vars
 
 # Symbolication related
 app.*.symbols
