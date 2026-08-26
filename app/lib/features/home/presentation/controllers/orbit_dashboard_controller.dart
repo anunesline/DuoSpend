@@ -1,15 +1,17 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../budgets/data/repositories/budget_repository.dart';
+import '../../../budgets/domain/models/budget.dart';
 import '../../../budgets/domain/models/budget_consumption.dart';
 import '../../../budgets/domain/services/budget_consumption_service.dart';
 import '../../../goals/data/repositories/savings_goal_repository.dart';
 import '../../../goals/domain/models/savings_goal.dart';
+import '../../../transactions/data/models/transaction_model.dart';
 import '../../data/models/credit_card_invoice_model.dart';
+import '../../data/models/credit_card_model.dart';
 import '../../data/models/wallet_model.dart';
 import '../../data/repositories/credit_card_repository.dart';
-import '../../../transactions/data/models/transaction_model.dart';
-import '../..//domain/models/orbit_dashboard_summary.dart';
+import '../../domain/models/orbit_dashboard_summary.dart';
 
 class OrbitDashboardController extends ChangeNotifier {
   final BudgetRepository _budgetRepository;
@@ -42,15 +44,9 @@ class OrbitDashboardController extends ChangeNotifier {
     final reference = now ?? DateTime.now();
 
     try {
-      final results = await Future.wait<dynamic>([
-        _budgetRepository.getByWallet(wallet: wallet),
-        _goalRepository.getGoalsByWallet(wallet.id),
-        _creditCardRepository.getCards(),
-      ]);
-      final budgets = results[0] as List;
-      final goals = (results[1] as List).cast<SavingsGoal>();
-      final cards = results[2] as List;
-
+      final budgets = await _budgetRepository.getByWallet(wallet: wallet);
+      final goals = await _goalRepository.getGoalsByWallet(wallet.id);
+      final cards = await _creditCardRepository.getCards();
       final walletCards = cards.where((card) => card.walletId == wallet.id).toList();
       final invoiceLists = await Future.wait(
         walletCards.map((card) => _creditCardRepository.getInvoices(cardId: card.id)),
@@ -62,7 +58,7 @@ class OrbitDashboardController extends ChangeNotifier {
               budget.isActive &&
               budget.month.year == reference.year &&
               budget.month.month == reference.month)
-          .map<BudgetConsumption>((budget) => _budgetConsumptionService.calculate(
+          .map((budget) => _budgetConsumptionService.calculate(
                 budget: budget,
                 transactions: transactions,
               ))
@@ -70,7 +66,7 @@ class OrbitDashboardController extends ChangeNotifier {
 
       summary = OrbitDashboardSummary(
         budget: _buildBudgetSummary(consumptions),
-        goal: _buildGoalSummary(goals, reference),
+        goal: _buildGoalSummary(goals),
         invoice: _buildInvoiceSummary(invoices, reference),
       );
     } catch (_) {
@@ -100,7 +96,7 @@ class OrbitDashboardController extends ChangeNotifier {
     );
   }
 
-  OrbitGoalSummary? _buildGoalSummary(List<SavingsGoal> goals, DateTime reference) {
+  OrbitGoalSummary? _buildGoalSummary(List<SavingsGoal> goals) {
     final active = goals.where((goal) => goal.isActive).toList();
     if (active.isEmpty) return null;
     active.sort((a, b) {
@@ -130,10 +126,5 @@ class OrbitDashboardController extends ChangeNotifier {
       dueDate: current.first.dueDate,
       invoiceCount: current.length,
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }
