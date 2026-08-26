@@ -24,7 +24,7 @@ import '../../features/consumers/presentation/controllers/consumer_controller.da
 
 import '../../features/household_routines/data/repositories/firestore_household_routine_repository.dart';
 import '../../features/household_routines/data/repositories/firestore_household_task_repository.dart';
-import '../../features/household_routines/data/repositories/firestore_household_task_reminder_repository.dart';
+import '../../features/household_routines/data/repositories/hybrid_household_task_reminder_repository.dart';
 import '../../features/household_routines/domain/repositories/household_routine_repository.dart';
 import '../../features/household_routines/domain/repositories/household_task_repository.dart';
 import '../../features/household_routines/domain/repositories/household_task_reminder_repository.dart';
@@ -136,8 +136,9 @@ class AppDependencyContainer {
     consumerMemoryRepository = InMemoryConsumerMemoryRepository();
     householdTaskRepository = FirestoreHouseholdTaskRepository();
     householdRoutineRepository = FirestoreHouseholdRoutineRepository();
-    householdTaskReminderRepository =
-        FirestoreHouseholdTaskReminderRepository();
+    householdTaskReminderRepository = HybridHouseholdTaskReminderRepository(
+      taskRepository: householdTaskRepository,
+    );
   }
 
   void _registerProductServices() {
