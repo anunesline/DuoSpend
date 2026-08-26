@@ -16,6 +16,7 @@ LEITE 5,50
 TOTAL R$ 25,50
 PIX
 ''');
+
     expect(result.merchant, 'MERCADO DUOSPEND');
     expect(result.date, DateTime(2026, 8, 25));
     expect(result.totalAmount, 25.5);
@@ -30,10 +31,18 @@ PIX
 
   test('mantém campos ausentes e texto ilegível sem inventar dados', () {
     final result = parser.parse('@@@ texto sem valores confiáveis ###');
+
     expect(result.merchant, '@@@ texto sem valores confiáveis ###');
     expect(result.date, isNull);
     expect(result.totalAmount, isNull);
     expect(result.items, isEmpty);
+  });
+
+  test('não trata símbolos ou números isolados como estabelecimento', () {
+    final result = parser.parse('*** ###\n000000\nTOTAL ???');
+
+    expect(result.merchant, isNull);
+    expect(result.totalAmount, isNull);
   });
 
   test('informa divergência entre itens e total para revisão', () {
@@ -45,6 +54,7 @@ PIX
         ReceiptScanItem(description: 'Item B', totalPrice: 10),
       ],
     );
+
     expect(result.itemsTotal, 22);
     expect(result.totalDifference, 2);
     expect(result.hasTotalDivergence, isTrue);
@@ -57,6 +67,7 @@ PIX
       totalAmount: 10,
       items: const [ReceiptScanItem(description: 'Produto', totalPrice: 10)],
     );
+
     expect(recognized.merchant, 'LOJA');
     expect(recognized.totalAmount, 12);
     expect(corrected.merchant, 'Loja Corrigida');
