@@ -39,7 +39,7 @@ class OrbitMonthSummary extends StatelessWidget {
         color: DuoColors.warning,
         title: 'Orçamento do mês',
         subtitle: _budgetSubtitle(summary.budget),
-        progress: summary.budget?.usage,
+        progress: summary.budget?.progress,
         onTap: onBudgetTap,
       ),
       _SummaryRow(
@@ -91,7 +91,7 @@ class OrbitMonthSummary extends StatelessWidget {
 
   String _invoiceSubtitle(OrbitInvoiceSummary? invoice) {
     if (invoice == null) return 'Nenhuma fatura aberta neste mês';
-    final due = DateFormat("dd/MM", 'pt_BR').format(invoice.dueDate);
+    final due = DateFormat('dd/MM', 'pt_BR').format(invoice.dueDate);
     final label = invoice.invoiceCount == 1 ? 'fatura' : '${invoice.invoiceCount} faturas';
     return '${_money(invoice.total)} · $label · vence $due';
   }
@@ -142,7 +142,7 @@ class _SummaryRow extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(99),
                     child: LinearProgressIndicator(
-                      value: progress!.clamp(0.0, 1.0),
+                      value: progress,
                       minHeight: 4,
                       backgroundColor: DuoColors.divider,
                       valueColor: AlwaysStoppedAnimation<Color>(color),
