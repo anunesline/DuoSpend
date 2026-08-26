@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 
 import 'app/app.dart';
 import 'core/bootstrap/app_bootstrap.dart';
+import 'core/notifications/push_notification_service.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -20,11 +21,14 @@ Future<void> main() async {
     }
   }
 
+  final pushNotificationService = PushNotificationService();
+  await pushNotificationService.initialize();
   final dependencies = await AppBootstrap.initialize();
 
   runApp(
     DuoSpendApp(
       dependencies: dependencies,
+      pushNotificationService: pushNotificationService,
     ),
   );
 }
