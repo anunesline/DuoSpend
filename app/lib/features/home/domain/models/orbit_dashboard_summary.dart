@@ -11,7 +11,8 @@ class OrbitBudgetSummary {
     this.highestRiskCategory,
   });
 
-  double get usage => limitAmount <= 0 ? 0 : (spentAmount / limitAmount).clamp(0.0, 99.0);
+  double get usage => limitAmount <= 0 ? 0 : spentAmount / limitAmount;
+  double get progress => usage.clamp(0.0, 1.0);
   double get usagePercentage => usage * 100;
   bool get isOverLimit => spentAmount > limitAmount && limitAmount > 0;
 }
