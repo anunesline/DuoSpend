@@ -29,6 +29,16 @@ class RejectSharedTransactionUseCase {
       respondingMemberId: normalizedRespondingMemberId,
     );
 
+    if (persistedTransaction.confirmationStatus.isRejected) {
+      return persistedTransaction;
+    }
+
+    if (persistedTransaction.confirmationStatus.isAccepted) {
+      throw StateError(
+        'A despesa compartilhada já foi aceita e não pode ser recusada.',
+      );
+    }
+
     final rejectedTransaction = persistedTransaction.copyWith(
       confirmationStatus:
           SharedTransactionConfirmationStatus.rejected,
@@ -68,51 +78,45 @@ class RejectSharedTransactionUseCase {
     required String respondingMemberId,
   }) {
     if (!wallet.isShared) {
-      throw Exception(
+      throw StateError(
         'A confirmação bilateral exige uma carteira compartilhada.',
       );
     }
 
     if (transaction.walletId.trim() != wallet.id.trim()) {
-      throw Exception(
+      throw StateError(
         'A transação não pertence à carteira compartilhada informada.',
       );
     }
 
     if (respondingMemberId.isEmpty) {
-      throw Exception(
+      throw StateError(
         'O membro responsável pela recusa não foi informado.',
       );
     }
 
     if (!wallet.memberIds.contains(respondingMemberId)) {
-      throw Exception(
+      throw StateError(
         'O membro informado não pertence à carteira compartilhada.',
       );
     }
 
     if (!transaction.isSharedExpense) {
-      throw Exception(
+      throw StateError(
         'Somente despesas compartilhadas podem ser recusadas.',
-      );
-    }
-
-    if (!transaction.confirmationStatus.isPending) {
-      throw Exception(
-        'A despesa compartilhada não está aguardando confirmação.',
       );
     }
 
     final payerMemberId = transaction.paidByMemberId?.trim();
 
     if (payerMemberId == null || payerMemberId.isEmpty) {
-      throw Exception(
+      throw StateError(
         'Não foi possível identificar o autor da despesa compartilhada.',
       );
     }
 
     if (payerMemberId == respondingMemberId) {
-      throw Exception(
+      throw StateError(
         'O autor da despesa não pode recusar a própria solicitação.',
       );
     }
