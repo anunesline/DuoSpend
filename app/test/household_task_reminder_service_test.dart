@@ -86,40 +86,20 @@ void main() {
       expect(repository.reminders, hasLength(2));
     });
 
-    test('repositorio expoe apenas lembretes vencidos e pode marcar entrega', () async {
-      final repository = _FakeReminderRepository();
+    test('cooldown autoritativo do backend vira bloqueio amigavel', () async {
+      final repository = _FakeReminderRepository()
+        ..cooldownOnSave = const Duration(minutes: 47);
       final service = HouseholdTaskReminderService(repository: repository);
-      final task = _task(assigneeId: 'aline', scope: HouseholdTaskScope.personal);
-      await service.remindAssignee(
-        task: task,
+
+      final result = await service.remindAssignee(
+        task: _task(assigneeId: 'matheus'),
         senderUserId: 'aline',
         now: DateTime(2026, 8, 26, 14),
-        remindAt: DateTime(2026, 8, 26, 15),
       );
 
-      expect(
-        await repository.getDueReminders(
-          recipientUserId: 'aline',
-          now: DateTime(2026, 8, 26, 14, 30),
-        ),
-        isEmpty,
-      );
-      final due = await repository.getDueReminders(
-        recipientUserId: 'aline',
-        now: DateTime(2026, 8, 26, 15),
-      );
-      expect(due, hasLength(1));
-      await repository.markDelivered(
-        reminderId: due.single.id,
-        deliveredAt: DateTime(2026, 8, 26, 15),
-      );
-      expect(
-        await repository.getDueReminders(
-          recipientUserId: 'aline',
-          now: DateTime(2026, 8, 26, 16),
-        ),
-        isEmpty,
-      );
+      expect(result.blocked, isTrue);
+      expect(result.retryAfter, const Duration(minutes: 47));
+      expect(result.sent, isFalse);
     });
   });
 }
@@ -130,7 +110,9 @@ HouseholdTask _task({
 }) {
   return HouseholdTask(
     id: 'task-1',
-    scopeId: scope == HouseholdTaskScope.personal ? 'user:aline' : 'household:aline|matheus',
+    scopeId: scope == HouseholdTaskScope.personal
+        ? 'user:aline'
+        : 'household:aline|matheus',
     scope: scope,
     title: 'Tirar o lixo',
     assigneeId: assigneeId,
@@ -142,9 +124,14 @@ HouseholdTask _task({
 
 class _FakeReminderRepository implements HouseholdTaskReminderRepository {
   final List<HouseholdTaskReminder> reminders = [];
+  Duration? cooldownOnSave;
 
   @override
   Future<void> saveReminder(HouseholdTaskReminder reminder) async {
+    final cooldown = cooldownOnSave;
+    if (cooldown != null) {
+      throw HouseholdReminderCooldownException(cooldown);
+    }
     reminders.add(reminder);
   }
 
@@ -164,42 +151,5 @@ class _FakeReminderRepository implements HouseholdTaskReminderRepository {
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return matches.isEmpty ? null : matches.first;
-  }
-
-  @override
-  Future<List<HouseholdTaskReminder>> getDueReminders({
-    required String recipientUserId,
-    required DateTime now,
-  }) async {
-    return reminders
-        .where(
-          (reminder) =>
-              reminder.recipientUserId == recipientUserId &&
-              reminder.isDue &&
-              !reminder.remindAt.isAfter(now),
-        )
-        .toList();
-  }
-
-  @override
-  Future<void> markDelivered({
-    required String reminderId,
-    required DateTime deliveredAt,
-  }) async {
-    final index = reminders.indexWhere((item) => item.id == reminderId);
-    if (index == -1) return;
-    final current = reminders[index];
-    reminders[index] = HouseholdTaskReminder(
-      id: current.id,
-      taskId: current.taskId,
-      scopeId: current.scopeId,
-      senderUserId: current.senderUserId,
-      recipientUserId: current.recipientUserId,
-      kind: current.kind,
-      status: HouseholdTaskReminderStatus.delivered,
-      remindAt: current.remindAt,
-      createdAt: current.createdAt,
-      deliveredAt: deliveredAt,
-    );
   }
 }
