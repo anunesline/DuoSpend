@@ -41,45 +41,6 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
   String get _personalScopeId => HouseholdScopeId.personal(widget.currentUserId);
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _deliverDueReminders());
-  }
-
-  Future<void> _deliverDueReminders() async {
-    final reminders = await widget.controller.reminderService.consumeDueReminders(
-      recipientUserId: widget.currentUserId,
-      now: DateTime.now(),
-    );
-    if (!mounted || reminders.isEmpty) return;
-
-    final titles = <String>[];
-    for (final reminder in reminders) {
-      final task = await widget.controller.taskRepository.getTaskById(reminder.taskId);
-      final title = task?.title.trim();
-      if (title != null && title.isNotEmpty && !titles.contains(title)) {
-        titles.add(title);
-      }
-    }
-    if (!mounted) return;
-
-    final message = titles.isEmpty
-        ? (reminders.length == 1
-            ? 'Você tem 1 lembrete de tarefa.'
-            : 'Você tem ${reminders.length} lembretes de tarefas.')
-        : titles.length == 1
-            ? 'Lembrete: ${titles.first}'
-            : 'Lembretes: ${titles.take(3).join(', ')}${titles.length > 3 ? '…' : ''}';
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
     final isShared = _showShared && widget.hasSharedHousehold;
     final scopeId = isShared
