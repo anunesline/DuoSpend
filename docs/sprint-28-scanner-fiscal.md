@@ -13,3 +13,19 @@ depende de um provider específico por UF/portal fiscal; ela não foi acoplada
 nesta sprint para evitar scraping frágil no domínio. Enquanto não houver esse
 provider, a experiência informa a indisponibilidade e mantém o fallback de OCR
 funcional, além da revisão manual.
+
+### Avaliação técnica
+
+Não há uma API pública nacional, estável e sem credenciais que receba qualquer
+URL/chave de QR de NFC-e/CF-e e devolva os itens da nota em formato estruturado.
+As consultas públicas são descentralizadas por UF: podem expor apenas uma página
+de consumidor, variar a URL do QR ou exigir desafio anti-automação. Os
+webservices fiscais oficiais são voltados ao emissor e normalmente exigem
+credenciamento/certificado. Portanto, uma integração genérica nesta camada
+seria scraping frágil e não foi implementada.
+
+Falha, indisponibilidade ou ausência de provider retorna `unavailable`; nunca
+impede o usuário de fotografar a nota, usar OCR ou corrigir manualmente. Um
+provider futuro deve morar em `data/providers`, atender apenas os portais para
+os quais exista contrato/API autorizada e normalizar a resposta em
+`ReceiptScanResult`.
