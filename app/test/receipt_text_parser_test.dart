@@ -7,7 +7,7 @@ void main() {
   const parser = ReceiptTextParser();
 
   test('lê estabelecimento, data, total, pagamento e múltiplos itens', () {
-    final result = parser.parse('''
+    final result = parser.parse(r'''
 MERCADO DUOSPEND
 CNPJ 12.345.678/0001-00
 25/08/2026
