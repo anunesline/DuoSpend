@@ -4,6 +4,10 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>O DuoSpend usa a câmera para ler notas e QR fiscais.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O DuoSpend usa fotos da galeria para ler notas fiscais.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
