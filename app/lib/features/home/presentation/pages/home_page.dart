@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/context/wallet_context.dart';
-import '../../../../core/design_system/duo_card.dart';
 import '../../../../core/design_system/duo_colors.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../budgets/presentation/pages/budgets_page.dart';
