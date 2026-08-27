@@ -51,9 +51,7 @@ class _CreateHouseholdRoutinePageState
     if (routine.repeatEveryDays != null) {
       _repeatDaysController.text = routine.repeatEveryDays.toString();
     }
-    _steps.addAll(
-      routine.steps.map(_RoutineStepDraft.fromStep),
-    );
+    _steps.addAll(routine.steps.map(_RoutineStepDraft.fromStep));
   }
 
   @override
@@ -212,7 +210,6 @@ class _CreateHouseholdRoutinePageState
               draft: _steps[i],
               isFirst: i == 0,
               canRemove: _steps.length > 1,
-              isShared: widget.scope == HouseholdTaskScope.shared,
               memberIds: widget.memberIds,
               currentUserId: widget.currentUserId,
               onAssigneeChanged: (value) =>
@@ -261,7 +258,6 @@ class _StepEditor extends StatelessWidget {
   final _RoutineStepDraft draft;
   final bool isFirst;
   final bool canRemove;
-  final bool isShared;
   final List<String> memberIds;
   final String currentUserId;
   final ValueChanged<String?> onAssigneeChanged;
@@ -272,7 +268,6 @@ class _StepEditor extends StatelessWidget {
     required this.draft,
     required this.isFirst,
     required this.canRemove,
-    required this.isShared,
     required this.memberIds,
     required this.currentUserId,
     required this.onAssigneeChanged,
@@ -329,23 +324,25 @@ class _StepEditor extends StatelessWidget {
                 ),
               ),
             ],
-            if (isShared && memberIds.isNotEmpty) ...[
+            if (memberIds.isNotEmpty) ...[
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: memberIds.contains(draft.assigneeId)
                     ? draft.assigneeId
                     : null,
-                decoration: const InputDecoration(labelText: 'Responsável'),
+                decoration: const InputDecoration(
+                  labelText: 'Responsável pela etapa',
+                ),
                 items: memberIds
                     .map(
-                      (memberId) => DropdownMenuItem(
+                      (memberId) => DropdownMenuItem<String>(
                         value: memberId,
                         child: Text(
                           memberId == currentUserId ? 'Eu' : 'Outro membro',
                         ),
                       ),
                     )
-                    .toList(),
+                    .toList(growable: false),
                 onChanged: onAssigneeChanged,
               ),
             ],
@@ -370,8 +367,9 @@ class _RoutineStepDraft {
   _RoutineStepDraft.fromStep(HouseholdRoutineStep step)
       : titleController = TextEditingController(text: step.title),
         notesController = TextEditingController(text: step.notes ?? ''),
-        delayHoursController =
-            TextEditingController(text: step.delayAfterPrevious.inHours.toString()),
+        delayHoursController = TextEditingController(
+          text: step.delayAfterPrevious.inHours.toString(),
+        ),
         assigneeId = step.assigneeId;
 
   void dispose() {
