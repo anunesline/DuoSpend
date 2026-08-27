@@ -54,24 +54,17 @@ class NewTransactionPage extends StatefulWidget {
   });
 
   @override
-  State<NewTransactionPage> createState() {
-    return _NewTransactionPageState();
-  }
+  State<NewTransactionPage> createState() => _NewTransactionPageState();
 }
 
 class _NewTransactionPageState extends State<NewTransactionPage> {
   final TextEditingController descriptionController = TextEditingController();
-
   final TextEditingController valueController = TextEditingController();
-
   final TextEditingController notesController = TextEditingController();
-
   final TransactionController transactionController = TransactionController();
-
   final FinancialSplitConfigurationResolver
-  _financialSplitConfigurationResolver =
+      _financialSplitConfigurationResolver =
       const FinancialSplitConfigurationResolver();
-
   final UserRepository _userRepository = UserRepository();
   final CreditCardRepository _creditCardRepository = CreditCardRepository();
   final ReceiptTransactionItemMapper _receiptItemMapper =
@@ -80,17 +73,14 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   String? _partnerDisplayName;
   String? _loadedPartnerMemberId;
 
-  PurchaseController get purchaseController {
-    return widget.purchaseController;
-  }
+  PurchaseController get purchaseController => widget.purchaseController;
 
   String type = 'expense';
-
   String? selectedPayerMemberId;
-
   String? selectedPurchaseDestination;
-
   String? selectedFinancialWalletId;
+  String selectedSplitType = FinancialSplitRules.splitTypeEqual;
+  double currentUserSplitPercent = 50;
 
   PaymentMethod selectedPaymentMethod = PaymentMethod.pix;
   String? selectedCreditCardId;
@@ -108,20 +98,17 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   DateTime transactionDate = DateTime.now();
 
   TaxonomyItem selectedCategory = DuoTaxonomy.items.first;
-
   TaxonomyItem? selectedSubcategory =
       DuoTaxonomy.items.first.children.isNotEmpty
-      ? DuoTaxonomy.items.first.children.first
-      : null;
+          ? DuoTaxonomy.items.first.children.first
+          : null;
 
   @override
   void initState() {
     super.initState();
-
     purchaseController.clearPurchase();
     _syncFinancialCategory();
     _applyReceiptDraft();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeFinancialWalletSelection();
       _loadCreditCards();
@@ -135,16 +122,14 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     descriptionController.text = draft.description;
     if (draft.amount != null) {
-      valueController.text = draft.amount!
-          .toStringAsFixed(2)
-          .replaceAll('.', ',');
+      valueController.text =
+          draft.amount!.toStringAsFixed(2).replaceAll('.', ',');
     }
     if (draft.purchaseDate != null) {
       transactionDate = draft.purchaseDate!;
     }
-    final suggestedPayment = PaymentMethod.fromValue(
-      draft.paymentMethodSuggestion,
-    );
+    final suggestedPayment =
+        PaymentMethod.fromValue(draft.paymentMethodSuggestion);
     if (suggestedPayment != null) {
       selectedPaymentMethod = suggestedPayment;
     }
@@ -163,9 +148,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     );
     final canLoadItems =
         draft.amount == null || (itemsTotal - draft.amount!).abs() < 0.01;
-    if (!canLoadItems) {
-      return;
-    }
+    if (!canLoadItems) return;
+
     for (final item in items) {
       purchaseController.addTransactionItem(item);
       transactionController.addItem(item);
@@ -179,39 +163,26 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     valueController.dispose();
     notesController.dispose();
     transactionController.dispose();
-
     super.dispose();
   }
 
   WalletModel? _resolveActiveWallet() {
     final selectedWallet = widget.walletContext.selectedWallet;
-
     if (selectedWallet != null && selectedWallet.id == widget.walletId) {
       return selectedWallet;
     }
-
     for (final wallet in widget.walletContext.wallets) {
-      if (wallet.id == widget.walletId) {
-        return wallet;
-      }
+      if (wallet.id == widget.walletId) return wallet;
     }
-
     return null;
   }
 
   WalletModel? _resolveConnectedSharedWallet({required String currentUserId}) {
     for (final wallet in widget.walletContext.sharedWallets) {
-      if (!wallet.hasPartner) {
-        continue;
-      }
-
-      if (!wallet.memberIds.contains(currentUserId)) {
-        continue;
-      }
-
+      if (!wallet.hasPartner) continue;
+      if (!wallet.memberIds.contains(currentUserId)) continue;
       return wallet;
     }
-
     return null;
   }
 
@@ -220,26 +191,19 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     required String currentUserId,
   }) {
     WalletModel? memberSourceWallet = wallet;
-
     if (!wallet.isShared || !wallet.hasPartner) {
-      memberSourceWallet = _resolveConnectedSharedWallet(
-        currentUserId: currentUserId,
-      );
+      memberSourceWallet =
+          _resolveConnectedSharedWallet(currentUserId: currentUserId);
     }
-
-    if (memberSourceWallet == null) {
-      return null;
-    }
+    if (memberSourceWallet == null) return null;
 
     for (final memberId in memberSourceWallet.memberIds) {
       final normalizedMemberId = memberId.trim();
-
       if (normalizedMemberId.isNotEmpty &&
           normalizedMemberId != currentUserId) {
         return normalizedMemberId;
       }
     }
-
     return null;
   }
 
@@ -264,66 +228,42 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }) {
     final requiresSharedContext =
         purchaseDestination == FinancialSplitRules.purchaseForPartner ||
-        purchaseDestination == FinancialSplitRules.purchaseForBoth;
+            purchaseDestination == FinancialSplitRules.purchaseForBoth;
+    if (!requiresSharedContext) return activeWallet;
+    if (activeWallet.isShared && activeWallet.hasPartner) return activeWallet;
 
-    if (!requiresSharedContext) {
-      return activeWallet;
-    }
-
-    if (activeWallet.isShared && activeWallet.hasPartner) {
-      return activeWallet;
-    }
-
-    final sharedWallet = _resolveConnectedSharedWallet(
-      currentUserId: currentUserId,
-    );
-
+    final sharedWallet =
+        _resolveConnectedSharedWallet(currentUserId: currentUserId);
     if (sharedWallet == null) {
       throw Exception('Não foi possível identificar a carteira compartilhada.');
     }
-
     return sharedWallet;
   }
 
   Future<void> _loadPartnerDisplayName() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     final activeWallet = _resolveActiveWallet();
-
-    if (currentUser == null || activeWallet == null) {
-      return;
-    }
+    if (currentUser == null || activeWallet == null) return;
 
     final partnerMemberId = _resolvePartnerMemberId(
       wallet: activeWallet,
       currentUserId: currentUser.uid,
     );
-
     if (partnerMemberId == null || partnerMemberId.isEmpty) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       setState(() {
         _partnerDisplayName = null;
         _loadedPartnerMemberId = null;
       });
-
       return;
     }
-
     if (_loadedPartnerMemberId == partnerMemberId &&
         _partnerDisplayName != null) {
       return;
     }
 
-    final displayName = await _userRepository.getUserDisplayName(
-      partnerMemberId,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
+    final displayName = await _userRepository.getUserDisplayName(partnerMemberId);
+    if (!mounted) return;
     setState(() {
       _loadedPartnerMemberId = partnerMemberId;
       _partnerDisplayName = displayName;
@@ -339,7 +279,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   void _syncCategoryFromPurchaseItems() {
     final items = purchaseController.items;
-
     if (items.isEmpty) {
       setState(() {
         selectedCategory = DuoTaxonomy.items.first;
@@ -347,7 +286,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
             ? selectedCategory.children.first
             : null;
       });
-
       _syncFinancialCategory();
       return;
     }
@@ -361,106 +299,64 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       final item = items[index];
       final categoryName = item.financialCategory.trim();
       final subcategoryName = item.financialSubcategory.trim();
-
-      if (categoryName.isEmpty) {
-        continue;
-      }
-
+      if (categoryName.isEmpty) continue;
       categoryCounts[categoryName] = (categoryCounts[categoryName] ?? 0) + 1;
-
       firstCategoryPosition.putIfAbsent(categoryName, () => index);
-
-      if (subcategoryName.isEmpty) {
-        continue;
-      }
-
+      if (subcategoryName.isEmpty) continue;
       final subcategoryCounts = subcategoryCountsByCategory.putIfAbsent(
         categoryName,
         () => <String, int>{},
       );
-
       subcategoryCounts[subcategoryName] =
           (subcategoryCounts[subcategoryName] ?? 0) + 1;
-
       firstSubcategoryPosition.putIfAbsent(
         '$categoryName::$subcategoryName',
         () => index,
       );
     }
-
-    if (categoryCounts.isEmpty) {
-      return;
-    }
+    if (categoryCounts.isEmpty) return;
 
     final predominantCategoryName = categoryCounts.keys.reduce((current, next) {
       final currentCount = categoryCounts[current] ?? 0;
       final nextCount = categoryCounts[next] ?? 0;
-
-      if (nextCount > currentCount) {
-        return next;
-      }
-
-      if (nextCount < currentCount) {
-        return current;
-      }
-
+      if (nextCount > currentCount) return next;
+      if (nextCount < currentCount) return current;
       final currentPosition = firstCategoryPosition[current] ?? items.length;
-
       final nextPosition = firstCategoryPosition[next] ?? items.length;
-
       return nextPosition < currentPosition ? next : current;
     });
 
     TaxonomyItem? predominantCategory;
-
     for (final category in DuoTaxonomy.items) {
       if (category.name == predominantCategoryName) {
         predominantCategory = category;
         break;
       }
     }
-
-    if (predominantCategory == null) {
-      return;
-    }
+    if (predominantCategory == null) return;
 
     final subcategoryCounts =
         subcategoryCountsByCategory[predominantCategoryName] ??
-        const <String, int>{};
-
+            const <String, int>{};
     String? predominantSubcategoryName;
-
     if (subcategoryCounts.isNotEmpty) {
-      predominantSubcategoryName = subcategoryCounts.keys.reduce((
-        current,
-        next,
-      ) {
+      predominantSubcategoryName =
+          subcategoryCounts.keys.reduce((current, next) {
         final currentCount = subcategoryCounts[current] ?? 0;
-
         final nextCount = subcategoryCounts[next] ?? 0;
-
-        if (nextCount > currentCount) {
-          return next;
-        }
-
-        if (nextCount < currentCount) {
-          return current;
-        }
-
+        if (nextCount > currentCount) return next;
+        if (nextCount < currentCount) return current;
         final currentPosition =
             firstSubcategoryPosition['$predominantCategoryName::$current'] ??
-            items.length;
-
+                items.length;
         final nextPosition =
             firstSubcategoryPosition['$predominantCategoryName::$next'] ??
-            items.length;
-
+                items.length;
         return nextPosition < currentPosition ? next : current;
       });
     }
 
     TaxonomyItem? predominantSubcategory;
-
     for (final subcategory in predominantCategory.children) {
       if (subcategory.name == predominantSubcategoryName) {
         predominantSubcategory = subcategory;
@@ -470,122 +366,95 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
     setState(() {
       selectedCategory = predominantCategory!;
-
-      selectedSubcategory =
-          predominantSubcategory ??
+      selectedSubcategory = predominantSubcategory ??
           (predominantCategory.children.isNotEmpty
               ? predominantCategory.children.first
               : null);
     });
-
     _syncFinancialCategory();
   }
 
   void _changeCategory(TaxonomyItem category) {
     setState(() {
       selectedCategory = category;
-
-      selectedSubcategory = category.children.isNotEmpty
-          ? category.children.first
-          : null;
+      selectedSubcategory =
+          category.children.isNotEmpty ? category.children.first : null;
     });
-
     _syncFinancialCategory();
   }
 
   void _changeSubcategory(TaxonomyItem? subcategory) {
-    setState(() {
-      selectedSubcategory = subcategory;
-    });
-
+    setState(() => selectedSubcategory = subcategory);
     _syncFinancialCategory();
   }
 
-  void _changeType(String value) {
-    setState(() {
-      type = value;
-    });
-  }
+  void _changeType(String value) => setState(() => type = value);
 
   void _changePayer(String memberId) {
     setState(() {
       selectedPayerMemberId = memberId;
-
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-
       if (memberId == currentUserId) {
         selectedFinancialWalletId = _resolveSelectedFinancialWalletId();
       }
     });
   }
 
+  void _changePurchaseDestination(String value) {
+    setState(() => selectedPurchaseDestination = value);
+  }
+
+  void _changeSplitType(String value) {
+    setState(() {
+      selectedSplitType = value;
+      if (value == FinancialSplitRules.splitTypeEqual) {
+        currentUserSplitPercent = 50;
+      }
+    });
+  }
+
+  void _changeCurrentUserSplitPercent(double value) {
+    setState(() => currentUserSplitPercent = value);
+  }
+
   List<WalletModel> _currentUserIndividualWallets() {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-
-    if (currentUserId == null || currentUserId.isEmpty) {
-      return const [];
-    }
-
+    if (currentUserId == null || currentUserId.isEmpty) return const [];
     return widget.walletContext.wallets
-        .where(
-          (wallet) => wallet.isIndividual && wallet.ownerId == currentUserId,
-        )
+        .where((wallet) =>
+            wallet.isIndividual && wallet.ownerId == currentUserId)
         .toList(growable: false);
   }
 
   String? _resolveSelectedFinancialWalletId() {
     final wallets = _currentUserIndividualWallets();
-
-    if (wallets.isEmpty) {
-      return null;
-    }
-
+    if (wallets.isEmpty) return null;
     final selectedId = selectedFinancialWalletId;
-
-    if (selectedId != null &&
-        wallets.any((wallet) => wallet.id == selectedId)) {
+    if (selectedId != null && wallets.any((wallet) => wallet.id == selectedId)) {
       return selectedId;
     }
-
     return wallets.first.id;
   }
 
   void _initializeFinancialWalletSelection() {
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     final resolvedWalletId = _resolveSelectedFinancialWalletId();
-
-    if (resolvedWalletId == selectedFinancialWalletId) {
-      return;
-    }
-
-    setState(() {
-      selectedFinancialWalletId = resolvedWalletId;
-    });
+    if (resolvedWalletId == selectedFinancialWalletId) return;
+    setState(() => selectedFinancialWalletId = resolvedWalletId);
   }
 
   Future<void> _loadCreditCards() async {
     try {
       final cards = await _creditCardRepository.getActiveCards();
-
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       setState(() {
         _creditCards = cards;
-
         if (selectedCreditCardId == null && cards.isNotEmpty) {
           selectedCreditCardId = cards.first.id;
         }
       });
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       setState(() {
         _creditCards = const [];
         selectedCreditCardId = null;
@@ -596,7 +465,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   void _changePaymentMethod(PaymentMethod method) {
     setState(() {
       selectedPaymentMethod = method;
-
       if (method.isCreditCard &&
           selectedCreditCardId == null &&
           _creditCards.isNotEmpty) {
@@ -607,30 +475,16 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   CreditCardModel? _selectedCreditCard() {
     final selectedId = selectedCreditCardId;
-
-    if (selectedId == null) {
-      return null;
-    }
-
+    if (selectedId == null) return null;
     for (final card in _creditCards) {
-      if (card.id == selectedId) {
-        return card;
-      }
+      if (card.id == selectedId) return card;
     }
-
     return null;
-  }
-
-  void _changePurchaseDestination(String value) {
-    setState(() {
-      selectedPurchaseDestination = value;
-    });
   }
 
   void _changeRecurring(bool value) {
     setState(() {
       isRecurring = value;
-
       if (value) {
         isInstallment = false;
       } else {
@@ -643,7 +497,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   void _changeInstallment(bool value) {
     setState(() {
       isInstallment = value;
-
       if (value) {
         isRecurring = false;
         recurringEndDate = null;
@@ -652,66 +505,70 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     });
   }
 
-  void _changeInstallmentCount(int value) {
-    setState(() {
-      installmentCount = value;
-    });
-  }
-
-  void _changeFirstInstallmentDate(DateTime value) {
-    setState(() {
-      firstInstallmentDate = value;
-    });
-  }
-
-  void _changeRecurringFrequency(String value) {
-    setState(() {
-      recurringFrequency = value;
-    });
-  }
+  void _changeInstallmentCount(int value) =>
+      setState(() => installmentCount = value);
+  void _changeFirstInstallmentDate(DateTime value) =>
+      setState(() => firstInstallmentDate = value);
+  void _changeRecurringFrequency(String value) =>
+      setState(() => recurringFrequency = value);
 
   void _changeRecurringStartDate(DateTime value) {
     setState(() {
       recurringStartDate = value;
-
       if (recurringEndDate != null && recurringEndDate!.isBefore(value)) {
         recurringEndDate = null;
       }
     });
   }
 
-  void _changeRecurringEndDate(DateTime? value) {
-    setState(() {
-      recurringEndDate = value;
-    });
-  }
+  void _changeRecurringEndDate(DateTime? value) =>
+      setState(() => recurringEndDate = value);
 
   void _changeRecurringNeverEnds(bool value) {
     setState(() {
       recurringNeverEnds = value;
-
-      if (value) {
-        recurringEndDate = null;
-      }
+      if (value) recurringEndDate = null;
     });
   }
 
+  ({String? currentId, String? partnerId, String partnerLabel})
+      _itemMemberContext() {
+    final user = FirebaseAuth.instance.currentUser;
+    final activeWallet = _resolveActiveWallet();
+    if (user == null || activeWallet == null) {
+      return (
+        currentId: user?.uid,
+        partnerId: null,
+        partnerLabel: _partnerDisplayName ?? 'Parceiro',
+      );
+    }
+    return (
+      currentId: user.uid,
+      partnerId: _resolvePartnerMemberId(
+        wallet: activeWallet,
+        currentUserId: user.uid,
+      ),
+      partnerLabel: _partnerDisplayName ?? 'Parceiro',
+    );
+  }
+
   Future<void> _openAddItemPage() async {
+    final members = _itemMemberContext();
     final result = await Navigator.push<TransactionItemModel>(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            AddTransactionItemPage(productRepository: widget.productRepository),
+        builder: (_) => AddTransactionItemPage(
+          productRepository: widget.productRepository,
+          currentMemberId: members.currentId,
+          partnerMemberId: members.partnerId,
+          currentMemberLabel: 'Eu',
+          partnerMemberLabel: members.partnerLabel,
+        ),
       ),
     );
-
-    if (result == null) {
-      return;
-    }
-
+    if (result == null) return;
     purchaseController.addTransactionItem(result);
     transactionController.addItem(result);
-
     _refreshPurchaseState();
     _showMessage('${result.name} adicionado.');
   }
@@ -721,31 +578,29 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       item: purchaseItem,
       transactionId: purchaseItem.purchaseId,
     );
-
+    final members = _itemMemberContext();
     final updatedItem = await Navigator.push<TransactionItemModel>(
       context,
       MaterialPageRoute(
         builder: (_) => AddTransactionItemPage(
           initialItem: initialTransactionItem,
           productRepository: widget.productRepository,
+          currentMemberId: members.currentId,
+          partnerMemberId: members.partnerId,
+          currentMemberLabel: 'Eu',
+          partnerMemberLabel: members.partnerLabel,
         ),
       ),
     );
-
-    if (updatedItem == null) {
-      return;
-    }
-
+    if (updatedItem == null) return;
     purchaseController.updateTransactionItem(
       originalItemId: purchaseItem.id,
       updatedItem: updatedItem,
     );
-
     transactionController.updateItem(
       originalItemId: purchaseItem.id,
       updatedItem: updatedItem,
     );
-
     _refreshPurchaseState();
     _showMessage('${updatedItem.name} atualizado.');
   }
@@ -755,10 +610,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       item: item,
       transactionId: item.purchaseId,
     );
-
     purchaseController.removeItem(item.id);
     transactionController.removeItem(transactionItem);
-
     _refreshPurchaseState();
     _showMessage('${item.name} removido.');
   }
@@ -769,46 +622,52 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   void _syncValueWithPurchaseTotal() {
-    valueController.text = purchaseController.total
-        .toStringAsFixed(2)
-        .replaceAll('.', ',');
+    valueController.text =
+        purchaseController.total.toStringAsFixed(2).replaceAll('.', ',');
   }
 
   Future<String?> _resolveConsumerId(String walletId) async {
     final selectedConsumer = widget.consumerController.selectedConsumer;
-
     if (selectedConsumer != null && selectedConsumer.walletId == walletId) {
       return selectedConsumer.id;
     }
-
     await widget.consumerController.initializeWallet(walletId: walletId);
-
     return widget.consumerController.selectedConsumer?.id;
   }
 
+  Map<String, double>? _buildCustomMemberShares({
+    required double value,
+    required String currentUserId,
+    required String? partnerMemberId,
+  }) {
+    if (selectedSplitType != FinancialSplitRules.splitTypeCustom) return null;
+    if (partnerMemberId == null || partnerMemberId.isEmpty) return null;
+    final currentShare =
+        (value * currentUserSplitPercent / 100 * 100).roundToDouble() / 100;
+    final partnerShare =
+        ((value - currentShare) * 100).roundToDouble() / 100;
+    return {
+      currentUserId: currentShare,
+      partnerMemberId: partnerShare,
+    };
+  }
+
   Future<void> _saveTransaction() async {
-    if (purchaseController.isSaving || transactionController.isSaving) {
-      return;
-    }
+    if (purchaseController.isSaving || transactionController.isSaving) return;
 
     final description = descriptionController.text.trim();
-
     final value = double.tryParse(valueController.text.replaceAll(',', '.'));
-
     if (description.isEmpty || value == null) {
       _showMessage('Preencha todos os campos.');
       return;
     }
-
     if (value <= 0) {
       _showMessage('Informe um valor maior que zero.');
       return;
     }
 
     if (purchaseController.hasItems) {
-      final purchaseTotal = purchaseController.total;
-      final difference = (purchaseTotal - value).abs();
-
+      final difference = (purchaseController.total - value).abs();
       if (difference > 0.009) {
         _syncValueWithPurchaseTotal();
         _showMessage('O valor foi ajustado para o total dos itens.');
@@ -817,17 +676,13 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     }
 
     final user = FirebaseAuth.instance.currentUser;
-
     if (user == null) {
       _showMessage('Usuário não autenticado.');
       return;
     }
-
     final activeWallet = _resolveActiveWallet();
-
     if (activeWallet == null) {
       _showMessage('Não foi possível identificar a carteira selecionada.');
-
       return;
     }
 
@@ -835,34 +690,32 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       wallet: activeWallet,
       currentUserMemberId: user.uid,
     );
-
-    final payerMemberId = financialSplitConfiguration.resolvePayerMemberId(
-      selectedPayerMemberId,
-    );
-
+    final payerMemberId =
+        financialSplitConfiguration.resolvePayerMemberId(selectedPayerMemberId);
     final purchaseDestination = financialSplitConfiguration
         .resolvePurchaseDestination(selectedPurchaseDestination);
+    final partnerMemberId = financialSplitConfiguration.partnerMemberId;
 
-    var financialWalletId = payerMemberId == user.uid
-        ? _resolveSelectedFinancialWalletId()
-        : null;
+    if (selectedSplitType != FinancialSplitRules.splitTypeNone &&
+        (partnerMemberId == null || partnerMemberId.isEmpty)) {
+      _showMessage('Conecte o parceiro para dividir esta transação.');
+      return;
+    }
+
+    var financialWalletId =
+        payerMemberId == user.uid ? _resolveSelectedFinancialWalletId() : null;
     String? paymentSourceId;
 
     if (selectedPaymentMethod.isCreditCard) {
       if (payerMemberId != user.uid) {
-        _showMessage(
-          'Somente o titular pode lançar uma compra no próprio cartão.',
-        );
+        _showMessage('Somente o titular pode lançar uma compra no próprio cartão.');
         return;
       }
-
       final selectedCard = _selectedCreditCard();
-
       if (selectedCard == null) {
         _showMessage('Cadastre ou selecione um cartão de crédito.');
         return;
       }
-
       financialWalletId = selectedCard.walletId;
       paymentSourceId = selectedCard.id;
     } else if (selectedPaymentMethod.requiresPaymentSource) {
@@ -870,9 +723,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     }
 
     if (payerMemberId == user.uid && financialWalletId == null) {
-      _showMessage(
-        'Crie uma carteira individual para registrar esta movimentação.',
-      );
+      _showMessage('Crie uma carteira individual para registrar esta movimentação.');
       return;
     }
 
@@ -881,12 +732,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       currentUserId: user.uid,
       purchaseDestination: purchaseDestination,
     );
-
     final id = DateTime.now().millisecondsSinceEpoch.toString();
 
     try {
       final consumerId = await _resolveConsumerId(transactionWallet.id);
-
       if (purchaseController.hasItems) {
         final purchaseResult = await purchaseController.completePurchase(
           CreatePurchaseCommand(
@@ -897,16 +746,12 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
             purchaseDate: DateTime.now(),
           ),
         );
-
         if (purchaseController.errorMessage != null) {
           _showMessage(purchaseController.errorMessage!);
-
           return;
         }
-
         if (purchaseResult == null) {
           _showMessage('Não foi possível concluir a compra.');
-
           return;
         }
       }
@@ -923,7 +768,13 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         subcategory: selectedSubcategory?.name ?? 'Sem subcategoria',
         paidByMemberId: payerMemberId,
         purchaseFor: purchaseDestination,
-        partnerMemberId: financialSplitConfiguration.partnerMemberId,
+        partnerMemberId: partnerMemberId,
+        splitType: selectedSplitType,
+        memberShares: _buildCustomMemberShares(
+          value: value,
+          currentUserId: user.uid,
+          partnerMemberId: partnerMemberId,
+        ),
         isRecurring: isRecurring,
         recurringFrequency: isRecurring ? recurringFrequency : null,
         recurringStartDate: isRecurring ? recurringStartDate : null,
@@ -939,25 +790,19 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         transactionDate: transactionDate,
       );
 
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       Navigator.pop(context);
     } catch (_) {
-      final errorMessage = transactionController.errorMessage;
-
-      _showMessage(errorMessage ?? 'Não foi possível salvar a transação.');
+      _showMessage(
+        transactionController.errorMessage ??
+            'Não foi possível salvar a transação.',
+      );
     }
   }
 
   void _showMessage(String message) {
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -971,7 +816,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       MaterialPageRoute(builder: (_) => const ReceiptScannerPage()),
     );
     if (!mounted || draft == null) return;
-
     await Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -998,19 +842,15 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
             value: selectedPaymentMethod,
             icon: Icons.payments_outlined,
             items: PaymentMethod.values
-                .map((method) {
-                  return DropdownMenuItem<PaymentMethod>(
-                    value: method,
-                    child: Text(method.label),
-                  );
-                })
+                .map((method) => DropdownMenuItem<PaymentMethod>(
+                      value: method,
+                      child: Text(method.label),
+                    ))
                 .toList(growable: false),
             onChanged: !enabled
                 ? null
                 : (method) {
-                    if (method != null) {
-                      _changePaymentMethod(method);
-                    }
+                    if (method != null) _changePaymentMethod(method);
                   },
           ),
           if (selectedPaymentMethod.isCreditCard) ...[
@@ -1023,25 +863,19 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
               helperText:
                   'A compra entrará na fatura e não debitará a conta agora.',
               items: _creditCards
-                  .map((card) {
-                    return DropdownMenuItem<String>(
-                      value: card.id,
-                      child: Text(
-                        card.lastFourDigits == null
-                            ? card.name
-                            : '${card.name} •••• ${card.lastFourDigits}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  })
+                  .map((card) => DropdownMenuItem<String>(
+                        value: card.id,
+                        child: Text(
+                          card.lastFourDigits == null
+                              ? card.name
+                              : '${card.name} •••• ${card.lastFourDigits}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ))
                   .toList(growable: false),
               onChanged: !enabled || _creditCards.isEmpty
                   ? null
-                  : (cardId) {
-                      setState(() {
-                        selectedCreditCardId = cardId;
-                      });
-                    },
+                  : (cardId) => setState(() => selectedCreditCardId = cardId),
             ),
             if (_creditCards.isEmpty)
               const Padding(
@@ -1059,7 +893,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     required bool enabled,
   }) {
     final selectedWalletId = _resolveSelectedFinancialWalletId();
-
     return DuoCard(
       borderRadius: 24,
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -1070,20 +903,15 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         icon: Icons.account_balance_wallet_outlined,
         helperText: 'Esta é a carteira cujo saldo será movimentado.',
         items: wallets
-            .map((wallet) {
-              return DropdownMenuItem<String>(
-                value: wallet.id,
-                child: Text(wallet.name, overflow: TextOverflow.ellipsis),
-              );
-            })
+            .map((wallet) => DropdownMenuItem<String>(
+                  value: wallet.id,
+                  child: Text(wallet.name, overflow: TextOverflow.ellipsis),
+                ))
             .toList(growable: false),
         onChanged: !enabled || wallets.isEmpty
             ? null
-            : (walletId) {
-                setState(() {
-                  selectedFinancialWalletId = walletId;
-                });
-              },
+            : (walletId) =>
+                setState(() => selectedFinancialWalletId = walletId),
       ),
     );
   }
@@ -1092,19 +920,17 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   Widget build(BuildContext context) {
     final activeWallet = _resolveActiveWallet();
     final currentUser = FirebaseAuth.instance.currentUser;
-
     final financialSplitConfiguration =
         activeWallet != null && currentUser != null
-        ? _resolveFinancialSplitConfiguration(
-            wallet: activeWallet,
-            currentUserMemberId: currentUser.uid,
-          )
-        : null;
+            ? _resolveFinancialSplitConfiguration(
+                wallet: activeWallet,
+                currentUserMemberId: currentUser.uid,
+              )
+            : null;
     final resolvedPayerMemberId = financialSplitConfiguration
         ?.resolvePayerMemberId(selectedPayerMemberId);
     final currentUserIndividualWallets = _currentUserIndividualWallets();
-    final shouldShowFinancialWallet =
-        currentUser != null &&
+    final shouldShowFinancialWallet = currentUser != null &&
         resolvedPayerMemberId == currentUser.uid &&
         selectedPaymentMethod.affectsBalanceImmediately;
 
@@ -1121,14 +947,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         ),
       ],
       body: AnimatedBuilder(
-        animation: Listenable.merge([
-          transactionController,
-          purchaseController,
-        ]),
+        animation: Listenable.merge([transactionController, purchaseController]),
         builder: (context, _) {
           final isSaving =
               purchaseController.isSaving || transactionController.isSaving;
-
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
@@ -1146,6 +968,14 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                   onSubcategoryChanged: _changeSubcategory,
                 ),
                 const SizedBox(height: AppSpacing.lg),
+                PurchaseItemsSection(
+                  items: purchaseController.items,
+                  total: purchaseController.total,
+                  onAddItem: _openAddItemPage,
+                  onEditItem: _openEditItemPage,
+                  onRemoveItem: _removeItem,
+                ),
+                const SizedBox(height: AppSpacing.lg),
                 if (financialSplitConfiguration != null)
                   FinancialSplitSection(
                     enabled: !isSaving,
@@ -1153,12 +983,14 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                     selectedPayerMemberId: financialSplitConfiguration
                         .resolvePayerMemberId(selectedPayerMemberId),
                     selectedPurchaseDestination: financialSplitConfiguration
-                        .resolvePurchaseDestination(
-                          selectedPurchaseDestination,
-                        ),
+                        .resolvePurchaseDestination(selectedPurchaseDestination),
+                    selectedSplitType: selectedSplitType,
+                    currentUserPercent: currentUserSplitPercent,
                     partnerDisplayName: _partnerDisplayName,
                     onPayerChanged: _changePayer,
                     onPurchaseDestinationChanged: _changePurchaseDestination,
+                    onSplitTypeChanged: _changeSplitType,
+                    onCurrentUserPercentChanged: _changeCurrentUserSplitPercent,
                   ),
                 const SizedBox(height: AppSpacing.lg),
                 _buildPaymentSection(enabled: !isSaving),
@@ -1192,14 +1024,6 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                   onStartDateChanged: _changeRecurringStartDate,
                   onEndDateChanged: _changeRecurringEndDate,
                   onNeverEndsChanged: _changeRecurringNeverEnds,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                PurchaseItemsSection(
-                  items: purchaseController.items,
-                  total: purchaseController.total,
-                  onAddItem: _openAddItemPage,
-                  onEditItem: _openEditItemPage,
-                  onRemoveItem: _removeItem,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 DuoTextField(
