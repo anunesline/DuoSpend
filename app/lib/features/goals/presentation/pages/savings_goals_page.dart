@@ -9,11 +9,7 @@ import '../../domain/models/savings_goal.dart';
 import '../../domain/models/savings_goal_movement.dart';
 import '../controllers/savings_goals_controller.dart';
 
-enum _GoalListFilter {
-  active,
-  completed,
-  archived,
-}
+enum _GoalListFilter { active, completed, archived }
 
 class SavingsGoalsPage extends StatefulWidget {
   final WalletModel contextWallet;
@@ -102,13 +98,9 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                         final now = DateTime.now();
                         final pickedDate = await showDatePicker(
                           context: dialogContext,
-                          initialDate: deadline ??
-                              now.add(const Duration(days: 30)),
-                          firstDate: DateTime(
-                            now.year,
-                            now.month,
-                            now.day,
-                          ),
+                          initialDate:
+                              deadline ?? now.add(const Duration(days: 30)),
+                          firstDate: DateTime(now.year, now.month, now.day),
                           lastDate: DateTime(now.year + 30),
                           helpText: 'Prazo da meta',
                           cancelText: 'Sem prazo',
@@ -151,9 +143,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                 ),
                 FilledButton(
                   onPressed: () {
-                    final targetAmount = _parseMoney(
-                      targetController.text,
-                    );
+                    final targetAmount = _parseMoney(targetController.text);
 
                     if (nameController.text.trim().isEmpty ||
                         targetAmount == null ||
@@ -208,9 +198,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     required bool isContribution,
   }) async {
     if (controller.financialWallets.isEmpty) {
-      _showMessage(
-        'Crie uma carteira individual para movimentar esta meta.',
-      );
+      _showMessage('Crie uma carteira individual para movimentar esta meta.');
       return;
     }
 
@@ -223,9 +211,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(
-                isContribution ? 'Fazer aporte' : 'Retirar valor',
-              ),
+              title: Text(isContribution ? 'Fazer aporte' : 'Retirar valor'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -260,8 +246,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                       }
 
                       setDialogState(() {
-                        selectedWallet =
-                            controller.financialWallets.firstWhere(
+                        selectedWallet = controller.financialWallets.firstWhere(
                           (wallet) => wallet.id == walletId,
                         );
                       });
@@ -307,9 +292,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                       ),
                     );
                   },
-                  child: Text(
-                    isContribution ? 'Aportar' : 'Retirar',
-                  ),
+                  child: Text(isContribution ? 'Aportar' : 'Retirar'),
                 ),
               ],
             );
@@ -342,20 +325,17 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
 
     _showMessage(
       updatedGoal == null
-          ? controller.errorMessage ??
-              'Não foi possível movimentar a meta.'
+          ? controller.errorMessage ?? 'Não foi possível movimentar a meta.'
           : isContribution
-              ? 'Aporte realizado.'
-              : 'Valor devolvido à carteira.',
+          ? 'Aporte realizado.'
+          : 'Valor devolvido à carteira.',
     );
   }
 
   Future<void> _editGoal(SavingsGoal goal) async {
     final nameController = TextEditingController(text: goal.name);
     final targetController = TextEditingController(
-      text: goal.targetAmount
-          .toStringAsFixed(2)
-          .replaceAll('.', ','),
+      text: goal.targetAmount.toStringAsFixed(2).replaceAll('.', ','),
     );
     DateTime? deadline = goal.deadline;
 
@@ -381,8 +361,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: targetController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(
+                      keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
                       decoration: InputDecoration(
@@ -396,17 +375,13 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                     OutlinedButton.icon(
                       onPressed: () async {
                         final now = DateTime.now();
-                        final today = DateTime(
-                          now.year,
-                          now.month,
-                          now.day,
-                        );
+                        final today = DateTime(now.year, now.month, now.day);
                         final currentDeadline = deadline;
                         final initialDate =
                             currentDeadline != null &&
-                                    !currentDeadline.isBefore(today)
-                                ? currentDeadline
-                                : today;
+                                !currentDeadline.isBefore(today)
+                            ? currentDeadline
+                            : today;
                         final pickedDate = await showDatePicker(
                           context: dialogContext,
                           initialDate: initialDate,
@@ -449,9 +424,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                 ),
                 FilledButton(
                   onPressed: () {
-                    final targetAmount = _parseMoney(
-                      targetController.text,
-                    );
+                    final targetAmount = _parseMoney(targetController.text);
 
                     if (nameController.text.trim().isEmpty ||
                         targetAmount == null ||
@@ -497,14 +470,12 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
 
     _showMessage(
       updatedGoal == null
-          ? controller.errorMessage ??
-              'Não foi possível editar a meta.'
+          ? controller.errorMessage ?? 'Não foi possível editar a meta.'
           : 'Meta atualizada.',
     );
   }
-  Future<void> _showMovementHistory(
-    SavingsGoal goal,
-  ) async {
+
+  Future<void> _showMovementHistory(SavingsGoal goal) async {
     final movements = await controller.loadMovements(goal);
 
     if (!mounted) {
@@ -538,9 +509,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
 
   Future<void> _archiveGoal(SavingsGoal goal) async {
     if (goal.savedAmount > 0) {
-      _showMessage(
-        'Retire todo o valor reservado antes de arquivar.',
-      );
+      _showMessage('Retire todo o valor reservado antes de arquivar.');
       return;
     }
 
@@ -578,11 +547,11 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
 
     _showMessage(
       archivedGoal == null
-          ? controller.errorMessage ??
-              'Não foi possível arquivar a meta.'
+          ? controller.errorMessage ?? 'Não foi possível arquivar a meta.'
           : 'Meta arquivada.',
     );
   }
+
   double? _parseMoney(String value) {
     return parseMoneyInput(value);
   }
@@ -595,10 +564,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
   }
 
@@ -640,13 +606,11 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
             onPressed: controller.isProcessing ? null : _createGoal,
             backgroundColor: DuoColors.primary,
             foregroundColor: DuoColors.textPrimary,
-            icon: const Icon(Icons.add_rounded),
+            child: const Icon(Icons.add_rounded),
           ),
           body: controller.isLoading
               ? const Center(
-                  child: CircularProgressIndicator(
-                    color: DuoColors.primary,
-                  ),
+                  child: CircularProgressIndicator(color: DuoColors.primary),
                 )
               : RefreshIndicator(
                   color: DuoColors.primary,
@@ -679,8 +643,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                             .length,
                         completedCount: controller.goals
                             .where(
-                              (goal) =>
-                                  goal.isCompleted && !goal.isArchived,
+                              (goal) => goal.isCompleted && !goal.isArchived,
                             )
                             .length,
                         archivedCount: controller.goals
@@ -700,37 +663,36 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                           _GoalCard(
                             goal: goal,
                             formattedSaved: _formatMoney(goal.savedAmount),
-                            formattedTarget:
-                                _formatMoney(goal.targetAmount),
-                            formattedRemaining:
-                                _formatMoney(goal.remainingAmount),
+                            formattedTarget: _formatMoney(goal.targetAmount),
+                            formattedRemaining: _formatMoney(
+                              goal.remainingAmount,
+                            ),
                             formattedDeadline: goal.deadline == null
                                 ? null
                                 : _formatDeadline(goal.deadline!),
                             isProcessing:
                                 controller.processingGoalId == goal.id,
                             onHistory: () => _showMovementHistory(goal),
-                            onEdit: !goal.isArchived &&
-                                    goal.createdByUserId ==
-                                        widget.currentUserId
+                            onEdit:
+                                !goal.isArchived &&
+                                    goal.createdByUserId == widget.currentUserId
                                 ? () => _editGoal(goal)
                                 : null,
                             onContribute: goal.isActive
                                 ? () => _showMovementDialog(
-                                      goal: goal,
-                                      isContribution: true,
-                                    )
+                                    goal: goal,
+                                    isContribution: true,
+                                  )
                                 : null,
-                            onWithdraw: goal.savedAmount > 0 &&
-                                    !goal.isArchived
+                            onWithdraw: goal.savedAmount > 0 && !goal.isArchived
                                 ? () => _showMovementDialog(
-                                      goal: goal,
-                                      isContribution: false,
-                                    )
+                                    goal: goal,
+                                    isContribution: false,
+                                  )
                                 : null,
-                            onArchive: !goal.isArchived &&
-                                    goal.createdByUserId ==
-                                        widget.currentUserId
+                            onArchive:
+                                !goal.isArchived &&
+                                    goal.createdByUserId == widget.currentUserId
                                 ? () => _archiveGoal(goal)
                                 : null,
                           ),
@@ -784,10 +746,7 @@ class _GoalsHeader extends StatelessWidget {
           const SizedBox(height: 8),
           const Text(
             'Total reservado',
-            style: TextStyle(
-              color: DuoColors.textSecondary,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: DuoColors.textSecondary, fontSize: 12),
           ),
           const SizedBox(height: 5),
           Text(
@@ -846,8 +805,8 @@ class _GoalCard extends StatelessWidget {
     final statusColor = goal.isArchived
         ? DuoColors.textHint
         : goal.isCompleted
-            ? DuoColors.success
-            : DuoColors.primaryLight;
+        ? DuoColors.success
+        : DuoColors.primaryLight;
 
     return DuoCard(
       borderRadius: 20,
@@ -868,8 +827,8 @@ class _GoalCard extends StatelessWidget {
                   goal.isArchived
                       ? Icons.inventory_2_outlined
                       : goal.isCompleted
-                          ? Icons.flag_rounded
-                          : Icons.savings_rounded,
+                      ? Icons.flag_rounded
+                      : Icons.savings_rounded,
                   color: statusColor,
                   size: 21,
                 ),
@@ -922,10 +881,7 @@ class _GoalCard extends StatelessWidget {
                   },
                   itemBuilder: (context) => [
                     if (onEdit != null)
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Text('Editar'),
-                      ),
+                      const PopupMenuItem(value: 'edit', child: Text('Editar')),
                     if (onArchive != null)
                       const PopupMenuItem(
                         value: 'archive',
@@ -959,14 +915,14 @@ class _GoalCard extends StatelessWidget {
             goal.isArchived
                 ? 'Meta arquivada'
                 : goal.isCompleted
-                    ? 'Meta concluída!'
-                    : 'Faltam $formattedRemaining',
+                ? 'Meta concluída!'
+                : 'Faltam $formattedRemaining',
             style: TextStyle(
               color: goal.isArchived
                   ? DuoColors.textHint
                   : goal.isCompleted
-                      ? DuoColors.success
-                      : DuoColors.textSecondary,
+                  ? DuoColors.success
+                  : DuoColors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -1012,9 +968,7 @@ class _GoalCard extends StatelessWidget {
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.add_rounded, size: 18),
                       label: const Text('Aportar'),
@@ -1046,11 +1000,7 @@ class _GoalFilters extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget chip(
-      _GoalListFilter filter,
-      String label,
-      int count,
-    ) {
+    Widget chip(_GoalListFilter filter, String label, int count) {
       return ChoiceChip(
         selected: selected == filter,
         onSelected: (_) => onSelected(filter),
@@ -1073,17 +1023,9 @@ class _GoalFilters extends StatelessWidget {
         children: [
           chip(_GoalListFilter.active, 'Ativas', activeCount),
           const SizedBox(width: 8),
-          chip(
-            _GoalListFilter.completed,
-            'Concluídas',
-            completedCount,
-          ),
+          chip(_GoalListFilter.completed, 'Concluídas', completedCount),
           const SizedBox(width: 8),
-          chip(
-            _GoalListFilter.archived,
-            'Arquivadas',
-            archivedCount,
-          ),
+          chip(_GoalListFilter.archived, 'Arquivadas', archivedCount),
         ],
       ),
     );
@@ -1093,9 +1035,7 @@ class _GoalFilters extends StatelessWidget {
 class _EmptyGoals extends StatelessWidget {
   final _GoalListFilter filter;
 
-  const _EmptyGoals({
-    required this.filter,
-  });
+  const _EmptyGoals({required this.filter});
 
   @override
   Widget build(BuildContext context) {
@@ -1107,8 +1047,7 @@ class _EmptyGoals extends StatelessWidget {
     final description = switch (filter) {
       _GoalListFilter.active =>
         'Crie uma meta e reserve dinheiro das suas carteiras.',
-      _GoalListFilter.completed =>
-        'As metas finalizadas aparecerão aqui.',
+      _GoalListFilter.completed => 'As metas finalizadas aparecerão aqui.',
       _GoalListFilter.archived =>
         'As metas arquivadas continuarão disponíveis aqui.',
     };
@@ -1227,20 +1166,17 @@ class _GoalHistorySheet extends StatelessWidget {
                   : ListView.separated(
                       padding: const EdgeInsets.all(20),
                       itemCount: movements.length,
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(height: 10),
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final movement = movements[index];
-                        final isContribution =
-                            movement.isContribution;
+                        final isContribution = movement.isContribution;
                         final color = isContribution
                             ? DuoColors.success
                             : DuoColors.warning;
                         final memberLabel =
-                            movement.createdByUserId ==
-                                    currentUserId
-                                ? 'Você'
-                                : 'Outro membro';
+                            movement.createdByUserId == currentUserId
+                            ? 'Você'
+                            : 'Outro membro';
 
                         return DuoCard(
                           borderRadius: 16,
@@ -1252,8 +1188,7 @@ class _GoalHistorySheet extends StatelessWidget {
                                 height: 40,
                                 decoration: BoxDecoration(
                                   color: color.withValues(alpha: .14),
-                                  borderRadius:
-                                      BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(
                                   isContribution
@@ -1266,13 +1201,10 @@ class _GoalHistorySheet extends StatelessWidget {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      isContribution
-                                          ? 'Aporte'
-                                          : 'Retirada',
+                                      isContribution ? 'Aporte' : 'Retirada',
                                       style: const TextStyle(
                                         color: DuoColors.textPrimary,
                                         fontSize: 13,
@@ -1287,8 +1219,7 @@ class _GoalHistorySheet extends StatelessWidget {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        color:
-                                            DuoColors.textSecondary,
+                                        color: DuoColors.textSecondary,
                                         fontSize: 10,
                                       ),
                                     ),
@@ -1346,8 +1277,5 @@ class _GoalMovementInput {
   final WalletModel wallet;
   final double amount;
 
-  const _GoalMovementInput({
-    required this.wallet,
-    required this.amount,
-  });
+  const _GoalMovementInput({required this.wallet, required this.amount});
 }

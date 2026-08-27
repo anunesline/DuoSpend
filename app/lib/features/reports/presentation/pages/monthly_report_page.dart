@@ -9,7 +9,6 @@ import '../../domain/models/financial_report.dart';
 import '../../domain/services/financial_report_service.dart';
 import 'category_report_page.dart';
 
-
 const _reportMonthNames = [
   'janeiro',
   'fevereiro',
@@ -61,8 +60,7 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     Color(0xFFFB923C),
   ];
 
-  final FinancialReportService _reportService =
-      const FinancialReportService();
+  final FinancialReportService _reportService = const FinancialReportService();
 
   late DateTime _selectedMonth;
 
@@ -121,12 +119,13 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
   }
 
   List<String> get _availableCategories {
-    final categories = widget.transactions
-        .map((transaction) => transaction.category.trim())
-        .where((category) => category.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final categories =
+        widget.transactions
+            .map((transaction) => transaction.category.trim())
+            .where((category) => category.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
 
     return List.unmodifiable(categories);
   }
@@ -187,8 +186,8 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
             final periodLabel = draftPeriod == null
                 ? 'Mês selecionado'
                 : '${DateFormat('dd/MM/yyyy').format(draftPeriod!.start)}'
-                    ' – '
-                    '${DateFormat('dd/MM/yyyy').format(draftPeriod!.end)}';
+                      ' – '
+                      '${DateFormat('dd/MM/yyyy').format(draftPeriod!.end)}';
 
             return AlertDialog(
               title: const Text('Filtrar relatório'),
@@ -254,8 +253,9 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                       ],
                       onChanged: (value) {
                         setDialogState(() {
-                          draftCategory =
-                              value == null || value.isEmpty ? null : value;
+                          draftCategory = value == null || value.isEmpty
+                              ? null
+                              : value;
                         });
                       },
                     ),
@@ -282,8 +282,9 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                       ],
                       onChanged: (value) {
                         setDialogState(() {
-                          draftType =
-                              value == null || value.isEmpty ? null : value;
+                          draftType = value == null || value.isEmpty
+                              ? null
+                              : value;
                         });
                       },
                     ),
@@ -383,7 +384,7 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
         foregroundColor: DuoColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         title: const Text(
-          'Relatório mensal',
+          'Relatórios',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         centerTitle: true,
@@ -410,10 +411,9 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
               onClear: _clearFilters,
             ),
             const SizedBox(height: 20),
-            _BalanceSummaryCard(
-              report: report,
-              formatMoney: _formatMoney,
-            ),
+            _BalanceSummaryCard(report: report, formatMoney: _formatMoney),
+            const SizedBox(height: 12),
+            _ReportInsightCard(report: report, formatMoney: _formatMoney),
             const SizedBox(height: 14),
             Row(
               children: [
@@ -471,13 +471,14 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 padding: const EdgeInsets.all(18),
                 child: Column(
                   children: [
-                    for (var index = 0;
-                        index < report.expenseByCategory.length;
-                        index++) ...[
+                    for (
+                      var index = 0;
+                      index < report.expenseByCategory.length;
+                      index++
+                    ) ...[
                       _CategoryRow(
                         item: report.expenseByCategory[index],
-                        color: _categoryColors[
-                            index % _categoryColors.length],
+                        color: _categoryColors[index % _categoryColors.length],
                         formattedAmount: _formatMoney(
                           report.expenseByCategory[index].amount,
                         ),
@@ -491,10 +492,7 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                       if (index != report.expenseByCategory.length - 1)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 14),
-                          child: Divider(
-                            height: 1,
-                            color: DuoColors.divider,
-                          ),
+                          child: Divider(height: 1, color: DuoColors.divider),
                         ),
                     ],
                   ],
@@ -506,8 +504,8 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
               subtitle: report.transactions.isEmpty
                   ? 'Nenhuma movimentação liquidada'
                   : report.transactions.length == 1
-                      ? '1 movimentação considerada'
-                      : '${report.transactions.length} movimentações consideradas',
+                  ? '1 movimentação considerada'
+                  : '${report.transactions.length} movimentações consideradas',
             ),
             const SizedBox(height: 14),
             if (report.transactions.isEmpty)
@@ -518,9 +516,11 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 padding: EdgeInsets.zero,
                 child: Column(
                   children: [
-                    for (var index = 0;
-                        index < report.transactions.length;
-                        index++) ...[
+                    for (
+                      var index = 0;
+                      index < report.transactions.length;
+                      index++
+                    ) ...[
                       _TransactionRow(
                         transaction: report.transactions[index],
                         formattedValue: _formatMoney(
@@ -726,16 +726,12 @@ class _BalanceSummaryCard extends StatelessWidget {
   final FinancialReport report;
   final String Function(double) formatMoney;
 
-  const _BalanceSummaryCard({
-    required this.report,
-    required this.formatMoney,
-  });
+  const _BalanceSummaryCard({required this.report, required this.formatMoney});
 
   @override
   Widget build(BuildContext context) {
     final isPositive = report.balance >= 0;
-    final balanceColor =
-        isPositive ? DuoColors.success : DuoColors.error;
+    final balanceColor = isPositive ? DuoColors.success : DuoColors.error;
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -832,6 +828,73 @@ class _ValueCard extends StatelessWidget {
   }
 }
 
+class _ReportInsightCard extends StatelessWidget {
+  final FinancialReport report;
+  final String Function(double) formatMoney;
+  const _ReportInsightCard({required this.report, required this.formatMoney});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = report.totalExpense <= 0
+        ? 'Ainda não há despesas liquidadas neste período.'
+        : report.balance >= 0
+        ? 'Seu resultado está positivo em ${formatMoney(report.balance)}.'
+        : 'O período fechou ${formatMoney(-report.balance)} abaixo das receitas.';
+    return DuoCard(
+      borderRadius: 18,
+      padding: const EdgeInsets.all(15),
+      gradient: LinearGradient(
+        colors: [DuoColors.primary.withValues(alpha: .20), DuoColors.surface],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: DuoColors.primary.withValues(alpha: .16),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: DuoColors.primaryLight,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Insight Orbit',
+                  style: TextStyle(
+                    color: DuoColors.primaryLight,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .25,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: DuoColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SharedResponsibilityCard extends StatelessWidget {
   final SharedFinancialReport report;
   final WalletModel wallet;
@@ -888,18 +951,13 @@ class _SharedResponsibilityCard extends StatelessWidget {
           const SizedBox(height: 5),
           const Text(
             'Compara o que cada pessoa pagou com sua parte financeira.',
-            style: TextStyle(
-              color: DuoColors.textSecondary,
-              fontSize: 11,
-            ),
+            style: TextStyle(color: DuoColors.textSecondary, fontSize: 11),
           ),
           const SizedBox(height: 18),
           if (report.isEmpty)
             const _SharedReportEmpty()
           else
-            for (var index = 0;
-                index < report.members.length;
-                index++) ...[
+            for (var index = 0; index < report.members.length; index++) ...[
               _MemberResponsibilityRow(
                 label: _memberLabel(report.members[index]),
                 member: report.members[index],
@@ -908,10 +966,7 @@ class _SharedResponsibilityCard extends StatelessWidget {
               if (index != report.members.length - 1)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Divider(
-                    height: 1,
-                    color: DuoColors.divider,
-                  ),
+                  child: Divider(height: 1, color: DuoColors.divider),
                 ),
             ],
           const SizedBox(height: 14),
@@ -967,13 +1022,13 @@ class _MemberResponsibilityRow extends StatelessWidget {
     final netColor = net > 0
         ? DuoColors.success
         : net < 0
-            ? DuoColors.error
-            : DuoColors.textSecondary;
+        ? DuoColors.error
+        : DuoColors.textSecondary;
     final netLabel = net > 0
         ? 'Adiantou'
         : net < 0
-            ? 'Ficou responsável'
-            : 'Equilibrado';
+        ? 'Ficou responsável'
+        : 'Equilibrado';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1010,8 +1065,8 @@ class _MemberResponsibilityRow extends StatelessWidget {
               net == 0
                   ? Icons.check_circle_outline_rounded
                   : net > 0
-                      ? Icons.south_west_rounded
-                      : Icons.north_east_rounded,
+                  ? Icons.south_west_rounded
+                  : Icons.north_east_rounded,
               color: netColor,
               size: 16,
             ),
@@ -1037,10 +1092,7 @@ class _MemberValue extends StatelessWidget {
   final String label;
   final String value;
 
-  const _MemberValue({
-    required this.label,
-    required this.value,
-  });
+  const _MemberValue({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -1082,10 +1134,7 @@ class _SharedReportEmpty extends StatelessWidget {
       padding: EdgeInsets.symmetric(vertical: 8),
       child: Text(
         'Nenhuma despesa compartilhada neste período.',
-        style: TextStyle(
-          color: DuoColors.textSecondary,
-          fontSize: 12,
-        ),
+        style: TextStyle(color: DuoColors.textSecondary, fontSize: 12),
       ),
     );
   }
@@ -1131,23 +1180,14 @@ class _FinancialEvolutionCard extends StatelessWidget {
           const SizedBox(height: 4),
           const Text(
             'Receitas e despesas dos últimos 6 meses',
-            style: TextStyle(
-              color: DuoColors.textSecondary,
-              fontSize: 11,
-            ),
+            style: TextStyle(color: DuoColors.textSecondary, fontSize: 11),
           ),
           const SizedBox(height: 14),
           const Row(
             children: [
-              _LegendDot(
-                label: 'Receitas',
-                color: DuoColors.success,
-              ),
+              _LegendDot(label: 'Receitas', color: DuoColors.success),
               SizedBox(width: 16),
-              _LegendDot(
-                label: 'Despesas',
-                color: DuoColors.error,
-              ),
+              _LegendDot(label: 'Despesas', color: DuoColors.error),
             ],
           ),
           const SizedBox(height: 20),
@@ -1178,10 +1218,7 @@ class _LegendDot extends StatelessWidget {
   final String label;
   final Color color;
 
-  const _LegendDot({
-    required this.label,
-    required this.color,
-  });
+  const _LegendDot({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1191,10 +1228,7 @@ class _LegendDot extends StatelessWidget {
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
         Text(
@@ -1233,12 +1267,10 @@ class _EvolutionMonthColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final balanceColor =
-        point.balance >= 0 ? DuoColors.success : DuoColors.error;
-    final monthLabel = _reportMonthName(
-      point.month,
-      abbreviated: true,
-    );
+    final balanceColor = point.balance >= 0
+        ? DuoColors.success
+        : DuoColors.error;
+    final monthLabel = _reportMonthName(point.month, abbreviated: true);
 
     return Tooltip(
       message: 'Resultado: ${formatMoney(point.balance)}',
@@ -1266,9 +1298,7 @@ class _EvolutionMonthColumn extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              point.balance == 0
-                  ? 'R\$ 0'
-                  : formatMoney(point.balance),
+              point.balance == 0 ? 'R\$ 0' : formatMoney(point.balance),
               maxLines: 1,
               style: TextStyle(
                 color: balanceColor,
@@ -1281,12 +1311,9 @@ class _EvolutionMonthColumn extends StatelessWidget {
           Text(
             monthLabel,
             style: TextStyle(
-              color: isSelected
-                  ? DuoColors.primaryLight
-                  : DuoColors.textHint,
+              color: isSelected ? DuoColors.primaryLight : DuoColors.textHint,
               fontSize: 9,
-              fontWeight:
-                  isSelected ? FontWeight.w900 : FontWeight.w600,
+              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
             ),
           ),
         ],
@@ -1299,10 +1326,7 @@ class _EvolutionBar extends StatelessWidget {
   final double height;
   final Color color;
 
-  const _EvolutionBar({
-    required this.height,
-    required this.color,
-  });
+  const _EvolutionBar({required this.height, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1312,9 +1336,7 @@ class _EvolutionBar extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(4),
-        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
       ),
     );
   }
@@ -1331,9 +1353,7 @@ class _MonthlyComparisonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final previousMonth = _reportMonthName(
-      comparison.previous.startDate,
-    );
+    final previousMonth = _reportMonthName(comparison.previous.startDate);
 
     return DuoCard(
       borderRadius: 20,
@@ -1405,19 +1425,20 @@ class _ComparisonMetricRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPositive = metric.unchanged ||
+    final isPositive =
+        metric.unchanged ||
         (metric.increased && positiveWhenIncrease) ||
         (metric.decreased && !positiveWhenIncrease);
     final color = metric.unchanged
         ? DuoColors.textSecondary
         : isPositive
-            ? DuoColors.success
-            : DuoColors.error;
+        ? DuoColors.success
+        : DuoColors.error;
     final icon = metric.unchanged
         ? Icons.remove_rounded
         : metric.increased
-            ? Icons.trending_up_rounded
-            : Icons.trending_down_rounded;
+        ? Icons.trending_up_rounded
+        : Icons.trending_down_rounded;
     final percentage = metric.percentageChange;
     final changeLabel = percentage == null
         ? 'Sem base anterior'
@@ -1488,10 +1509,7 @@ class _SectionTitle extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _SectionTitle({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionTitle({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -1510,10 +1528,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: const TextStyle(
-            color: DuoColors.textSecondary,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: DuoColors.textSecondary, fontSize: 12),
         ),
       ],
     );
@@ -1639,9 +1654,7 @@ class _TransactionRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              isIncome
-                  ? Icons.south_west_rounded
-                  : Icons.north_east_rounded,
+              isIncome ? Icons.south_west_rounded : Icons.north_east_rounded,
               color: color,
               size: 19,
             ),
