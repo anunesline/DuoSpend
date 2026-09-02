@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/context/wallet_context.dart';
 import '../../../../core/design_system/duo_colors.dart';
@@ -19,12 +20,10 @@ import '../../../transactions/presentation/pages/financial_calendar_page.dart';
 import '../../../transactions/presentation/pages/history_page.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../../../wallet/presentation/pages/credit_cards_page.dart';
+import '../../domain/models/orbit_dashboard_summary.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/orbit_dashboard_controller.dart';
-import '../widgets/balance_card.dart';
 import '../widgets/orbit_insight_card.dart';
-import '../widgets/orbit_month_summary.dart';
-import '../widgets/transactions_preview.dart';
 
 class HomePage extends StatefulWidget {
   final WalletContext walletContext;
@@ -188,10 +187,7 @@ class _HomePageState extends State<HomePage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
   }
 
@@ -397,6 +393,14 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
               _FinanceShortcut(
+                icon: Icons.history_rounded,
+                label: 'Histórico',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openHistoryPage();
+                },
+              ),
+              _FinanceShortcut(
                 icon: Icons.account_balance_wallet_rounded,
                 label: 'Carteiras',
                 onTap: () {
@@ -417,25 +421,22 @@ class _HomePageState extends State<HomePage> {
 
     final result = await showMenu<String>(
       context: context,
-      color: DuoColors.surface,
-      elevation: 14,
+      color: const Color(0xFF111622),
+      elevation: 18,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
-        side: const BorderSide(color: DuoColors.border),
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Color(0xFF20283A)),
       ),
       position: RelativeRect.fromLTRB(
-        16,
-        overlay.size.height - 330,
-        overlay.size.width - 180,
-        86,
+        42,
+        overlay.size.height - 360,
+        overlay.size.width - 226,
+        88,
       ),
       items: const [
         PopupMenuItem(
           value: 'transaction',
-          child: _QuickCreateMenuItem(
-            emoji: '💸',
-            label: 'Nova transação',
-          ),
+          child: _QuickCreateMenuItem(emoji: '💸', label: 'Nova transação'),
         ),
         PopupMenuItem(
           value: 'income',
@@ -457,17 +458,14 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (!mounted || result == null) return;
-
-    switch (result) {
-      case 'transaction':
-      case 'income':
-        await _openNewTransactionPage();
-      case 'scan':
-        await _openReceiptScanner();
-      case 'goal':
-        await _openSavingsGoalsPage();
-      case 'task':
-        await _openHouseholdRoutinesPage();
+    if (result == 'transaction' || result == 'income') {
+      await _openNewTransactionPage();
+    } else if (result == 'scan') {
+      await _openReceiptScanner();
+    } else if (result == 'goal') {
+      await _openSavingsGoalsPage();
+    } else if (result == 'task') {
+      await _openHouseholdRoutinesPage();
     }
   }
 
@@ -485,9 +483,10 @@ class _HomePageState extends State<HomePage> {
       listenable: Listenable.merge([controller, orbitController]),
       builder: (context, _) {
         final wallet = controller.wallet;
+        final summary = orbitController.summary;
 
         return Scaffold(
-          backgroundColor: DuoColors.background,
+          backgroundColor: const Color(0xFF080B12),
           extendBody: true,
           bottomNavigationBar: _OrbitBottomNavigation(
             onHome: () {},
@@ -498,74 +497,84 @@ class _HomePageState extends State<HomePage> {
           ),
           body: controller.isLoading
               ? const _PremiumLoadingState()
-              : SafeArea(
-                  bottom: false,
-                  child: RefreshIndicator(
-                    color: DuoColors.success,
-                    backgroundColor: DuoColors.surface,
-                    onRefresh: _loadHome,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 124),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _OrbitHeader(
-                            photoUrl: controller.userPhotoUrl,
-                            onNotifications: () => _showMessage(
-                              'Você não tem novas notificações.',
-                            ),
+              : Stack(
+                  children: [
+                    const Positioned.fill(child: _OrbitBackdrop()),
+                    SafeArea(
+                      bottom: false,
+                      child: RefreshIndicator(
+                        color: const Color(0xFF9EEA8A),
+                        backgroundColor: const Color(0xFF111622),
+                        onRefresh: _loadHome,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(18, 13, 18, 112),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _OrbitHeader(
+                                photoUrl: controller.userPhotoUrl,
+                                onNotifications: () => _showMessage(
+                                  'Você não tem novas notificações.',
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              _GreetingBlock(
+                                greeting: _greeting,
+                                userName: controller.userName,
+                                emoji: _greetingEmoji,
+                                subtitle: _questionCopy,
+                              ),
+                              const SizedBox(height: 18),
+                              _BalanceCard(
+                                balance: wallet?.balance ?? 0,
+                                income: controller.totalIncome,
+                                expense: controller.totalExpense,
+                              ),
+                              const SizedBox(height: 12),
+                              _BudgetCard(
+                                budget: summary.budget,
+                                isLoading: orbitController.isLoading,
+                                onTap: _openBudgetsPage,
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _InvoiceCard(
+                                      invoice: summary.invoice,
+                                      onTap: _openFinancialCalendarPage,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _GoalCard(
+                                      goal: summary.goal,
+                                      onTap: _openSavingsGoalsPage,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              _SectionTitle(
+                                title: 'Insights da IA',
+                                actionLabel: wallet == null ? null : 'Ver tudo',
+                                onAction: wallet == null ? null : _openInsightsPage,
+                              ),
+                              const SizedBox(height: 10),
+                              if (wallet != null)
+                                OrbitInsightCard(
+                                  wallet: wallet,
+                                  onTap: _openInsightsPage,
+                                )
+                              else
+                                const _EmptyInsightCard(),
+                            ],
                           ),
-                          const SizedBox(height: 22),
-                          _GreetingBlock(
-                            greeting: _greeting,
-                            userName: controller.userName,
-                            emoji: _greetingEmoji,
-                            subtitle: _questionCopy,
-                          ),
-                          const SizedBox(height: 22),
-                          BalanceCard(
-                            balance: wallet?.balance ?? 0,
-                            income: controller.totalIncome,
-                            expense: controller.totalExpense,
-                          ),
-                          if (wallet != null) ...[
-                            const SizedBox(height: 14),
-                            OrbitMonthSummary(
-                              summary: orbitController.summary,
-                              isLoading: orbitController.isLoading,
-                              onBudgetTap: _openBudgetsPage,
-                              onGoalTap: _openSavingsGoalsPage,
-                              onInvoiceTap: _openCreditCardsPage,
-                            ),
-                            const SizedBox(height: 22),
-                            _SectionTitle(
-                              icon: Icons.bolt_rounded,
-                              title: 'Insights da IA',
-                              actionLabel: 'Ver tudo',
-                              onAction: _openInsightsPage,
-                            ),
-                            const SizedBox(height: 10),
-                            OrbitInsightCard(
-                              wallet: wallet,
-                              onTap: _openInsightsPage,
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                          _SectionTitle(
-                            title: 'Últimas movimentações',
-                            actionLabel: wallet == null ? null : 'Ver todas',
-                            onAction: wallet == null ? null : _openHistoryPage,
-                          ),
-                          const SizedBox(height: 10),
-                          TransactionsPreview(
-                            transactions: controller.transactions,
-                            onViewAll: wallet == null ? null : _openHistoryPage,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
         );
       },
@@ -573,91 +582,124 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+String _money(double value) => NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: 'R\$',
+    ).format(value);
+
 class _OrbitHeader extends StatelessWidget {
   final String? photoUrl;
   final VoidCallback onNotifications;
 
-  const _OrbitHeader({
-    required this.photoUrl,
-    required this.onNotifications,
-  });
+  const _OrbitHeader({required this.photoUrl, required this.onNotifications});
 
   @override
   Widget build(BuildContext context) {
     final hasPhoto = photoUrl != null && photoUrl!.trim().isNotEmpty;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        CircleAvatar(
-          radius: 25,
-          backgroundColor: DuoColors.surfaceLight,
-          backgroundImage: hasPhoto ? NetworkImage(photoUrl!) : null,
-          child: hasPhoto
-              ? null
-              : const Icon(Icons.person_rounded, color: DuoColors.textSecondary),
-        ),
-        const SizedBox(width: 16),
-        const Expanded(
-          child: Column(
-            children: [
-              Text.rich(
-                TextSpan(
+    return SizedBox(
+      height: 48,
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 19,
+            backgroundColor: const Color(0xFF161C29),
+            backgroundImage: hasPhoto ? NetworkImage(photoUrl!) : null,
+            child: hasPhoto
+                ? null
+                : const Icon(
+                    Icons.person_rounded,
+                    size: 19,
+                    color: Color(0xFF98A2B3),
+                  ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    TextSpan(
-                      text: 'O',
-                      style: TextStyle(color: DuoColors.success),
-                    ),
-                    TextSpan(
-                      text: 'rbit',
-                      style: TextStyle(color: DuoColors.textPrimary),
+                    _OrbitMark(),
+                    SizedBox(width: 7),
+                    Text(
+                      'Orbit',
+                      style: TextStyle(
+                        color: Color(0xFFF6F8FB),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.45,
+                      ),
                     ),
                   ],
                 ),
-                style: TextStyle(
-                  fontSize: 31,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -.9,
+                SizedBox(height: 1),
+                Text(
+                  'Organize. Planeje. Conquiste.',
+                  style: TextStyle(
+                    color: Color(0xFF98A2B3),
+                    fontSize: 9.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                onPressed: onNotifications,
+                icon: const Icon(
+                  Icons.notifications_none_rounded,
+                  color: Color(0xFFF6F8FB),
+                  size: 24,
                 ),
               ),
-              SizedBox(height: 1),
-              Text(
-                'Organize. Planeje. Conquiste.',
-                style: TextStyle(
-                  color: DuoColors.textSecondary,
-                  fontSize: 10.5,
+              const Positioned(
+                right: 9,
+                top: 7,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Color(0xFF9EEA8A),
+                    shape: BoxShape.circle,
+                  ),
+                  child: SizedBox(width: 7, height: 7),
                 ),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrbitMark extends StatelessWidget {
+  const _OrbitMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFA782FF), Color(0xFF72B9FF), Color(0xFF9EEA8A)],
         ),
-        const SizedBox(width: 16),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            IconButton(
-              tooltip: 'Notificações',
-              onPressed: onNotifications,
-              icon: const Icon(
-                Icons.notifications_none_rounded,
-                color: DuoColors.textPrimary,
-                size: 27,
-              ),
-            ),
-            const Positioned(
-              right: 9,
-              top: 8,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: DuoColors.success,
-                  shape: BoxShape.circle,
-                ),
-                child: SizedBox(width: 7, height: 7),
-              ),
-            ),
-          ],
+      ),
+      alignment: Alignment.center,
+      child: Container(
+        width: 11,
+        height: 11,
+        decoration: const BoxDecoration(
+          color: Color(0xFF080B12),
+          shape: BoxShape.circle,
         ),
-      ],
+      ),
     );
   }
 }
@@ -683,18 +725,18 @@ class _GreetingBlock extends StatelessWidget {
         Text(
           '$greeting, $userName! $emoji',
           style: const TextStyle(
-            color: DuoColors.textPrimary,
+            color: Color(0xFFF6F8FB),
             fontSize: 21,
             fontWeight: FontWeight.w800,
             letterSpacing: -.35,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 5),
         Text(
           subtitle,
           style: const TextStyle(
-            color: DuoColors.textSecondary,
-            fontSize: 13,
+            color: Color(0xFF98A2B3),
+            fontSize: 12.5,
             height: 1.35,
           ),
         ),
@@ -703,33 +745,420 @@ class _GreetingBlock extends StatelessWidget {
   }
 }
 
+class _OrbitCard extends StatelessWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final EdgeInsetsGeometry padding;
+
+  const _OrbitCard({
+    required this.child,
+    this.onTap,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(19),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: const Color(0xE8111622),
+            borderRadius: BorderRadius.circular(19),
+            border: Border.all(color: const Color(0xFF20283A)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 16,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+class _BalanceCard extends StatelessWidget {
+  final double balance;
+  final double income;
+  final double expense;
+
+  const _BalanceCard({
+    required this.balance,
+    required this.income,
+    required this.expense,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final monthResult = income - expense;
+    return SizedBox(
+      height: 116,
+      child: _OrbitCard(
+        child: Row(
+          children: [
+            Expanded(
+              flex: 56,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Saldo disponível',
+                    style: TextStyle(color: Color(0xFF98A2B3), fontSize: 11.5),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _money(balance),
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFFF6F8FB),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -.6,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.visibility_outlined,
+                        color: Color(0xFF98A2B3),
+                        size: 17,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        monthResult >= 0
+                            ? Icons.arrow_upward_rounded
+                            : Icons.arrow_downward_rounded,
+                        color: monthResult >= 0
+                            ? const Color(0xFF9EEA8A)
+                            : const Color(0xFFFF8A8A),
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Resultado do mês ${_money(monthResult.abs())}',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: monthResult >= 0
+                                ? const Color(0xFF9EEA8A)
+                                : const Color(0xFFFF8A8A),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(width: 1, height: 70, color: const Color(0xFF20283A)),
+            const SizedBox(width: 14),
+            Expanded(
+              flex: 44,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Saldo previsto',
+                    style: TextStyle(color: Color(0xFF98A2B3), fontSize: 10.5),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _money(balance),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFF6F8FB),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const _ProgressBar(progress: .72, color: Color(0xFF9EEA8A)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BudgetCard extends StatelessWidget {
+  final OrbitBudgetSummary? budget;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _BudgetCard({
+    required this.budget,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final current = budget;
+    final progress = current?.progress ?? 0;
+    final percentage = (progress * 100).round();
+    final month = DateFormat('MMMM', 'pt_BR').format(DateTime.now());
+
+    return SizedBox(
+      height: 78,
+      child: _OrbitCard(
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            _IconTile(
+              icon: Icons.pie_chart_rounded,
+              color: const Color(0xFFA782FF),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Orçamento de $month',
+                    style: const TextStyle(
+                      color: Color(0xFFF6F8FB),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isLoading
+                        ? 'Carregando...'
+                        : current == null
+                            ? 'Nenhum orçamento ativo'
+                            : '${_money(current.spentAmount)} de ${_money(current.limitAmount)}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF98A2B3),
+                      fontSize: 10.5,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  _ProgressBar(
+                    progress: progress,
+                    color: const Color(0xFFA782FF),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '$percentage%',
+              style: const TextStyle(
+                color: Color(0xFF9EEA8A),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InvoiceCard extends StatelessWidget {
+  final OrbitInvoiceSummary? invoice;
+  final VoidCallback onTap;
+
+  const _InvoiceCard({required this.invoice, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final current = invoice;
+    final today = DateTime.now();
+    final days = current == null
+        ? null
+        : DateUtils.dateOnly(current.dueDate)
+            .difference(DateUtils.dateOnly(today))
+            .inDays;
+    final title = current == null
+        ? 'Nenhuma conta próxima'
+        : current.invoiceCount == 1
+            ? '1 conta a vencer'
+            : '${current.invoiceCount} contas a vencer';
+    final subtitle = current == null
+        ? 'Calendário em dia'
+        : days == 0
+            ? 'Hoje: ${_money(current.total)}'
+            : days == 1
+                ? 'Amanhã: ${_money(current.total)}'
+                : 'Em ${days ?? 0} dias: ${_money(current.total)}';
+
+    return SizedBox(
+      height: 96,
+      child: _OrbitCard(
+        onTap: onTap,
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _IconTile(icon: Icons.calendar_month_rounded, color: Color(0xFF72B9FF), size: 30),
+            const Spacer(),
+            Text(
+              title,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFFF6F8FB),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFF98A2B3), fontSize: 9.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GoalCard extends StatelessWidget {
+  final OrbitGoalSummary? goal;
+  final VoidCallback onTap;
+
+  const _GoalCard({required this.goal, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final current = goal;
+    final progress = current?.progress ?? 0;
+    return SizedBox(
+      height: 96,
+      child: _OrbitCard(
+        onTap: onTap,
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _IconTile(icon: Icons.track_changes_rounded, color: Color(0xFF9EEA8A), size: 30),
+            const Spacer(),
+            Text(
+              current?.name ?? 'Nenhuma meta ativa',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFFF6F8FB),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: _ProgressBar(
+                    progress: progress,
+                    color: const Color(0xFF9EEA8A),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  current == null ? '—' : '${(progress * 100).round()}%',
+                  style: const TextStyle(
+                    color: Color(0xFF98A2B3),
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IconTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  const _IconTile({required this.icon, required this.color, this.size = 34});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .13),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, color: color, size: size * .53),
+    );
+  }
+}
+
+class _ProgressBar extends StatelessWidget {
+  final double progress;
+  final Color color;
+
+  const _ProgressBar({required this.progress, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(99),
+      child: SizedBox(
+        height: 4,
+        child: LinearProgressIndicator(
+          value: progress.clamp(0.0, 1.0),
+          backgroundColor: const Color(0xFF20283A),
+          valueColor: AlwaysStoppedAnimation(color),
+        ),
+      ),
+    );
+  }
+}
+
 class _SectionTitle extends StatelessWidget {
-  final IconData? icon;
   final String title;
   final String? actionLabel;
   final VoidCallback? onAction;
 
-  const _SectionTitle({
-    this.icon,
-    required this.title,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _SectionTitle({required this.title, this.actionLabel, this.onAction});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        if (icon != null) ...[
-          Icon(icon, color: DuoColors.primaryLight, size: 24),
-          const SizedBox(width: 8),
-        ],
+        const Icon(Icons.bolt_rounded, color: Color(0xFFA782FF), size: 21),
+        const SizedBox(width: 7),
         Expanded(
           child: Text(
             title,
             style: const TextStyle(
-              color: DuoColors.textPrimary,
-              fontSize: 17,
+              color: Color(0xFFF6F8FB),
+              fontSize: 15.5,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -737,11 +1166,15 @@ class _SectionTitle extends StatelessWidget {
         if (actionLabel != null)
           TextButton(
             onPressed: onAction,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+            ),
             child: Text(
               actionLabel!,
               style: const TextStyle(
-                color: DuoColors.primaryLight,
-                fontSize: 12,
+                color: Color(0xFFA782FF),
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -749,6 +1182,105 @@ class _SectionTitle extends StatelessWidget {
       ],
     );
   }
+}
+
+class _EmptyInsightCard extends StatelessWidget {
+  const _EmptyInsightCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 76,
+      child: _OrbitCard(
+        child: Row(
+          children: [
+            Icon(Icons.lightbulb_outline_rounded, color: Color(0xFFFFCC66)),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Conecte uma carteira para receber insights financeiros.',
+                style: TextStyle(
+                  color: Color(0xFF98A2B3),
+                  fontSize: 11,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrbitBackdrop extends StatelessWidget {
+  const _OrbitBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          Container(color: const Color(0xFF080B12)),
+          Positioned(
+            top: 20,
+            left: -40,
+            right: -20,
+            height: 260,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(.15, -.15),
+                  radius: .95,
+                  colors: [
+                    const Color(0xFFD24D3A).withValues(alpha: .17),
+                    const Color(0xFF8F467A).withValues(alpha: .08),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Positioned(
+            top: 118,
+            left: 0,
+            right: 0,
+            height: 150,
+            child: CustomPaint(painter: _OrbitHorizonPainter()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrbitHorizonPainter extends CustomPainter {
+  const _OrbitHorizonPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0x1FD9694E), Color(0x03080B12)],
+      ).createShader(Offset.zero & size);
+    final path = Path()
+      ..moveTo(0, size.height * .64)
+      ..lineTo(size.width * .14, size.height * .52)
+      ..lineTo(size.width * .28, size.height * .61)
+      ..lineTo(size.width * .46, size.height * .43)
+      ..lineTo(size.width * .61, size.height * .58)
+      ..lineTo(size.width * .76, size.height * .48)
+      ..lineTo(size.width, size.height * .63)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _OrbitBottomNavigation extends StatelessWidget {
@@ -771,12 +1303,18 @@ class _OrbitBottomNavigation extends StatelessWidget {
     return SafeArea(
       minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
       child: Container(
-        height: 74,
+        height: 72,
         decoration: BoxDecoration(
-          color: const Color(0xFF11141D),
+          color: const Color(0xF2111622),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: DuoColors.border),
-          boxShadow: DuoColors.softShadow,
+          border: Border.all(color: const Color(0xFF20283A)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x4D000000),
+              blurRadius: 22,
+              offset: Offset(0, 10),
+            ),
+          ],
         ),
         child: Stack(
           clipBehavior: Clip.none,
@@ -784,42 +1322,14 @@ class _OrbitBottomNavigation extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(
-                  child: _NavItem(
-                    icon: Icons.home_rounded,
-                    label: 'Início',
-                    active: true,
-                    onTap: onHome,
-                  ),
-                ),
-                Expanded(
-                  child: _NavItem(
-                    icon: Icons.credit_card_rounded,
-                    label: 'Finanças',
-                    onTap: onFinance,
-                  ),
-                ),
+                Expanded(child: _NavItem(icon: Icons.home_rounded, label: 'Início', active: true, onTap: onHome)),
+                Expanded(child: _NavItem(icon: Icons.account_balance_wallet_rounded, label: 'Finanças', onTap: onFinance)),
                 const Expanded(child: SizedBox()),
-                Expanded(
-                  child: _NavItem(
-                    icon: Icons.task_alt_rounded,
-                    label: 'Rotinas',
-                    onTap: onRoutines,
-                  ),
-                ),
-                Expanded(
-                  child: _NavItem(
-                    icon: Icons.auto_awesome_rounded,
-                    label: 'IA',
-                    onTap: onAi,
-                  ),
-                ),
+                Expanded(child: _NavItem(icon: Icons.task_alt_rounded, label: 'Rotinas', onTap: onRoutines)),
+                Expanded(child: _NavItem(icon: Icons.auto_awesome_rounded, label: 'IA', onTap: onAi)),
               ],
             ),
-            Positioned(
-              top: -10,
-              child: _CreateButton(onTap: onCreate),
-            ),
+            Positioned(top: -7, child: _CreateButton(onTap: onCreate)),
           ],
         ),
       ),
@@ -842,32 +1352,32 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? DuoColors.success : DuoColors.textSecondary;
+    final color = active ? const Color(0xFF9EEA8A) : const Color(0xFF98A2B3);
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.only(top: 10, bottom: 8),
+        padding: const EdgeInsets.only(top: 10, bottom: 7),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 23),
+            Icon(icon, color: color, size: 22),
             const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
                 color: color,
-                fontSize: 10,
+                fontSize: 9.5,
                 fontWeight: active ? FontWeight.w800 : FontWeight.w600,
               ),
             ),
             if (active) ...[
               const SizedBox(height: 3),
               Container(
-                width: 24,
+                width: 22,
                 height: 2,
                 decoration: BoxDecoration(
-                  color: DuoColors.success,
+                  color: const Color(0xFF9EEA8A),
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
@@ -887,12 +1397,20 @@ class _CreateButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 56,
-      height: 56,
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
-        color: onTap == null ? DuoColors.textHint : const Color(0xFF3EEA72),
+        color: onTap == null ? const Color(0xFF566070) : const Color(0xFF9EEA8A),
         shape: BoxShape.circle,
-        boxShadow: onTap == null ? null : DuoColors.successGlow,
+        boxShadow: onTap == null
+            ? null
+            : const [
+                BoxShadow(
+                  color: Color(0x559EEA8A),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                ),
+              ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -900,11 +1418,7 @@ class _CreateButton extends StatelessWidget {
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
-          child: const Icon(
-            Icons.add_rounded,
-            color: Color(0xFF071109),
-            size: 34,
-          ),
+          child: const Icon(Icons.add_rounded, color: Color(0xFF071109), size: 30),
         ),
       ),
     );
@@ -915,22 +1429,20 @@ class _QuickCreateMenuItem extends StatelessWidget {
   final String emoji;
   final String label;
 
-  const _QuickCreateMenuItem({
-    required this.emoji,
-    required this.label,
-  });
+  const _QuickCreateMenuItem({required this.emoji, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 16)),
+        Text(emoji, style: const TextStyle(fontSize: 17)),
         const SizedBox(width: 10),
         Text(
           label,
           style: const TextStyle(
-            color: DuoColors.textPrimary,
-            fontWeight: FontWeight.w600,
+            color: Color(0xFFF6F8FB),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ],
@@ -966,7 +1478,7 @@ class _PremiumLoadingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Center(
-      child: CircularProgressIndicator(color: DuoColors.success),
+      child: CircularProgressIndicator(color: Color(0xFF9EEA8A)),
     );
   }
 }
