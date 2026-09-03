@@ -335,84 +335,100 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openFinanceHub() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: DuoColors.surface,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ListTile(
-                title: Text(
-                  'Finanças',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+    final shortcutScrollController = ScrollController();
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: DuoColors.surface,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              children: [
+                const ListTile(
+                  title: Text(
+                    'Finanças',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text('Acesse os principais recursos financeiros.'),
                 ),
-                subtitle: Text('Acesse os principais recursos financeiros.'),
-              ),
-              _FinanceShortcut(
-                icon: Icons.pie_chart_rounded,
-                label: 'Orçamentos',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openBudgetsPage();
-                },
-              ),
-              _FinanceShortcut(
-                icon: Icons.savings_rounded,
-                label: 'Metas',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openSavingsGoalsPage();
-                },
-              ),
-              _FinanceShortcut(
-                icon: Icons.credit_card_rounded,
-                label: 'Cartões',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openCreditCardsPage();
-                },
-              ),
-              _FinanceShortcut(
-                icon: Icons.insights_rounded,
-                label: 'Relatórios',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openMonthlyReportPage();
-                },
-              ),
-              _FinanceShortcut(
-                icon: Icons.calendar_month_rounded,
-                label: 'Calendário',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openFinancialCalendarPage();
-                },
-              ),
-              _FinanceShortcut(
-                icon: Icons.history_rounded,
-                label: 'Histórico',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openHistoryPage();
-                },
-              ),
-              _FinanceShortcut(
-                icon: Icons.account_balance_wallet_rounded,
-                label: 'Carteiras',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openWalletSelector();
-                },
-              ),
-            ],
+                Expanded(
+                  child: Scrollbar(
+                    controller: shortcutScrollController,
+                    thumbVisibility: true,
+                    child: ListView(
+                      controller: shortcutScrollController,
+                      padding: EdgeInsets.zero,
+                      children: [
+                    _FinanceShortcut(
+                      icon: Icons.pie_chart_rounded,
+                      label: 'Orçamentos',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openBudgetsPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.savings_rounded,
+                      label: 'Metas',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openSavingsGoalsPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.credit_card_rounded,
+                      label: 'Cartões',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openCreditCardsPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.insights_rounded,
+                      label: 'Relatórios',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openMonthlyReportPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.calendar_month_rounded,
+                      label: 'Calendário',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openFinancialCalendarPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.history_rounded,
+                      label: 'Histórico',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openHistoryPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.account_balance_wallet_rounded,
+                      label: 'Carteiras',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openWalletSelector();
+                      },
+                    ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    } finally {
+      shortcutScrollController.dispose();
+    }
   }
 
   Future<void> _showQuickCreateMenu() async {
