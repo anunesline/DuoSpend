@@ -619,26 +619,31 @@ class _OrbitHeader extends StatelessWidget {
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     _OrbitMark(),
-                    SizedBox(width: 7),
+                    SizedBox(width: 6),
                     Text(
                       'Orbit',
                       style: TextStyle(
                         color: Color(0xFFF6F8FB),
-                        fontSize: 20,
+                        fontSize: 19,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -.45,
+                        letterSpacing: -.35,
+                        height: 1,
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 1),
+                SizedBox(height: 3),
                 Text(
                   'Organize. Planeje. Conquiste.',
                   style: TextStyle(
                     color: Color(0xFF98A2B3),
-                    fontSize: 9.5,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: .15,
+                    height: 1,
                   ),
                 ),
               ],
@@ -681,8 +686,8 @@ class _OrbitMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 22,
-      height: 22,
+      width: 20,
+      height: 20,
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -693,8 +698,8 @@ class _OrbitMark extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Container(
-        width: 11,
-        height: 11,
+        width: 10,
+        height: 10,
         decoration: const BoxDecoration(
           color: Color(0xFF080B12),
           shape: BoxShape.circle,
