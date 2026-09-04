@@ -427,7 +427,6 @@ class OrbitGoalActions extends StatelessWidget {
   final bool processing;
   final VoidCallback onHistory;
   final VoidCallback? onEdit;
-  final VoidCallback? onContribute;
   final VoidCallback? onWithdraw;
   final VoidCallback? onArchive;
 
@@ -436,7 +435,6 @@ class OrbitGoalActions extends StatelessWidget {
     required this.processing,
     required this.onHistory,
     this.onEdit,
-    this.onContribute,
     this.onWithdraw,
     this.onArchive,
   });
@@ -450,60 +448,146 @@ class OrbitGoalActions extends StatelessWidget {
         const SizedBox(height: 10),
         _OrbitSurface(
           padding: const EdgeInsets.all(14),
-          child: Column(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              if (onContribute != null || onWithdraw != null)
-                Row(
-                  children: [
-                    if (onWithdraw != null)
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: processing ? null : onWithdraw,
-                          icon: const Icon(Icons.remove_rounded, size: 18),
-                          label: const Text('Retirar'),
-                        ),
-                      ),
-                    if (onWithdraw != null && onContribute != null)
-                      const SizedBox(width: 10),
-                    if (onContribute != null)
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: processing ? null : onContribute,
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          label: const Text('Guardar'),
-                        ),
-                      ),
-                  ],
+              if (onWithdraw != null)
+                _SmallAction(
+                  icon: Icons.remove_circle_outline_rounded,
+                  label: 'Retirar',
+                  onTap: processing ? null : onWithdraw,
                 ),
-              if (onContribute != null || onWithdraw != null)
-                const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _SmallAction(
-                    icon: Icons.history_rounded,
-                    label: 'Histórico',
-                    onTap: processing ? null : onHistory,
-                  ),
-                  if (onEdit != null)
-                    _SmallAction(
-                      icon: Icons.edit_outlined,
-                      label: 'Editar',
-                      onTap: processing ? null : onEdit,
-                    ),
-                  if (onArchive != null)
-                    _SmallAction(
-                      icon: Icons.archive_outlined,
-                      label: 'Arquivar',
-                      onTap: processing ? null : onArchive,
-                    ),
-                ],
+              _SmallAction(
+                icon: Icons.history_rounded,
+                label: 'Histórico',
+                onTap: processing ? null : onHistory,
               ),
+              if (onEdit != null)
+                _SmallAction(
+                  icon: Icons.edit_outlined,
+                  label: 'Editar',
+                  onTap: processing ? null : onEdit,
+                ),
+              if (onArchive != null)
+                _SmallAction(
+                  icon: Icons.archive_outlined,
+                  label: 'Arquivar',
+                  onTap: processing ? null : onArchive,
+                ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class OrbitGoalListCard extends StatelessWidget {
+  final SavingsGoal goal;
+  final String Function(double) formatMoney;
+  final VoidCallback onTap;
+
+  const OrbitGoalListCard({
+    super.key,
+    required this.goal,
+    required this.formatMoney,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _goalAccent(goal);
+    return _OrbitSurface(
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .13),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    goal.isCompleted
+                        ? Icons.emoji_events_rounded
+                        : Icons.flag_rounded,
+                    color: accent,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              goal.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: DuoColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${goal.progressPercentage.toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '${formatMoney(goal.savedAmount)} de ${formatMoney(goal.targetAmount)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: DuoColors.textSecondary,
+                          fontSize: 10.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: goal.progress,
+                          minHeight: 5,
+                          backgroundColor: DuoColors.surfaceLight,
+                          valueColor: AlwaysStoppedAnimation<Color>(accent),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: DuoColors.textHint,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
