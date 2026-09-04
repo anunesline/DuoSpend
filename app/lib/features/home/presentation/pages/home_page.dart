@@ -341,26 +341,31 @@ class _HomePageState extends State<HomePage> {
         context: context,
         backgroundColor: DuoColors.surface,
         showDragHandle: true,
-        builder: (sheetContext) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              children: [
-                const ListTile(
-                  title: Text(
-                    'Finanças',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                  subtitle: Text('Acesse os principais recursos financeiros.'),
-                ),
-                Expanded(
-                  child: Scrollbar(
-                    controller: shortcutScrollController,
-                    thumbVisibility: true,
-                    child: ListView(
-                      controller: shortcutScrollController,
-                      padding: EdgeInsets.zero,
-                      children: [
+        builder: (sheetContext) => LayoutBuilder(
+          builder: (context, constraints) => SizedBox(
+            height: constraints.maxHeight,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  children: [
+                    const ListTile(
+                      title: Text(
+                        'Finanças',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text('Acesse os principais recursos financeiros.'),
+                    ),
+                    Expanded(
+                      child: Scrollbar(
+                        controller: shortcutScrollController,
+                        thumbVisibility: true,
+                        thickness: 3,
+                        radius: const Radius.circular(99),
+                        child: ListView(
+                          controller: shortcutScrollController,
+                          padding: EdgeInsets.zero,
+                          children: [
                     _FinanceShortcut(
                       icon: Icons.pie_chart_rounded,
                       label: 'Orçamentos',
@@ -417,11 +422,13 @@ class _HomePageState extends State<HomePage> {
                         _openWalletSelector();
                       },
                     ),
-                      ],
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
