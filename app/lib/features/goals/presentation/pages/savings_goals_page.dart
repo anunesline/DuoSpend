@@ -30,6 +30,8 @@ class SavingsGoalsPage extends StatefulWidget {
 class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
   late final SavingsGoalsController controller;
   _GoalListFilter selectedFilter = _GoalListFilter.active;
+  String? selectedGoalId;
+  final Set<String> _movementRequests = {};
 
   @override
   void initState() {
@@ -43,10 +45,10 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
   }
 
   String _money(double value) => NumberFormat.currency(
-        locale: 'pt_BR',
-        symbol: 'R\$',
-        decimalDigits: 2,
-      ).format(value);
+    locale: 'pt_BR',
+    symbol: 'R\$',
+    decimalDigits: 2,
+  ).format(value);
 
   String _date(DateTime value) => DateFormat('dd/MM/yyyy').format(value);
 
@@ -97,7 +99,10 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                 const SizedBox(height: 6),
                 const Text(
                   'Transforme um plano em uma meta que você pode acompanhar.',
-                  style: TextStyle(color: DuoColors.textSecondary, fontSize: 12),
+                  style: TextStyle(
+                    color: DuoColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 22),
                 TextField(
@@ -112,7 +117,9 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                 const SizedBox(height: 14),
                 TextField(
                   controller: target,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Quanto você quer guardar?',
                     prefixText: 'R\$ ',
@@ -127,7 +134,8 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                   onTap: () async {
                     final now = DateTime.now();
                     final today = DateTime(now.year, now.month, now.day);
-                    final initial = deadline != null && !deadline!.isBefore(today)
+                    final initial =
+                        deadline != null && !deadline!.isBefore(today)
                         ? deadline!
                         : today.add(const Duration(days: 30));
                     final picked = await showDatePicker(
@@ -150,12 +158,17 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.calendar_today_rounded,
-                            color: DuoColors.primaryLight, size: 18),
+                        const Icon(
+                          Icons.calendar_today_rounded,
+                          color: DuoColors.primaryLight,
+                          size: 18,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            deadline == null ? 'Adicionar prazo' : 'Até ${_date(deadline!)}',
+                            deadline == null
+                                ? 'Adicionar prazo'
+                                : 'Até ${_date(deadline!)}',
                             style: const TextStyle(
                               color: DuoColors.textPrimary,
                               fontWeight: FontWeight.w700,
@@ -164,7 +177,8 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                         ),
                         if (deadline != null)
                           IconButton(
-                            onPressed: () => setSheetState(() => deadline = null),
+                            onPressed: () =>
+                                setSheetState(() => deadline = null),
                             icon: const Icon(Icons.close_rounded, size: 18),
                           ),
                       ],
@@ -177,7 +191,9 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                   child: FilledButton.icon(
                     onPressed: () {
                       final amount = parseMoneyInput(target.text);
-                      if (name.text.trim().isEmpty || amount == null || amount <= 0) {
+                      if (name.text.trim().isEmpty ||
+                          amount == null ||
+                          amount <= 0) {
                         return;
                       }
                       Navigator.pop(
@@ -189,8 +205,12 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                         ),
                       );
                     },
-                    icon: Icon(goal == null ? Icons.add_rounded : Icons.check_rounded),
-                    label: Text(goal == null ? 'Criar meta' : 'Salvar alterações'),
+                    icon: Icon(
+                      goal == null ? Icons.add_rounded : Icons.check_rounded,
+                    ),
+                    label: Text(
+                      goal == null ? 'Criar meta' : 'Salvar alterações',
+                    ),
                   ),
                 ),
               ],
@@ -214,9 +234,11 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
       deadline: input.deadline,
     );
     if (!mounted) return;
-    _message(result == null
-        ? controller.errorMessage ?? 'Não foi possível criar a meta.'
-        : 'Meta criada. Um sonho a caminho ✨');
+    _message(
+      result == null
+          ? controller.errorMessage ?? 'Não foi possível criar a meta.'
+          : 'Meta criada. Um sonho a caminho ✨',
+    );
   }
 
   Future<void> _editGoal(SavingsGoal goal) async {
@@ -229,9 +251,11 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
       deadline: input.deadline,
     );
     if (!mounted) return;
-    _message(result == null
-        ? controller.errorMessage ?? 'Não foi possível editar a meta.'
-        : 'Meta atualizada.');
+    _message(
+      result == null
+          ? controller.errorMessage ?? 'Não foi possível editar a meta.'
+          : 'Meta atualizada.',
+    );
   }
 
   Future<void> _move(SavingsGoal goal, {required bool contribution}) async {
@@ -271,24 +295,33 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                 contribution
                     ? 'Faltam ${_money(goal.remainingAmount)} para ${goal.name}.'
                     : 'Você tem ${_money(goal.savedAmount)} reservado.',
-                style: const TextStyle(color: DuoColors.textSecondary, fontSize: 12),
+                style: const TextStyle(
+                  color: DuoColors.textSecondary,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
                 initialValue: wallet.id,
                 decoration: InputDecoration(
-                  labelText: contribution ? 'Carteira de origem' : 'Carteira de destino',
+                  labelText: contribution
+                      ? 'Carteira de origem'
+                      : 'Carteira de destino',
                 ),
                 items: controller.financialWallets
-                    .map((item) => DropdownMenuItem(
-                          value: item.id,
-                          child: Text('${item.name} • ${_money(item.balance)}'),
-                        ))
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item.id,
+                        child: Text('${item.name} • ${_money(item.balance)}'),
+                      ),
+                    )
                     .toList(),
                 onChanged: (id) {
                   if (id == null) return;
                   setSheetState(() {
-                    wallet = controller.financialWallets.firstWhere((item) => item.id == id);
+                    wallet = controller.financialWallets.firstWhere(
+                      (item) => item.id == id,
+                    );
                   });
                 },
               ),
@@ -296,8 +329,13 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
               TextField(
                 controller: amount,
                 autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Valor', prefixText: 'R\$ '),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Valor',
+                  prefixText: 'R\$ ',
+                ),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -330,18 +368,26 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
             amount: input.amount,
           );
     if (!mounted) return;
-    _message(result == null
-        ? controller.errorMessage ?? 'Não foi possível movimentar a meta.'
-        : contribution
-            ? 'Valor guardado ✨'
-            : 'Valor devolvido à carteira.');
+    if (result != null) {
+      await controller.loadMovements(result);
+      if (!mounted) return;
+    }
+    _message(
+      result == null
+          ? controller.errorMessage ?? 'Não foi possível movimentar a meta.'
+          : contribution
+          ? 'Valor guardado ✨'
+          : 'Valor devolvido à carteira.',
+    );
   }
 
   Future<void> _history(SavingsGoal goal) async {
     final movements = await controller.loadMovements(goal);
     if (!mounted) return;
     if (movements == null) {
-      _message(controller.errorMessage ?? 'Não foi possível carregar o histórico.');
+      _message(
+        controller.errorMessage ?? 'Não foi possível carregar o histórico.',
+      );
       return;
     }
     await showModalBottomSheet<void>(
@@ -370,17 +416,55 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
         title: const Text('Arquivar meta?'),
         content: Text('“${goal.name}” ficará disponível no histórico.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Arquivar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Arquivar'),
+          ),
         ],
       ),
     );
     if (confirmed != true || !mounted) return;
     final result = await controller.archiveGoal(goal);
     if (!mounted) return;
-    _message(result == null
-        ? controller.errorMessage ?? 'Não foi possível arquivar a meta.'
-        : 'Meta arquivada.');
+    _message(
+      result == null
+          ? controller.errorMessage ?? 'Não foi possível arquivar a meta.'
+          : 'Meta arquivada.',
+    );
+  }
+
+  void _selectGoal(String goalId) {
+    if (selectedGoalId == goalId) return;
+    setState(() => selectedGoalId = goalId);
+    SavingsGoal? goal;
+    for (final item in controller.goals) {
+      if (item.id == goalId) {
+        goal = item;
+        break;
+      }
+    }
+    if (goal != null) {
+      _movementRequests.add(goal.id);
+      controller.loadMovements(goal);
+    }
+  }
+
+  void _ensureMovementsLoaded(SavingsGoal goal) {
+    if (_movementRequests.contains(goal.id) ||
+        controller.movementsByGoal.containsKey(goal.id) ||
+        controller.isLoadingHistoryFor(goal.id)) {
+      return;
+    }
+    _movementRequests.add(goal.id);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !controller.movementsByGoal.containsKey(goal.id)) {
+        controller.loadMovements(goal);
+      }
+    });
   }
 
   @override
@@ -402,102 +486,153 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
           };
         }).toList();
 
+        SavingsGoal? selectedGoal;
+        for (final goal in visible) {
+          if (goal.id == selectedGoalId) {
+            selectedGoal = goal;
+            break;
+          }
+        }
+        if (selectedGoal == null && visible.isNotEmpty) {
+          selectedGoal = visible.first;
+        }
+        if (selectedGoal != null) {
+          _ensureMovementsLoaded(selectedGoal);
+        }
+
         return Scaffold(
           backgroundColor: DuoColors.background,
           appBar: AppBar(
             backgroundColor: DuoColors.background,
             foregroundColor: DuoColors.textPrimary,
             surfaceTintColor: Colors.transparent,
-            title: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Metas & Sonhos', style: TextStyle(fontWeight: FontWeight.w900)),
-                Text(
-                  'Planos que ganham forma',
-                  style: TextStyle(color: DuoColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w500),
-                ),
-              ],
+            title: const Text(
+              'Metas e sonhos',
+              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -.4),
             ),
             actions: [
               IconButton(
                 onPressed: controller.isProcessing ? null : _createGoal,
                 tooltip: 'Nova meta',
-                icon: const Icon(Icons.add_circle_rounded, color: DuoColors.primaryLight),
+                icon: const Icon(
+                  Icons.add_circle_rounded,
+                  color: DuoColors.primaryLight,
+                ),
               ),
               const SizedBox(width: 8),
             ],
           ),
           body: controller.isLoading
-              ? const Center(child: CircularProgressIndicator(color: DuoColors.primary))
+              ? const Center(
+                  child: CircularProgressIndicator(color: DuoColors.primary),
+                )
               : RefreshIndicator(
                   color: DuoColors.primary,
                   onRefresh: controller.loadGoals,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 44),
                     children: [
-                      OrbitGoalsSummary(
-                        totalSaved: controller.totalSaved,
-                        totalTarget: controller.totalTarget,
-                        activeGoals: controller.activeGoalCount,
-                        formatMoney: _money,
-                      ),
-                      const SizedBox(height: 26),
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Seus sonhos',
-                              style: TextStyle(
-                                color: DuoColors.textPrimary,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: controller.isProcessing ? null : _createGoal,
-                            icon: const Icon(Icons.add_rounded, size: 17),
-                            label: const Text('Nova meta'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
                       _Filters(
                         selected: selectedFilter,
-                        active: controller.goals.where((g) => g.isActive).length,
-                        completed: controller.goals.where((g) => g.isCompleted && !g.isArchived).length,
-                        archived: controller.goals.where((g) => g.isArchived).length,
-                        onSelected: (value) => setState(() => selectedFilter = value),
+                        active: controller.goals
+                            .where((g) => g.isActive)
+                            .length,
+                        completed: controller.goals
+                            .where((g) => g.isCompleted && !g.isArchived)
+                            .length,
+                        archived: controller.goals
+                            .where((g) => g.isArchived)
+                            .length,
+                        onSelected: (value) => setState(() {
+                          selectedFilter = value;
+                          selectedGoalId = null;
+                        }),
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 16),
                       if (visible.isEmpty)
                         _Empty(filter: selectedFilter, onCreate: _createGoal)
-                      else
-                        for (final goal in visible) ...[
-                          OrbitGoalCard(
-                            goal: goal,
-                            saved: _money(goal.savedAmount),
-                            target: _money(goal.targetAmount),
-                            remaining: _money(goal.remainingAmount),
-                            deadline: goal.deadline == null ? null : _date(goal.deadline!),
-                            processing: controller.processingGoalId == goal.id,
-                            onHistory: () => _history(goal),
-                            onEdit: !goal.isArchived && goal.createdByUserId == widget.currentUserId
-                                ? () => _editGoal(goal)
-                                : null,
-                            onContribute: goal.isActive
-                                ? () => _move(goal, contribution: true)
-                                : null,
-                            onWithdraw: goal.savedAmount > 0 && !goal.isArchived
-                                ? () => _move(goal, contribution: false)
-                                : null,
-                            onArchive: !goal.isArchived && goal.createdByUserId == widget.currentUserId
-                                ? () => _archive(goal)
-                                : null,
+                      else if (selectedGoal != null) ...[
+                        OrbitGoalSelector(
+                          goals: visible,
+                          selectedGoalId: selectedGoal.id,
+                          onSelected: _selectGoal,
+                        ),
+                        if (visible.length > 1) const SizedBox(height: 14),
+                        OrbitGoalHeroCard(
+                          goal: selectedGoal,
+                          formatMoney: _money,
+                          formatDate: _date,
+                        ),
+                        const SizedBox(height: 12),
+                        OrbitGoalInsightCard(
+                          goal: selectedGoal,
+                          movements:
+                              controller.movementsByGoal[selectedGoal.id],
+                          formatMoney: _money,
+                          formatDate: _date,
+                        ),
+                        const SizedBox(height: 14),
+                        OrbitGoalMetrics(
+                          goal: selectedGoal,
+                          movements:
+                              controller.movementsByGoal[selectedGoal.id],
+                          formatMoney: _money,
+                        ),
+                        const SizedBox(height: 24),
+                        OrbitGoalProgressSection(
+                          goal: selectedGoal,
+                          movements:
+                              controller.movementsByGoal[selectedGoal.id],
+                          isLoading: controller.isLoadingHistoryFor(
+                            selectedGoal.id,
                           ),
-                          const SizedBox(height: 12),
-                        ],
+                          formatMoney: _money,
+                        ),
+                        const SizedBox(height: 24),
+                        OrbitGoalMovementsSection(
+                          movements:
+                              controller.movementsByGoal[selectedGoal.id],
+                          isLoading: controller.isLoadingHistoryFor(
+                            selectedGoal.id,
+                          ),
+                          formatMoney: _money,
+                          formatDate: _date,
+                          onSeeAll: () => _history(selectedGoal),
+                        ),
+                        const SizedBox(height: 24),
+                        OrbitGoalGuidanceSection(
+                          goal: selectedGoal,
+                          movements:
+                              controller.movementsByGoal[selectedGoal.id],
+                        ),
+                        const SizedBox(height: 24),
+                        OrbitGoalActions(
+                          processing:
+                              controller.processingGoalId == selectedGoal.id,
+                          onHistory: () => _history(selectedGoal),
+                          onEdit:
+                              !selectedGoal.isArchived &&
+                                  selectedGoal.createdByUserId ==
+                                      widget.currentUserId
+                              ? () => _editGoal(selectedGoal)
+                              : null,
+                          onContribute: selectedGoal.isActive
+                              ? () => _move(selectedGoal, contribution: true)
+                              : null,
+                          onWithdraw:
+                              selectedGoal.savedAmount > 0 &&
+                                  !selectedGoal.isArchived
+                              ? () => _move(selectedGoal, contribution: false)
+                              : null,
+                          onArchive:
+                              !selectedGoal.isArchived &&
+                                  selectedGoal.createdByUserId ==
+                                      widget.currentUserId
+                              ? () => _archive(selectedGoal)
+                              : null,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -525,17 +660,19 @@ class _Filters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget chip(_GoalListFilter value, String label, int count) => ChoiceChip(
-          selected: selected == value,
-          onSelected: (_) => onSelected(value),
-          label: Text('$label ($count)'),
-          selectedColor: DuoColors.primary.withValues(alpha: .2),
-          side: const BorderSide(color: DuoColors.border),
-          labelStyle: TextStyle(
-            color: selected == value ? DuoColors.primaryLight : DuoColors.textSecondary,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        );
+      selected: selected == value,
+      onSelected: (_) => onSelected(value),
+      label: Text('$label ($count)'),
+      selectedColor: DuoColors.primary.withValues(alpha: .2),
+      side: const BorderSide(color: DuoColors.border),
+      labelStyle: TextStyle(
+        color: selected == value
+            ? DuoColors.primaryLight
+            : DuoColors.textSecondary,
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+      ),
+    );
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -573,12 +710,26 @@ class _Empty extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.auto_awesome_rounded, color: DuoColors.primaryLight, size: 38),
+          const Icon(
+            Icons.auto_awesome_rounded,
+            color: DuoColors.primaryLight,
+            size: 38,
+          ),
           const SizedBox(height: 12),
-          Text(title, style: const TextStyle(color: DuoColors.textPrimary, fontWeight: FontWeight.w800)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: DuoColors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           if (filter == _GoalListFilter.active) ...[
             const SizedBox(height: 14),
-            FilledButton.icon(onPressed: onCreate, icon: const Icon(Icons.add_rounded), label: const Text('Criar primeira meta')),
+            FilledButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Criar primeira meta'),
+            ),
           ],
         ],
       ),
@@ -621,16 +772,34 @@ class _HistorySheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Histórico do sonho', style: TextStyle(color: DuoColors.textPrimary, fontSize: 19, fontWeight: FontWeight.w900)),
+                  const Text(
+                    'Histórico do sonho',
+                    style: TextStyle(
+                      color: DuoColors.textPrimary,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(goal.name, style: const TextStyle(color: DuoColors.textSecondary, fontSize: 12)),
+                  Text(
+                    goal.name,
+                    style: const TextStyle(
+                      color: DuoColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
             const Divider(height: 1, color: DuoColors.divider),
             Expanded(
               child: movements.isEmpty
-                  ? const Center(child: Text('Nenhuma movimentação ainda.', style: TextStyle(color: DuoColors.textSecondary)))
+                  ? const Center(
+                      child: Text(
+                        'Nenhuma movimentação ainda.',
+                        style: TextStyle(color: DuoColors.textSecondary),
+                      ),
+                    )
                   : ListView.separated(
                       padding: const EdgeInsets.all(20),
                       itemCount: movements.length,
@@ -638,7 +807,9 @@ class _HistorySheet extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final movement = movements[index];
                         final contribution = movement.isContribution;
-                        final color = contribution ? DuoColors.success : DuoColors.warning;
+                        final color = contribution
+                            ? DuoColors.success
+                            : DuoColors.warning;
                         return Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
@@ -651,26 +822,49 @@ class _HistorySheet extends StatelessWidget {
                               Container(
                                 width: 40,
                                 height: 40,
-                                decoration: BoxDecoration(color: color.withValues(alpha: .14), borderRadius: BorderRadius.circular(12)),
-                                child: Icon(contribution ? Icons.add_rounded : Icons.remove_rounded, color: color),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: .14),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  contribution
+                                      ? Icons.add_rounded
+                                      : Icons.remove_rounded,
+                                  color: color,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(contribution ? 'Guardado' : 'Retirado', style: const TextStyle(color: DuoColors.textPrimary, fontWeight: FontWeight.w800)),
+                                    Text(
+                                      contribution ? 'Guardado' : 'Retirado',
+                                      style: const TextStyle(
+                                        color: DuoColors.textPrimary,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
                                     const SizedBox(height: 3),
                                     Text(
                                       '${DateFormat('dd/MM/yyyy • HH:mm').format(movement.occurredAt)} • ${_wallet(movement.walletId)} • ${movement.createdByUserId == currentUserId ? 'Você' : 'Outro membro'}',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(color: DuoColors.textSecondary, fontSize: 10),
+                                      style: const TextStyle(
+                                        color: DuoColors.textSecondary,
+                                        fontSize: 10,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                              Text('${contribution ? '+' : '-'} ${money(movement.amount)}', style: TextStyle(color: color, fontWeight: FontWeight.w900)),
+                              Text(
+                                '${contribution ? '+' : '-'} ${money(movement.amount)}',
+                                style: TextStyle(
+                                  color: color,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
                             ],
                           ),
                         );
@@ -689,7 +883,11 @@ class _GoalFormInput {
   final double targetAmount;
   final DateTime? deadline;
 
-  const _GoalFormInput({required this.name, required this.targetAmount, required this.deadline});
+  const _GoalFormInput({
+    required this.name,
+    required this.targetAmount,
+    required this.deadline,
+  });
 }
 
 class _MovementInput {
