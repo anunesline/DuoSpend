@@ -28,9 +28,9 @@ class OrbitGoalHeroCard extends StatelessWidget {
     final deadline = goal.deadline;
     final days = deadline == null ? null : _daysUntil(deadline);
     return _OrbitSurface(
-      borderColor: DuoColors.orbitAccent.withValues(alpha: .32),
-      radius: 16,
-      padding: const EdgeInsets.all(14),
+      borderColor: DuoColors.orbitAccent.withValues(alpha: .22),
+      radius: 14,
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -38,7 +38,7 @@ class OrbitGoalHeroCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _GoalIcon(goal: goal, accent: accent),
-              const SizedBox(width: 11),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -52,14 +52,14 @@ class OrbitGoalHeroCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: DuoColors.orbitTextPrimary,
-                              fontSize: 18,
+                              fontSize: 17,
                               height: 1.1,
                               fontWeight: FontWeight.w900,
                               letterSpacing: -.35,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         _StatusPill(goal: goal, accent: accent),
                       ],
                     ),
@@ -76,7 +76,7 @@ class OrbitGoalHeroCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
               final ring = _ProgressRing(goal: goal, accent: accent);
@@ -94,13 +94,13 @@ class OrbitGoalHeroCard extends StatelessWidget {
               return Row(
                 children: [
                   ring,
-                  const SizedBox(width: 18),
+                  const SizedBox(width: 14),
                   Expanded(child: values),
                 ],
               );
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           OrbitGoalInsightCard(
             goal: goal,
             movements: movements,
@@ -135,57 +135,66 @@ class OrbitGoalInsightCard extends StatelessWidget {
       formatMoney: formatMoney,
       formatDate: formatDate,
     );
-    final content = Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    final content = Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.centerLeft,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 2),
-          child: Icon(
-            Icons.auto_awesome_rounded,
-            size: 21,
-            color: DuoColors.orbitAccent,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
+        Padding(
+          padding: const EdgeInsets.only(right: 66),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                insight.title,
-                style: const TextStyle(
-                  color: DuoColors.orbitTextPrimary,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
+              const Padding(
+                padding: EdgeInsets.only(top: 1),
+                child: Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 20,
+                  color: DuoColors.orbitAccent,
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                insight.message,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: DuoColors.orbitTextSecondary,
-                  fontSize: 10.5,
-                  height: 1.3,
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      insight.title,
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      insight.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 10.5,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 8),
-        Transform.translate(
-          offset: const Offset(3, 1),
+        Positioned(
+          right: -7,
+          bottom: -13,
           child: Transform.rotate(
             angle: -.45,
             child: Container(
-              width: 62,
-              height: 62,
+              width: 76,
+              height: 76,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    DuoColors.orbitAccent.withValues(alpha: .32),
+                    DuoColors.orbitAccent.withValues(alpha: .34),
                     Colors.transparent,
                   ],
                 ),
@@ -193,7 +202,7 @@ class OrbitGoalInsightCard extends StatelessWidget {
               child: const Icon(
                 Icons.rocket_launch_rounded,
                 color: DuoColors.orbitAccent,
-                size: 43,
+                size: 52,
               ),
             ),
           ),
@@ -202,7 +211,7 @@ class OrbitGoalInsightCard extends StatelessWidget {
     );
     return _OrbitSurface(
       radius: 14,
-      padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
+      padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -272,10 +281,10 @@ class OrbitGoalMetrics extends StatelessWidget {
                 ),
               ),
               if (index != metrics.length - 1)
-                const VerticalDivider(
+                VerticalDivider(
                   width: 1,
                   thickness: 1,
-                  color: DuoColors.divider,
+                  color: DuoColors.orbitBorder.withValues(alpha: .5),
                 ),
             ],
           ],
@@ -308,9 +317,9 @@ class OrbitGoalProgressSection extends StatelessWidget {
         const SizedBox(height: 8),
         _OrbitSurface(
           radius: 14,
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
           child: SizedBox(
-            height: (movements?.isEmpty ?? false) ? 108 : 158,
+            height: (movements?.isEmpty ?? false) ? 88 : 142,
             child: isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
@@ -452,7 +461,7 @@ class OrbitGoalGuidanceSection extends StatelessWidget {
         const SizedBox(height: 8),
         _OrbitSurface(
           radius: 14,
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           child: LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth < 290) {
@@ -481,10 +490,10 @@ class OrbitGoalGuidanceSection extends StatelessWidget {
                         ),
                       ),
                       if (index != items.length - 1)
-                        const VerticalDivider(
+                        VerticalDivider(
                           width: 1,
                           thickness: 1,
-                          color: DuoColors.divider,
+                          color: DuoColors.orbitBorder.withValues(alpha: .5),
                         ),
                     ],
                   ],
@@ -613,13 +622,13 @@ class OrbitGoalsPortfolioOverview extends StatelessWidget {
           onGoalSelected: onGoalSelected,
           onSeeAll: onSeeAll,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         _CategoryDistribution(
           entries: distribution,
           totalSaved: totalSaved,
           formatMoney: formatMoney,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         _GoalsSummary(
           totalSaved: totalSaved,
           goalCount: included.length,
@@ -638,8 +647,8 @@ class OrbitGoalsIntroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _OrbitSurface(
-      radius: 16,
-      padding: const EdgeInsets.all(14),
+      radius: 14,
+      padding: const EdgeInsets.all(12),
       child: Row(
         children: [
           Container(
@@ -709,8 +718,8 @@ class _PortfolioGoalsList extends StatelessWidget {
     final visibleGoals = onSeeAll == null ? goals : goals.take(5);
 
     return _OrbitSurface(
-      radius: 16,
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      radius: 14,
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -868,8 +877,8 @@ class _CategoryDistribution extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _OrbitSurface(
-      radius: 16,
-      padding: const EdgeInsets.all(14),
+      radius: 14,
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1035,8 +1044,8 @@ class _GoalsSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _OrbitSurface(
-      radius: 16,
-      padding: const EdgeInsets.all(14),
+      radius: 14,
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1285,14 +1294,14 @@ class _ProgressRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 112,
-      height: 112,
+      width: 104,
+      height: 104,
       child: Stack(
         fit: StackFit.expand,
         children: [
           CircularProgressIndicator(
             value: goal.progress,
-            strokeWidth: 12,
+            strokeWidth: 10,
             strokeCap: StrokeCap.round,
             backgroundColor: DuoColors.orbitSurface,
             valueColor: AlwaysStoppedAnimation<Color>(accent),
@@ -1305,7 +1314,7 @@ class _ProgressRing extends StatelessWidget {
                   '${goal.progressPercentage.toStringAsFixed(0)}%',
                   style: const TextStyle(
                     color: DuoColors.orbitTextPrimary,
-                    fontSize: 26,
+                    fontSize: 25,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -1,
                   ),
@@ -1349,7 +1358,7 @@ class _GoalValues extends StatelessWidget {
           formatMoney(goal.savedAmount),
           style: const TextStyle(
             color: DuoColors.orbitTextPrimary,
-            fontSize: 21,
+            fontSize: 20,
             fontWeight: FontWeight.w900,
             letterSpacing: -.6,
           ),
@@ -1360,7 +1369,7 @@ class _GoalValues extends StatelessWidget {
           style: const TextStyle(color: DuoColors.orbitTextSecondary, fontSize: 12),
         ),
         if (deadline != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 9),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1586,7 +1595,7 @@ class _MovementTile extends StatelessWidget {
     final contribution = movement.isContribution;
     final color = contribution ? DuoColors.success : DuoColors.warning;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
       child: Row(
         children: [
           Container(
@@ -1659,7 +1668,7 @@ class _MetricCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(9, 11, 8, 10),
+      padding: const EdgeInsets.fromLTRB(8, 9, 7, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1670,7 +1679,7 @@ class _MetricCell extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: DuoColors.orbitTextSecondary,
-              fontSize: 9.5,
+              fontSize: 9.8,
               height: 1.2,
             ),
           ),
@@ -1683,7 +1692,7 @@ class _MetricCell extends StatelessWidget {
               maxLines: 1,
               style: TextStyle(
                 color: accent,
-                fontSize: 11.5,
+                fontSize: 11.8,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1775,7 +1784,7 @@ class _StatusPill extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
           color: accent.withValues(alpha: .12),
           borderRadius: BorderRadius.circular(99),
@@ -1784,8 +1793,8 @@ class _StatusPill extends StatelessWidget {
           label,
           style: TextStyle(
             color: accent,
-            fontSize: 9.5,
-            fontWeight: FontWeight.w800,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -1910,7 +1919,7 @@ class _OrbitSurface extends StatelessWidget {
       gradient: gradient,
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
-        color: borderColor ?? DuoColors.orbitBorder.withValues(alpha: .68),
+        color: borderColor ?? DuoColors.orbitBorder.withValues(alpha: .48),
       ),
       boxShadow: DuoColors.orbitCardShadow,
     ),
