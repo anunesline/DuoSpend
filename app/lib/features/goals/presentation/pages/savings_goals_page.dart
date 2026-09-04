@@ -7,6 +7,7 @@ import '../../../home/data/models/wallet_model.dart';
 import '../../domain/models/savings_goal.dart';
 import '../../domain/models/savings_goal_movement.dart';
 import '../controllers/savings_goals_controller.dart';
+import '../widgets/goal_category_visuals.dart';
 import '../widgets/orbit_goals_overview.dart';
 
 enum _GoalListFilter { active, completed, archived }
@@ -72,6 +73,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
           : goal.targetAmount.toStringAsFixed(2).replaceAll('.', ','),
     );
     DateTime? deadline = goal?.deadline;
+    var category = goal?.category ?? SavingsGoalCategory.others;
 
     final result = await showModalBottomSheet<_GoalFormInput>(
       context: context,
@@ -130,6 +132,30 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                         ? null
                         : 'Já guardado: ${_money(goal.savedAmount)}',
                   ),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<SavingsGoalCategory>(
+                  initialValue: category,
+                  decoration: const InputDecoration(labelText: 'Categoria'),
+                  items: SavingsGoalCategory.values
+                      .map(
+                        (item) => DropdownMenuItem(
+                          value: item,
+                          child: Row(
+                            children: [
+                              Icon(item.icon, color: item.accent, size: 18),
+                              const SizedBox(width: 10),
+                              Text(item.label),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setSheetState(() => category = value);
+                    }
+                  },
                 ),
                 const SizedBox(height: 14),
                 InkWell(
@@ -205,6 +231,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                           name: name.text.trim(),
                           targetAmount: amount,
                           deadline: deadline,
+                          category: category,
                         ),
                       );
                     },
@@ -235,6 +262,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
       name: input.name,
       targetAmount: input.targetAmount,
       deadline: input.deadline,
+      category: input.category,
     );
     if (!mounted) return;
     _message(
@@ -252,6 +280,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
       name: input.name,
       targetAmount: input.targetAmount,
       deadline: input.deadline,
+      category: input.category,
     );
     if (!mounted) return;
     _message(
@@ -661,13 +690,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                             goal: goal,
                             formatMoney: _money,
                             formatDate: _date,
-                          ),
-                          const SizedBox(height: 12),
-                          OrbitGoalInsightCard(
-                            goal: goal,
                             movements: controller.movementsByGoal[goal.id],
-                            formatMoney: _money,
-                            formatDate: _date,
                           ),
                           if (goal.isActive) ...[
                             const SizedBox(height: 10),
@@ -746,6 +769,16 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                                     goal.createdByUserId == widget.currentUserId
                                 ? () => _archive(goal)
                                 : null,
+                          ),
+                          const SizedBox(height: 18),
+                          OrbitGoalsPortfolioOverview(
+                            goals: controller.goals,
+                            selectedGoalId: goal.id,
+                            formatMoney: _money,
+                            onGoalSelected: _selectGoal,
+                            onSeeAll: () => setState(() {
+                              selectedSection = _GoalsSection.all;
+                            }),
                           ),
                         ],
                       ] else ...[
@@ -884,12 +917,12 @@ class _ContributionGoalOption extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: DuoColors.primary.withValues(alpha: .15),
+                  color: goal.category.accent.withValues(alpha: .15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.flag_rounded,
-                  color: DuoColors.primaryLight,
+                child: Icon(
+                  goal.category.icon,
+                  color: goal.category.accent,
                   size: 19,
                 ),
               ),
@@ -1190,11 +1223,13 @@ class _GoalFormInput {
   final String name;
   final double targetAmount;
   final DateTime? deadline;
+  final SavingsGoalCategory category;
 
   const _GoalFormInput({
     required this.name,
     required this.targetAmount,
     required this.deadline,
+    required this.category,
   });
 }
 

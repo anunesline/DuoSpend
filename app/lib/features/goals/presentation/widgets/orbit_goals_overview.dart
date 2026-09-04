@@ -6,17 +6,20 @@ import 'package:intl/intl.dart';
 import '../../../../core/design_system/duo_colors.dart';
 import '../../domain/models/savings_goal.dart';
 import '../../domain/models/savings_goal_movement.dart';
+import 'goal_category_visuals.dart';
 
 class OrbitGoalHeroCard extends StatelessWidget {
   final SavingsGoal goal;
   final String Function(double) formatMoney;
   final String Function(DateTime) formatDate;
+  final List<SavingsGoalMovement>? movements;
 
   const OrbitGoalHeroCard({
     super.key,
     required this.goal,
     required this.formatMoney,
     required this.formatDate,
+    required this.movements,
   });
 
   @override
@@ -61,9 +64,9 @@ class OrbitGoalHeroCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 5),
-                    const Text(
-                      'Meta selecionada',
-                      style: TextStyle(
+                    Text(
+                      goal.category.label,
+                      style: const TextStyle(
                         color: DuoColors.textSecondary,
                         fontSize: 10.5,
                       ),
@@ -97,6 +100,13 @@ class OrbitGoalHeroCard extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 12),
+          OrbitGoalInsightCard(
+            goal: goal,
+            movements: movements,
+            formatMoney: formatMoney,
+            formatDate: formatDate,
+          ),
         ],
       ),
     );
@@ -125,6 +135,68 @@ class OrbitGoalInsightCard extends StatelessWidget {
       formatMoney: formatMoney,
       formatDate: formatDate,
     );
+    final content = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Icon(
+            Icons.auto_awesome_rounded,
+            size: 21,
+            color: DuoColors.primaryLight,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                insight.title,
+                style: const TextStyle(
+                  color: DuoColors.textPrimary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                insight.message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: DuoColors.textSecondary,
+                  fontSize: 10.5,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Transform.rotate(
+          angle: -.45,
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  DuoColors.primaryLight.withValues(alpha: .24),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+            child: const Icon(
+              Icons.rocket_launch_rounded,
+              color: DuoColors.primaryLight,
+              size: 29,
+            ),
+          ),
+        ),
+      ],
+    );
     return _OrbitSurface(
       radius: 14,
       padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
@@ -133,46 +205,7 @@ class OrbitGoalInsightCard extends StatelessWidget {
         end: Alignment.bottomRight,
         colors: [Color(0xFF171326), Color(0xFF10141C)],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 2),
-            child: Icon(
-              Icons.auto_awesome_rounded,
-              size: 21,
-              color: DuoColors.primaryLight,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  insight.title,
-                  style: const TextStyle(
-                    color: DuoColors.textPrimary,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  insight.message,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: DuoColors.textSecondary,
-                    fontSize: 10.5,
-                    height: 1.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      child: content,
     );
   }
 }
@@ -516,6 +549,538 @@ class OrbitGoalActions extends StatelessWidget {
   }
 }
 
+class OrbitGoalsPortfolioOverview extends StatelessWidget {
+  final List<SavingsGoal> goals;
+  final String selectedGoalId;
+  final String Function(double) formatMoney;
+  final ValueChanged<String> onGoalSelected;
+  final VoidCallback onSeeAll;
+
+  const OrbitGoalsPortfolioOverview({
+    super.key,
+    required this.goals,
+    required this.selectedGoalId,
+    required this.formatMoney,
+    required this.onGoalSelected,
+    required this.onSeeAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final included = goals.where((goal) => !goal.isArchived).toList();
+    final totalSaved = included.fold<double>(
+      0,
+      (total, goal) => total + goal.savedAmount,
+    );
+    final categoryTotals = <SavingsGoalCategory, double>{};
+    for (final goal in included) {
+      categoryTotals.update(
+        goal.category,
+        (value) => value + goal.savedAmount,
+        ifAbsent: () => goal.savedAmount,
+      );
+    }
+    final distribution =
+        categoryTotals.entries.where((entry) => entry.value > 0).toList()
+          ..sort((first, second) => second.value.compareTo(first.value));
+    final activeGoals = included.where((goal) => goal.isActive).toList();
+    final nearest = activeGoals.isEmpty
+        ? null
+        : ([...activeGoals]..sort(
+                (first, second) => second.progress.compareTo(first.progress),
+              ))
+              .first;
+    final averageProgress = included.isEmpty
+        ? 0.0
+        : included.fold<double>(0, (total, goal) => total + goal.progress) /
+              included.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PortfolioGoalsList(
+          goals: included,
+          selectedGoalId: selectedGoalId,
+          formatMoney: formatMoney,
+          onGoalSelected: onGoalSelected,
+          onSeeAll: onSeeAll,
+        ),
+        const SizedBox(height: 18),
+        _CategoryDistribution(
+          entries: distribution,
+          totalSaved: totalSaved,
+          formatMoney: formatMoney,
+        ),
+        const SizedBox(height: 18),
+        _GoalsSummary(
+          totalSaved: totalSaved,
+          goalCount: included.length,
+          nearestGoal: nearest,
+          averageProgress: averageProgress,
+          formatMoney: formatMoney,
+        ),
+      ],
+    );
+  }
+}
+
+class _PortfolioGoalsList extends StatelessWidget {
+  final List<SavingsGoal> goals;
+  final String selectedGoalId;
+  final String Function(double) formatMoney;
+  final ValueChanged<String> onGoalSelected;
+  final VoidCallback onSeeAll;
+
+  const _PortfolioGoalsList({
+    required this.goals,
+    required this.selectedGoalId,
+    required this.formatMoney,
+    required this.onGoalSelected,
+    required this.onSeeAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _OrbitSurface(
+      radius: 16,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: DuoColors.primary.withValues(alpha: .16),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.star_rounded,
+                  color: DuoColors.primaryLight,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Todas as suas metas',
+                      style: TextStyle(
+                        color: DuoColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Acompanhe cada sonho em um só lugar.',
+                      style: TextStyle(
+                        color: DuoColors.textSecondary,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (goals.isEmpty)
+            const _NeutralBlock(
+              icon: Icons.flag_outlined,
+              title: 'Nenhuma meta para resumir',
+              message: 'Crie uma meta para acompanhar seu progresso.',
+            )
+          else
+            for (final goal in goals.take(5))
+              _PortfolioGoalTile(
+                goal: goal,
+                selected: goal.id == selectedGoalId,
+                formatMoney: formatMoney,
+                onTap: () => onGoalSelected(goal.id),
+              ),
+          if (goals.isNotEmpty)
+            TextButton.icon(
+              onPressed: onSeeAll,
+              iconAlignment: IconAlignment.end,
+              icon: const Icon(Icons.arrow_forward_rounded, size: 15),
+              label: const Text(
+                'Ver todas as metas',
+                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortfolioGoalTile extends StatelessWidget {
+  final SavingsGoal goal;
+  final bool selected;
+  final String Function(double) formatMoney;
+  final VoidCallback onTap;
+
+  const _PortfolioGoalTile({
+    required this.goal,
+    required this.selected,
+    required this.formatMoney,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _goalAccent(goal);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: selected
+            ? accent.withValues(alpha: .07)
+            : DuoColors.surfaceLight.withValues(alpha: .45),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected
+                    ? accent.withValues(alpha: .45)
+                    : DuoColors.divider,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .14),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(goal.category.icon, color: accent, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              goal.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: DuoColors.textPrimary,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${goal.progressPercentage.toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${formatMoney(goal.savedAmount)} de ${formatMoney(goal.targetAmount)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: DuoColors.textSecondary,
+                          fontSize: 9.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: goal.progress,
+                          minHeight: 4,
+                          backgroundColor: DuoColors.surface,
+                          valueColor: AlwaysStoppedAnimation<Color>(accent),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryDistribution extends StatelessWidget {
+  final List<MapEntry<SavingsGoalCategory, double>> entries;
+  final double totalSaved;
+  final String Function(double) formatMoney;
+
+  const _CategoryDistribution({
+    required this.entries,
+    required this.totalSaved,
+    required this.formatMoney,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _OrbitSurface(
+      radius: 16,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionTitle(title: 'Distribuição por categoria'),
+          const SizedBox(height: 12),
+          if (totalSaved <= 0 || entries.isEmpty)
+            const _NeutralBlock(
+              icon: Icons.donut_large_rounded,
+              title: 'Distribuição ainda indisponível',
+              message: 'Os valores aparecerão após o primeiro aporte.',
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final chart = SizedBox(
+                  width: 116,
+                  height: 116,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CustomPaint(
+                        painter: _CategoryDonutPainter(
+                          entries: entries,
+                          total: totalSaved,
+                        ),
+                      ),
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                formatMoney(totalSaved),
+                                style: const TextStyle(
+                                  color: DuoColors.textPrimary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            const Text(
+                              'guardado',
+                              style: TextStyle(
+                                color: DuoColors.textSecondary,
+                                fontSize: 8.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                final legend = Column(
+                  children: [
+                    for (final entry in entries)
+                      _CategoryLegendRow(
+                        entry: entry,
+                        total: totalSaved,
+                        formatMoney: formatMoney,
+                      ),
+                  ],
+                );
+                if (constraints.maxWidth < 305) {
+                  return Column(
+                    children: [chart, const SizedBox(height: 12), legend],
+                  );
+                }
+                return Row(
+                  children: [
+                    chart,
+                    const SizedBox(width: 16),
+                    Expanded(child: legend),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryLegendRow extends StatelessWidget {
+  final MapEntry<SavingsGoalCategory, double> entry;
+  final double total;
+  final String Function(double) formatMoney;
+
+  const _CategoryLegendRow({
+    required this.entry,
+    required this.total,
+    required this.formatMoney,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final percentage = total <= 0 ? 0 : entry.value / total * 100;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: entry.key.accent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.key.label,
+                  style: const TextStyle(
+                    color: DuoColors.textPrimary,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  formatMoney(entry.value),
+                  style: const TextStyle(
+                    color: DuoColors.textSecondary,
+                    fontSize: 8.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${percentage.toStringAsFixed(0)}%',
+            style: TextStyle(
+              color: entry.key.accent,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoalsSummary extends StatelessWidget {
+  final double totalSaved;
+  final int goalCount;
+  final SavingsGoal? nearestGoal;
+  final double averageProgress;
+  final String Function(double) formatMoney;
+
+  const _GoalsSummary({
+    required this.totalSaved,
+    required this.goalCount,
+    required this.nearestGoal,
+    required this.averageProgress,
+    required this.formatMoney,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _OrbitSurface(
+      radius: 16,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionTitle(title: 'Resumo geral'),
+          const SizedBox(height: 10),
+          _SummaryRow(label: 'Total guardado', value: formatMoney(totalSaved)),
+          _SummaryRow(label: 'Total de metas', value: '$goalCount'),
+          if (nearestGoal != null)
+            _SummaryRow(label: 'Meta mais próxima', value: nearestGoal!.name),
+          _SummaryRow(
+            label: 'Conclusão média',
+            value: '${(averageProgress * 100).toStringAsFixed(0)}%',
+            last: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool last;
+
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.last = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        border: last
+            ? null
+            : const Border(bottom: BorderSide(color: DuoColors.divider)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: DuoColors.textSecondary,
+                fontSize: 10.5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                color: DuoColors.textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class OrbitGoalListCard extends StatelessWidget {
   final SavingsGoal goal;
   final String Function(double) formatMoney;
@@ -552,7 +1117,7 @@ class OrbitGoalListCard extends StatelessWidget {
                   child: Icon(
                     goal.isCompleted
                         ? Icons.emoji_events_rounded
-                        : Icons.flag_rounded,
+                        : goal.category.icon,
                     color: accent,
                     size: 20,
                   ),
@@ -655,7 +1220,7 @@ class OrbitGoalSelector extends StatelessWidget {
             avatar: Icon(
               goal.isCompleted
                   ? Icons.emoji_events_rounded
-                  : Icons.flag_rounded,
+                  : goal.category.icon,
               size: 15,
               color: selected ? DuoColors.textPrimary : DuoColors.textSecondary,
             ),
@@ -938,6 +1503,41 @@ class _GoalChartPainter extends CustomPainter {
       oldDelegate.points != points || oldDelegate.maxValue != maxValue;
 }
 
+class _CategoryDonutPainter extends CustomPainter {
+  final List<MapEntry<SavingsGoalCategory, double>> entries;
+  final double total;
+
+  const _CategoryDonutPainter({required this.entries, required this.total});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    const gap = .025;
+    var start = -math.pi / 2;
+    final strokeWidth = size.shortestSide * .16;
+    for (final entry in entries) {
+      final sweep = total <= 0 ? 0.0 : entry.value / total * math.pi * 2;
+      final visibleSweep = math.max(0, sweep - gap).toDouble();
+      canvas.drawArc(
+        rect.deflate(strokeWidth / 2),
+        start,
+        visibleSweep,
+        false,
+        Paint()
+          ..color = entry.key.accent
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.butt,
+      );
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CategoryDonutPainter oldDelegate) =>
+      oldDelegate.entries != entries || oldDelegate.total != total;
+}
+
 class _MovementTile extends StatelessWidget {
   final SavingsGoalMovement movement;
   final String Function(double) formatMoney;
@@ -1178,7 +1778,7 @@ class _GoalIcon extends StatelessWidget {
       border: Border.all(color: accent.withValues(alpha: .55)),
     ),
     child: Icon(
-      goal.isCompleted ? Icons.emoji_events_rounded : Icons.flag_rounded,
+      goal.isCompleted ? Icons.emoji_events_rounded : goal.category.icon,
       color: accent,
       size: 23,
     ),
@@ -1312,7 +1912,7 @@ Color _goalAccent(SavingsGoal goal) => goal.isArchived
     ? DuoColors.textHint
     : goal.isCompleted
     ? DuoColors.success
-    : DuoColors.primaryLight;
+    : goal.category.accent;
 
 int _daysUntil(DateTime deadline) {
   final now = DateTime.now();

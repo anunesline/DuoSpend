@@ -10,6 +10,7 @@ void main() {
       name: 'Viagem',
       targetAmount: 5000,
       savedAmount: 1250,
+      category: SavingsGoalCategory.travel,
       deadline: DateTime(2027, 1, 10),
       walletId: 'shared-wallet',
       createdByUserId: 'user-1',
@@ -19,14 +20,13 @@ void main() {
       updatedAt: DateTime(2026, 8, 26),
     );
 
-    final restored = SavingsGoalModel.fromMap(
-      SavingsGoalModel.toMap(goal),
-    );
+    final restored = SavingsGoalModel.fromMap(SavingsGoalModel.toMap(goal));
 
     expect(restored.id, goal.id);
     expect(restored.name, goal.name);
     expect(restored.targetAmount, 5000);
     expect(restored.savedAmount, 1250);
+    expect(restored.category, SavingsGoalCategory.travel);
     expect(restored.deadline, DateTime(2027, 1, 10));
     expect(restored.memberIds, ['user-1', 'user-2']);
     expect(restored.status, SavingsGoalStatus.active);
@@ -47,5 +47,6 @@ void main() {
 
     expect(restored.memberIds, ['user-1']);
     expect(restored.hasMember('user-1'), isTrue);
+    expect(restored.category, SavingsGoalCategory.others);
   });
 }
