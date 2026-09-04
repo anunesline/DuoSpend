@@ -773,7 +773,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                         ],
                       ] else ...[
                         const OrbitGoalsIntroCard(),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
                         _Filters(
                           selected: selectedFilter,
                           active: controller.goals
@@ -789,7 +789,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                             selectedFilter = value;
                           }),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
                         OrbitGoalsPortfolioOverview(
                           goals: controller.goals,
                           listGoals: filteredGoals,
@@ -824,10 +824,10 @@ class _GoalsSectionTabs extends StatelessWidget {
       height: 43,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: DuoColors.orbitSurface,
+        color: DuoColors.orbitCardSurface,
         borderRadius: BorderRadius.circular(13),
         border: Border.all(
-          color: DuoColors.orbitBorder.withValues(alpha: .72),
+          color: DuoColors.orbitBorder.withValues(alpha: .68),
         ),
       ),
       child: Row(
@@ -849,12 +849,12 @@ class _GoalsSectionTabs extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            gradient: active
-                ? LinearGradient(
-                    colors: [
-                      DuoColors.orbitAccent.withValues(alpha: .42),
-                      DuoColors.orbitAccent.withValues(alpha: .22),
-                    ],
+            color: active
+                ? DuoColors.orbitAccent.withValues(alpha: .14)
+                : Colors.transparent,
+            border: active
+                ? Border.all(
+                    color: DuoColors.orbitAccent.withValues(alpha: .24),
                   )
                 : null,
             borderRadius: BorderRadius.circular(10),
@@ -1000,9 +1000,9 @@ class _Filters extends StatelessWidget {
       onSelected: (_) => onSelected(value),
       label: Text('$label ($count)'),
       backgroundColor: DuoColors.orbitSurface,
-      selectedColor: DuoColors.orbitAccent.withValues(alpha: .2),
+      selectedColor: DuoColors.orbitAccent.withValues(alpha: .12),
       side: BorderSide(
-        color: DuoColors.orbitBorder.withValues(alpha: .72),
+        color: DuoColors.orbitBorder.withValues(alpha: .68),
       ),
       labelStyle: TextStyle(
         color: selected == value

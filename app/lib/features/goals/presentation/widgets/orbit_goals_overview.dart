@@ -28,7 +28,7 @@ class OrbitGoalHeroCard extends StatelessWidget {
     final deadline = goal.deadline;
     final days = deadline == null ? null : _daysUntil(deadline);
     return _OrbitSurface(
-      borderColor: DuoColors.orbitAccent.withValues(alpha: .5),
+      borderColor: DuoColors.orbitAccent.withValues(alpha: .32),
       radius: 16,
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -203,10 +203,13 @@ class OrbitGoalInsightCard extends StatelessWidget {
     return _OrbitSurface(
       radius: 14,
       padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF181329), DuoColors.orbitSurface],
+        colors: [
+          DuoColors.orbitAccent.withValues(alpha: .08),
+          DuoColors.orbitCardSurface,
+        ],
       ),
       child: content,
     );
@@ -610,13 +613,13 @@ class OrbitGoalsPortfolioOverview extends StatelessWidget {
           onGoalSelected: onGoalSelected,
           onSeeAll: onSeeAll,
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         _CategoryDistribution(
           entries: distribution,
           totalSaved: totalSaved,
           formatMoney: formatMoney,
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         _GoalsSummary(
           totalSaved: totalSaved,
           goalCount: included.length,
@@ -673,7 +676,7 @@ class OrbitGoalsIntroCard extends StatelessWidget {
                   'Acompanhe cada sonho e conquiste seus objetivos.',
                   style: TextStyle(
                     color: DuoColors.orbitTextSecondary,
-                    fontSize: 10.5,
+                    fontSize: 11,
                     height: 1.3,
                   ),
                 ),
@@ -762,7 +765,7 @@ class _PortfolioGoalTile extends StatelessWidget {
       child: Material(
         color: selected
             ? accent.withValues(alpha: .07)
-            : DuoColors.orbitSurface.withValues(alpha: .45),
+            : DuoColors.orbitBackground.withValues(alpha: .42),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
@@ -802,7 +805,7 @@ class _PortfolioGoalTile extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: DuoColors.orbitTextPrimary,
-                                fontSize: 11.5,
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -811,7 +814,7 @@ class _PortfolioGoalTile extends StatelessWidget {
                             '${goal.progressPercentage.toStringAsFixed(0)}%',
                             style: TextStyle(
                               color: accent,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -824,7 +827,7 @@ class _PortfolioGoalTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: DuoColors.orbitTextSecondary,
-                          fontSize: 9.5,
+                          fontSize: 10.5,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -832,8 +835,10 @@ class _PortfolioGoalTile extends StatelessWidget {
                         borderRadius: BorderRadius.circular(99),
                         child: LinearProgressIndicator(
                           value: goal.progress,
-                          minHeight: 4,
-                          backgroundColor: DuoColors.orbitSurface,
+                          minHeight: 3,
+                          backgroundColor: DuoColors.orbitBorder.withValues(
+                            alpha: .72,
+                          ),
                           valueColor: AlwaysStoppedAnimation<Color>(accent),
                         ),
                       ),
@@ -901,7 +906,7 @@ class _CategoryDistribution extends StatelessWidget {
                                 formatMoney(totalSaved),
                                 style: const TextStyle(
                                   color: DuoColors.orbitTextPrimary,
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
@@ -910,7 +915,7 @@ class _CategoryDistribution extends StatelessWidget {
                               'guardado',
                               style: TextStyle(
                                 color: DuoColors.orbitTextSecondary,
-                                fontSize: 8.5,
+                                fontSize: 9.5,
                               ),
                             ),
                           ],
@@ -984,7 +989,7 @@ class _CategoryLegendRow extends StatelessWidget {
                   entry.key.label,
                   style: const TextStyle(
                     color: DuoColors.orbitTextPrimary,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -992,7 +997,7 @@ class _CategoryLegendRow extends StatelessWidget {
                   formatMoney(entry.value),
                   style: const TextStyle(
                     color: DuoColors.orbitTextSecondary,
-                    fontSize: 8.5,
+                    fontSize: 9.5,
                   ),
                 ),
               ],
@@ -1002,7 +1007,7 @@ class _CategoryLegendRow extends StatelessWidget {
             '${percentage.toStringAsFixed(0)}%',
             style: TextStyle(
               color: entry.key.accent,
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -1079,7 +1084,7 @@ class _SummaryRow extends StatelessWidget {
               label,
               style: const TextStyle(
                 color: DuoColors.orbitTextSecondary,
-                fontSize: 10.5,
+                fontSize: 11.5,
               ),
             ),
           ),
@@ -1092,7 +1097,7 @@ class _SummaryRow extends StatelessWidget {
               textAlign: TextAlign.end,
               style: const TextStyle(
                 color: DuoColors.orbitTextPrimary,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1189,8 +1194,10 @@ class OrbitGoalListCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(99),
                         child: LinearProgressIndicator(
                           value: goal.progress,
-                          minHeight: 5,
-                          backgroundColor: DuoColors.orbitSurface,
+                          minHeight: 3,
+                          backgroundColor: DuoColors.orbitBorder.withValues(
+                            alpha: .72,
+                          ),
                           valueColor: AlwaysStoppedAnimation<Color>(accent),
                         ),
                       ),
@@ -1250,7 +1257,7 @@ class OrbitGoalSelector extends StatelessWidget {
             ),
             label: Text(goal.name),
             selectedColor: DuoColors.orbitAccent.withValues(alpha: .35),
-            backgroundColor: DuoColors.orbitSurface,
+            backgroundColor: DuoColors.orbitBorder.withValues(alpha: .72),
             side: BorderSide(
               color: selected
                   ? DuoColors.orbitAccent.withValues(alpha: .5)
@@ -1612,8 +1619,8 @@ class _MovementTile extends StatelessWidget {
                 Text(
                   formatDate(movement.occurredAt),
                   style: const TextStyle(
-                    color: DuoColors.textHint,
-                    fontSize: 10,
+                  color: DuoColors.orbitTextSecondary,
+                  fontSize: 10.5,
                   ),
                 ),
               ],
@@ -1663,7 +1670,7 @@ class _MetricCell extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: DuoColors.orbitTextSecondary,
-              fontSize: 8.5,
+              fontSize: 9.5,
               height: 1.2,
             ),
           ),
@@ -1722,7 +1729,7 @@ class _GuidanceTile extends StatelessWidget {
                 item.message,
                 style: const TextStyle(
                   color: DuoColors.orbitTextSecondary,
-                  fontSize: 9.5,
+                  fontSize: 10.5,
                   height: 1.3,
                 ),
               ),
@@ -1899,13 +1906,13 @@ class _OrbitSurface extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: padding,
     decoration: BoxDecoration(
-      color: gradient == null ? DuoColors.orbitSurface : null,
+      color: gradient == null ? DuoColors.orbitCardSurface : null,
       gradient: gradient,
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
-        color: borderColor ?? DuoColors.orbitBorder.withValues(alpha: .72),
+        color: borderColor ?? DuoColors.orbitBorder.withValues(alpha: .68),
       ),
-      boxShadow: DuoColors.softShadow,
+      boxShadow: DuoColors.orbitCardShadow,
     ),
     child: child,
   );
