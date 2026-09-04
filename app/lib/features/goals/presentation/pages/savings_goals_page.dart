@@ -552,84 +552,70 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                       const SizedBox(height: 16),
                       if (visible.isEmpty)
                         _Empty(filter: selectedFilter, onCreate: _createGoal)
-                      else if (selectedGoal != null) ...[
+                      else if (selectedGoal case final goal?) ...[
                         OrbitGoalSelector(
                           goals: visible,
-                          selectedGoalId: selectedGoal.id,
+                          selectedGoalId: goal.id,
                           onSelected: _selectGoal,
                         ),
                         if (visible.length > 1) const SizedBox(height: 14),
                         OrbitGoalHeroCard(
-                          goal: selectedGoal,
+                          goal: goal,
                           formatMoney: _money,
                           formatDate: _date,
                         ),
                         const SizedBox(height: 12),
                         OrbitGoalInsightCard(
-                          goal: selectedGoal,
-                          movements:
-                              controller.movementsByGoal[selectedGoal.id],
+                          goal: goal,
+                          movements: controller.movementsByGoal[goal.id],
                           formatMoney: _money,
                           formatDate: _date,
                         ),
                         const SizedBox(height: 14),
                         OrbitGoalMetrics(
-                          goal: selectedGoal,
-                          movements:
-                              controller.movementsByGoal[selectedGoal.id],
+                          goal: goal,
+                          movements: controller.movementsByGoal[goal.id],
                           formatMoney: _money,
                         ),
                         const SizedBox(height: 24),
                         OrbitGoalProgressSection(
-                          goal: selectedGoal,
-                          movements:
-                              controller.movementsByGoal[selectedGoal.id],
-                          isLoading: controller.isLoadingHistoryFor(
-                            selectedGoal.id,
-                          ),
+                          goal: goal,
+                          movements: controller.movementsByGoal[goal.id],
+                          isLoading: controller.isLoadingHistoryFor(goal.id),
                           formatMoney: _money,
                         ),
                         const SizedBox(height: 24),
                         OrbitGoalMovementsSection(
-                          movements:
-                              controller.movementsByGoal[selectedGoal.id],
-                          isLoading: controller.isLoadingHistoryFor(
-                            selectedGoal.id,
-                          ),
+                          movements: controller.movementsByGoal[goal.id],
+                          isLoading: controller.isLoadingHistoryFor(goal.id),
                           formatMoney: _money,
                           formatDate: _date,
-                          onSeeAll: () => _history(selectedGoal),
+                          onSeeAll: () => _history(goal),
                         ),
                         const SizedBox(height: 24),
                         OrbitGoalGuidanceSection(
-                          goal: selectedGoal,
-                          movements:
-                              controller.movementsByGoal[selectedGoal.id],
+                          goal: goal,
+                          movements: controller.movementsByGoal[goal.id],
                         ),
                         const SizedBox(height: 24),
                         OrbitGoalActions(
-                          processing:
-                              controller.processingGoalId == selectedGoal.id,
-                          onHistory: () => _history(selectedGoal),
+                          processing: controller.processingGoalId == goal.id,
+                          onHistory: () => _history(goal),
                           onEdit:
-                              !selectedGoal.isArchived &&
-                                  selectedGoal.createdByUserId ==
-                                      widget.currentUserId
-                              ? () => _editGoal(selectedGoal)
+                              !goal.isArchived &&
+                                  goal.createdByUserId == widget.currentUserId
+                              ? () => _editGoal(goal)
                               : null,
-                          onContribute: selectedGoal.isActive
-                              ? () => _move(selectedGoal, contribution: true)
+                          onContribute: goal.isActive
+                              ? () => _move(goal, contribution: true)
                               : null,
-                          onWithdraw:
-                              selectedGoal.savedAmount > 0 &&
-                                  !selectedGoal.isArchived
-                              ? () => _move(selectedGoal, contribution: false)
+                          onWithdraw: goal.savedAmount > 0 && !goal.isArchived
+                              ? () => _move(goal, contribution: false)
                               : null,
                           onArchive:
-                              !selectedGoal.isArchived &&
-                                  selectedGoal.createdByUserId ==
-                                      widget.currentUserId
-                              ? () => _archive(selectedGoal)
+                              !goal.isArchived &&
+                                  goal.createdByUserId == widget.currentUserId
+                              ? () => _archive(goal)
                               : null,
                         ),
                       ],
