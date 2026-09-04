@@ -670,36 +670,53 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                             formatDate: _date,
                           ),
                           if (goal.isActive) ...[
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                             SizedBox(
                               width: double.infinity,
-                              height: 50,
+                              height: 42,
                               child: FilledButton.icon(
                                 onPressed: controller.isProcessing
                                     ? null
                                     : () => _startContribution(goal),
-                                icon: const Icon(Icons.add_rounded, size: 20),
+                                icon: const Icon(Icons.add_rounded, size: 18),
                                 label: const Text(
                                   'Guardar',
-                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: DuoColors.primary.withValues(
+                                    alpha: .28,
+                                  ),
+                                  foregroundColor: DuoColors.primaryLight,
+                                  side: BorderSide(
+                                    color: DuoColors.primaryLight.withValues(
+                                      alpha: .4,
+                                    ),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                               ),
                             ),
                           ],
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 12),
                           OrbitGoalMetrics(
                             goal: goal,
                             movements: controller.movementsByGoal[goal.id],
                             formatMoney: _money,
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 18),
                           OrbitGoalProgressSection(
                             goal: goal,
                             movements: controller.movementsByGoal[goal.id],
                             isLoading: controller.isLoadingHistoryFor(goal.id),
                             formatMoney: _money,
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 18),
                           OrbitGoalMovementsSection(
                             movements: controller.movementsByGoal[goal.id],
                             isLoading: controller.isLoadingHistoryFor(goal.id),
@@ -707,12 +724,12 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                             formatDate: _date,
                             onSeeAll: () => _history(goal),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 18),
                           OrbitGoalGuidanceSection(
                             goal: goal,
                             movements: controller.movementsByGoal[goal.id],
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 18),
                           OrbitGoalActions(
                             processing: controller.processingGoalId == goal.id,
                             onHistory: () => _history(goal),
