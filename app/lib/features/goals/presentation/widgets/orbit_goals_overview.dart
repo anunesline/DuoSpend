@@ -28,7 +28,7 @@ class OrbitGoalHeroCard extends StatelessWidget {
     final deadline = goal.deadline;
     final days = deadline == null ? null : _daysUntil(deadline);
     return _OrbitSurface(
-      borderColor: DuoColors.primary.withValues(alpha: .5),
+      borderColor: DuoColors.orbitAccent.withValues(alpha: .5),
       radius: 16,
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -51,7 +51,7 @@ class OrbitGoalHeroCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: DuoColors.textPrimary,
+                              color: DuoColors.orbitTextPrimary,
                               fontSize: 18,
                               height: 1.1,
                               fontWeight: FontWeight.w900,
@@ -67,7 +67,7 @@ class OrbitGoalHeroCard extends StatelessWidget {
                     Text(
                       goal.category.label,
                       style: const TextStyle(
-                        color: DuoColors.textSecondary,
+                        color: DuoColors.orbitTextSecondary,
                         fontSize: 10.5,
                       ),
                     ),
@@ -143,7 +143,7 @@ class OrbitGoalInsightCard extends StatelessWidget {
           child: Icon(
             Icons.auto_awesome_rounded,
             size: 21,
-            color: DuoColors.primaryLight,
+            color: DuoColors.orbitAccent,
           ),
         ),
         const SizedBox(width: 10),
@@ -154,7 +154,7 @@ class OrbitGoalInsightCard extends StatelessWidget {
               Text(
                 insight.title,
                 style: const TextStyle(
-                  color: DuoColors.textPrimary,
+                  color: DuoColors.orbitTextPrimary,
                   fontSize: 12.5,
                   fontWeight: FontWeight.w800,
                 ),
@@ -165,7 +165,7 @@ class OrbitGoalInsightCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: DuoColors.textSecondary,
+                  color: DuoColors.orbitTextSecondary,
                   fontSize: 10.5,
                   height: 1.3,
                 ),
@@ -174,24 +174,27 @@ class OrbitGoalInsightCard extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Transform.rotate(
-          angle: -.45,
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  DuoColors.primaryLight.withValues(alpha: .24),
-                  Colors.transparent,
-                ],
+        Transform.translate(
+          offset: const Offset(3, 1),
+          child: Transform.rotate(
+            angle: -.45,
+            child: Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    DuoColors.orbitAccent.withValues(alpha: .32),
+                    Colors.transparent,
+                  ],
+                ),
               ),
-            ),
-            child: const Icon(
-              Icons.rocket_launch_rounded,
-              color: DuoColors.primaryLight,
-              size: 29,
+              child: const Icon(
+                Icons.rocket_launch_rounded,
+                color: DuoColors.orbitAccent,
+                size: 43,
+              ),
             ),
           ),
         ),
@@ -203,7 +206,7 @@ class OrbitGoalInsightCard extends StatelessWidget {
       gradient: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF171326), Color(0xFF10141C)],
+        colors: [Color(0xFF181329), DuoColors.orbitSurface],
       ),
       child: content,
     );
@@ -232,7 +235,7 @@ class OrbitGoalMetrics extends StatelessWidget {
       (
         'Falta para a meta',
         formatMoney(goal.remainingAmount),
-        DuoColors.primaryLight,
+        DuoColors.orbitAccent,
       ),
       (
         'Progresso real',
@@ -308,7 +311,7 @@ class OrbitGoalProgressSection extends StatelessWidget {
             child: isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                      color: DuoColors.primary,
+                      color: DuoColors.orbitAccent,
                       strokeWidth: 2,
                     ),
                   )
@@ -362,7 +365,7 @@ class OrbitGoalMovementsSection extends StatelessWidget {
                   height: 72,
                   child: Center(
                     child: CircularProgressIndicator(
-                      color: DuoColors.primary,
+                      color: DuoColors.orbitAccent,
                       strokeWidth: 2,
                     ),
                   ),
@@ -414,14 +417,14 @@ class OrbitGoalGuidanceSection extends StatelessWidget {
           icon: Icons.calendar_month_rounded,
           title: 'Prazo opcional',
           message: 'Adicione uma data se quiser acompanhar os dias restantes.',
-          accent: DuoColors.primaryLight,
+          accent: DuoColors.orbitAccent,
         )
       else
         _GuidanceItem(
           icon: Icons.event_available_rounded,
           title: 'Prazo registrado',
           message: _deadlineGuidance(goal.deadline!),
-          accent: DuoColors.primaryLight,
+          accent: DuoColors.orbitAccent,
         ),
       if (movements == null || movements!.isEmpty)
         const _GuidanceItem(
@@ -551,23 +554,25 @@ class OrbitGoalActions extends StatelessWidget {
 
 class OrbitGoalsPortfolioOverview extends StatelessWidget {
   final List<SavingsGoal> goals;
+  final List<SavingsGoal>? listGoals;
   final String selectedGoalId;
   final String Function(double) formatMoney;
   final ValueChanged<String> onGoalSelected;
-  final VoidCallback onSeeAll;
+  final VoidCallback? onSeeAll;
 
   const OrbitGoalsPortfolioOverview({
     super.key,
     required this.goals,
+    this.listGoals,
     required this.selectedGoalId,
     required this.formatMoney,
     required this.onGoalSelected,
-    required this.onSeeAll,
+    this.onSeeAll,
   });
 
   @override
   Widget build(BuildContext context) {
-    final included = goals.where((goal) => !goal.isArchived).toList();
+    final included = goals;
     final totalSaved = included.fold<double>(
       0,
       (total, goal) => total + goal.savedAmount,
@@ -599,19 +604,19 @@ class OrbitGoalsPortfolioOverview extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _PortfolioGoalsList(
-          goals: included,
+          goals: listGoals ?? included,
           selectedGoalId: selectedGoalId,
           formatMoney: formatMoney,
           onGoalSelected: onGoalSelected,
           onSeeAll: onSeeAll,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
         _CategoryDistribution(
           entries: distribution,
           totalSaved: totalSaved,
           formatMoney: formatMoney,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
         _GoalsSummary(
           totalSaved: totalSaved,
           goalCount: included.length,
@@ -624,86 +629,103 @@ class OrbitGoalsPortfolioOverview extends StatelessWidget {
   }
 }
 
+class OrbitGoalsIntroCard extends StatelessWidget {
+  const OrbitGoalsIntroCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _OrbitSurface(
+      radius: 16,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: DuoColors.orbitAccent.withValues(alpha: .16),
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(
+                color: DuoColors.orbitAccent.withValues(alpha: .18),
+              ),
+            ),
+            child: const Icon(
+              Icons.star_rounded,
+              color: DuoColors.orbitAccent,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 11),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Todas as suas metas',
+                  style: TextStyle(
+                    color: DuoColors.orbitTextPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Acompanhe cada sonho e conquiste seus objetivos.',
+                  style: TextStyle(
+                    color: DuoColors.orbitTextSecondary,
+                    fontSize: 10.5,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PortfolioGoalsList extends StatelessWidget {
   final List<SavingsGoal> goals;
   final String selectedGoalId;
   final String Function(double) formatMoney;
   final ValueChanged<String> onGoalSelected;
-  final VoidCallback onSeeAll;
+  final VoidCallback? onSeeAll;
 
   const _PortfolioGoalsList({
     required this.goals,
     required this.selectedGoalId,
     required this.formatMoney,
     required this.onGoalSelected,
-    required this.onSeeAll,
+    this.onSeeAll,
   });
 
   @override
   Widget build(BuildContext context) {
+    final visibleGoals = onSeeAll == null ? goals : goals.take(5);
+
     return _OrbitSurface(
       radius: 16,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: DuoColors.primary.withValues(alpha: .16),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.star_rounded,
-                  color: DuoColors.primaryLight,
-                  size: 19,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Todas as suas metas',
-                      style: TextStyle(
-                        color: DuoColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Acompanhe cada sonho em um só lugar.',
-                      style: TextStyle(
-                        color: DuoColors.textSecondary,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
           if (goals.isEmpty)
             const _NeutralBlock(
               icon: Icons.flag_outlined,
-              title: 'Nenhuma meta para resumir',
-              message: 'Crie uma meta para acompanhar seu progresso.',
+              title: 'Nenhuma meta neste filtro',
+              message: 'Escolha outro filtro ou crie uma nova meta.',
             )
           else
-            for (final goal in goals.take(5))
+            for (final goal in visibleGoals)
               _PortfolioGoalTile(
                 goal: goal,
                 selected: goal.id == selectedGoalId,
                 formatMoney: formatMoney,
                 onTap: () => onGoalSelected(goal.id),
               ),
-          if (goals.isNotEmpty)
+          if (goals.isNotEmpty && onSeeAll != null)
             TextButton.icon(
               onPressed: onSeeAll,
               iconAlignment: IconAlignment.end,
@@ -740,7 +762,7 @@ class _PortfolioGoalTile extends StatelessWidget {
       child: Material(
         color: selected
             ? accent.withValues(alpha: .07)
-            : DuoColors.surfaceLight.withValues(alpha: .45),
+            : DuoColors.orbitSurface.withValues(alpha: .45),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
@@ -779,7 +801,7 @@ class _PortfolioGoalTile extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: DuoColors.textPrimary,
+                                color: DuoColors.orbitTextPrimary,
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -801,7 +823,7 @@ class _PortfolioGoalTile extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: DuoColors.textSecondary,
+                          color: DuoColors.orbitTextSecondary,
                           fontSize: 9.5,
                         ),
                       ),
@@ -811,7 +833,7 @@ class _PortfolioGoalTile extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: goal.progress,
                           minHeight: 4,
-                          backgroundColor: DuoColors.surface,
+                          backgroundColor: DuoColors.orbitSurface,
                           valueColor: AlwaysStoppedAnimation<Color>(accent),
                         ),
                       ),
@@ -878,7 +900,7 @@ class _CategoryDistribution extends StatelessWidget {
                               child: Text(
                                 formatMoney(totalSaved),
                                 style: const TextStyle(
-                                  color: DuoColors.textPrimary,
+                                  color: DuoColors.orbitTextPrimary,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -887,7 +909,7 @@ class _CategoryDistribution extends StatelessWidget {
                             const Text(
                               'guardado',
                               style: TextStyle(
-                                color: DuoColors.textSecondary,
+                                color: DuoColors.orbitTextSecondary,
                                 fontSize: 8.5,
                               ),
                             ),
@@ -961,7 +983,7 @@ class _CategoryLegendRow extends StatelessWidget {
                 Text(
                   entry.key.label,
                   style: const TextStyle(
-                    color: DuoColors.textPrimary,
+                    color: DuoColors.orbitTextPrimary,
                     fontSize: 10.5,
                     fontWeight: FontWeight.w700,
                   ),
@@ -969,7 +991,7 @@ class _CategoryLegendRow extends StatelessWidget {
                 Text(
                   formatMoney(entry.value),
                   style: const TextStyle(
-                    color: DuoColors.textSecondary,
+                    color: DuoColors.orbitTextSecondary,
                     fontSize: 8.5,
                   ),
                 ),
@@ -1056,7 +1078,7 @@ class _SummaryRow extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
-                color: DuoColors.textSecondary,
+                color: DuoColors.orbitTextSecondary,
                 fontSize: 10.5,
               ),
             ),
@@ -1069,7 +1091,7 @@ class _SummaryRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
               style: const TextStyle(
-                color: DuoColors.textPrimary,
+                color: DuoColors.orbitTextPrimary,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),
@@ -1135,7 +1157,7 @@ class OrbitGoalListCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: DuoColors.textPrimary,
+                                color: DuoColors.orbitTextPrimary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -1158,7 +1180,7 @@ class OrbitGoalListCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: DuoColors.textSecondary,
+                          color: DuoColors.orbitTextSecondary,
                           fontSize: 10.5,
                         ),
                       ),
@@ -1168,7 +1190,7 @@ class OrbitGoalListCard extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: goal.progress,
                           minHeight: 5,
-                          backgroundColor: DuoColors.surfaceLight,
+                          backgroundColor: DuoColors.orbitSurface,
                           valueColor: AlwaysStoppedAnimation<Color>(accent),
                         ),
                       ),
@@ -1222,18 +1244,22 @@ class OrbitGoalSelector extends StatelessWidget {
                   ? Icons.emoji_events_rounded
                   : goal.category.icon,
               size: 15,
-              color: selected ? DuoColors.textPrimary : DuoColors.textSecondary,
+              color: selected
+                  ? DuoColors.orbitTextPrimary
+                  : DuoColors.orbitTextSecondary,
             ),
             label: Text(goal.name),
-            selectedColor: DuoColors.primary.withValues(alpha: .35),
-            backgroundColor: DuoColors.surface,
+            selectedColor: DuoColors.orbitAccent.withValues(alpha: .35),
+            backgroundColor: DuoColors.orbitSurface,
             side: BorderSide(
               color: selected
-                  ? DuoColors.primaryLight.withValues(alpha: .5)
-                  : DuoColors.border,
+                  ? DuoColors.orbitAccent.withValues(alpha: .5)
+                  : DuoColors.orbitBorder,
             ),
             labelStyle: TextStyle(
-              color: selected ? DuoColors.textPrimary : DuoColors.textSecondary,
+              color: selected
+                  ? DuoColors.orbitTextPrimary
+                  : DuoColors.orbitTextSecondary,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -1261,7 +1287,7 @@ class _ProgressRing extends StatelessWidget {
             value: goal.progress,
             strokeWidth: 12,
             strokeCap: StrokeCap.round,
-            backgroundColor: DuoColors.surfaceLight,
+            backgroundColor: DuoColors.orbitSurface,
             valueColor: AlwaysStoppedAnimation<Color>(accent),
           ),
           Center(
@@ -1271,7 +1297,7 @@ class _ProgressRing extends StatelessWidget {
                 Text(
                   '${goal.progressPercentage.toStringAsFixed(0)}%',
                   style: const TextStyle(
-                    color: DuoColors.textPrimary,
+                    color: DuoColors.orbitTextPrimary,
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -1,
@@ -1280,7 +1306,7 @@ class _ProgressRing extends StatelessWidget {
                 const Text(
                   'concluído',
                   style: TextStyle(
-                    color: DuoColors.textSecondary,
+                    color: DuoColors.orbitTextSecondary,
                     fontSize: 10,
                   ),
                 ),
@@ -1315,7 +1341,7 @@ class _GoalValues extends StatelessWidget {
         Text(
           formatMoney(goal.savedAmount),
           style: const TextStyle(
-            color: DuoColors.textPrimary,
+            color: DuoColors.orbitTextPrimary,
             fontSize: 21,
             fontWeight: FontWeight.w900,
             letterSpacing: -.6,
@@ -1324,7 +1350,7 @@ class _GoalValues extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           'de ${formatMoney(goal.targetAmount)}',
-          style: const TextStyle(color: DuoColors.textSecondary, fontSize: 12),
+          style: const TextStyle(color: DuoColors.orbitTextSecondary, fontSize: 12),
         ),
         if (deadline != null) ...[
           const SizedBox(height: 12),
@@ -1347,7 +1373,7 @@ class _GoalValues extends StatelessWidget {
                     Text(
                       'Prazo: ${formatDate(deadline)}',
                       style: const TextStyle(
-                        color: DuoColors.textSecondary,
+                        color: DuoColors.orbitTextSecondary,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1359,7 +1385,7 @@ class _GoalValues extends StatelessWidget {
                           : 'Prazo cadastrado encerrado',
                       style: TextStyle(
                         color: days! >= 0
-                            ? DuoColors.primaryLight
+                            ? DuoColors.orbitAccent
                             : DuoColors.warning,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -1408,20 +1434,20 @@ class _GoalChart extends StatelessWidget {
               width: 18,
               height: 2,
               decoration: BoxDecoration(
-                color: DuoColors.primaryLight,
+                color: DuoColors.orbitAccent,
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
             const SizedBox(width: 7),
             const Text(
               'Saldo reconstruído',
-              style: TextStyle(color: DuoColors.textSecondary, fontSize: 10),
+              style: TextStyle(color: DuoColors.orbitTextSecondary, fontSize: 10),
             ),
             const Spacer(),
             Text(
               formatMoney(goal.savedAmount),
               style: const TextStyle(
-                color: DuoColors.textPrimary,
+                color: DuoColors.orbitTextPrimary,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),
@@ -1482,7 +1508,7 @@ class _GoalChartPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = DuoColors.primaryLight
+        ..color = DuoColors.orbitAccent
         ..strokeWidth = 3
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
@@ -1494,7 +1520,7 @@ class _GoalChartPainter extends CustomPainter {
     canvas.drawCircle(
       Offset(size.width, lastY),
       4.5,
-      Paint()..color = DuoColors.primaryLight,
+      Paint()..color = DuoColors.orbitAccent,
     );
   }
 
@@ -1577,7 +1603,7 @@ class _MovementTile extends StatelessWidget {
                 Text(
                   contribution ? 'Aporte' : 'Retirada',
                   style: const TextStyle(
-                    color: DuoColors.textPrimary,
+                    color: DuoColors.orbitTextPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1636,7 +1662,7 @@ class _MetricCell extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: DuoColors.textSecondary,
+              color: DuoColors.orbitTextSecondary,
               fontSize: 8.5,
               height: 1.2,
             ),
@@ -1686,7 +1712,7 @@ class _GuidanceTile extends StatelessWidget {
               Text(
                 item.title,
                 style: const TextStyle(
-                  color: DuoColors.textPrimary,
+                  color: DuoColors.orbitTextPrimary,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1695,7 +1721,7 @@ class _GuidanceTile extends StatelessWidget {
               Text(
                 item.message,
                 style: const TextStyle(
-                  color: DuoColors.textSecondary,
+                  color: DuoColors.orbitTextSecondary,
                   fontSize: 9.5,
                   height: 1.3,
                 ),
@@ -1719,8 +1745,8 @@ class _SmallAction extends StatelessWidget {
     icon: Icon(icon, size: 16),
     label: Text(label),
     style: OutlinedButton.styleFrom(
-      foregroundColor: DuoColors.textSecondary,
-      side: const BorderSide(color: DuoColors.border),
+      foregroundColor: DuoColors.orbitTextSecondary,
+      side: const BorderSide(color: DuoColors.orbitBorder),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       textStyle: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
       visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
@@ -1796,7 +1822,7 @@ class _SectionTitle extends StatelessWidget {
       Text(
         title,
         style: const TextStyle(
-          color: DuoColors.textPrimary,
+          color: DuoColors.orbitTextPrimary,
           fontSize: 15,
           fontWeight: FontWeight.w900,
           letterSpacing: -.25,
@@ -1829,13 +1855,13 @@ class _NeutralBlock extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: DuoColors.primaryLight, size: 21),
+          Icon(icon, color: DuoColors.orbitAccent, size: 21),
           const SizedBox(height: 5),
           Text(
             title,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: DuoColors.textPrimary,
+              color: DuoColors.orbitTextPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
@@ -1845,7 +1871,7 @@ class _NeutralBlock extends StatelessWidget {
             message,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: DuoColors.textSecondary,
+              color: DuoColors.orbitTextSecondary,
               fontSize: 10.5,
               height: 1.35,
             ),
@@ -1873,10 +1899,12 @@ class _OrbitSurface extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: padding,
     decoration: BoxDecoration(
-      color: gradient == null ? DuoColors.surface : null,
+      color: gradient == null ? DuoColors.orbitSurface : null,
       gradient: gradient,
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: borderColor ?? DuoColors.border),
+      border: Border.all(
+        color: borderColor ?? DuoColors.orbitBorder.withValues(alpha: .72),
+      ),
       boxShadow: DuoColors.softShadow,
     ),
     child: child,

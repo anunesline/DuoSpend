@@ -29,7 +29,7 @@ extension SavingsGoalCategoryVisuals on SavingsGoalCategory {
   };
 
   Color get accent => switch (this) {
-    SavingsGoalCategory.travel => DuoColors.primaryLight,
+    SavingsGoalCategory.travel => DuoColors.orbitAccent,
     SavingsGoalCategory.emergency => const Color(0xFFFF9800),
     SavingsGoalCategory.vehicle => const Color(0xFF3B82F6),
     SavingsGoalCategory.housing => const Color(0xFF32C766),

@@ -78,7 +78,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     final result = await showModalBottomSheet<_GoalFormInput>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: DuoColors.surface,
+      backgroundColor: DuoColors.orbitSurface,
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => Padding(
@@ -96,7 +96,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                 Text(
                   goal == null ? 'Novo sonho' : 'Editar sonho',
                   style: const TextStyle(
-                    color: DuoColors.textPrimary,
+                    color: DuoColors.orbitTextPrimary,
                     fontSize: 21,
                     fontWeight: FontWeight.w900,
                   ),
@@ -105,7 +105,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                 const Text(
                   'Transforme um plano em uma meta que você pode acompanhar.',
                   style: TextStyle(
-                    color: DuoColors.textSecondary,
+                    color: DuoColors.orbitTextSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -181,15 +181,15 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: DuoColors.surfaceLight,
+                      color: DuoColors.orbitSurface,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: DuoColors.border),
+                      border: Border.all(color: DuoColors.orbitBorder),
                     ),
                     child: Row(
                       children: [
                         const Icon(
                           Icons.calendar_today_rounded,
-                          color: DuoColors.primaryLight,
+                          color: DuoColors.orbitAccent,
                           size: 18,
                         ),
                         const SizedBox(width: 10),
@@ -199,7 +199,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                                 ? 'Adicionar prazo'
                                 : 'Até ${_date(deadline!)}',
                             style: const TextStyle(
-                              color: DuoColors.textPrimary,
+                              color: DuoColors.orbitTextPrimary,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -300,7 +300,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     final input = await showModalBottomSheet<_MovementInput>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: DuoColors.surface,
+      backgroundColor: DuoColors.orbitSurface,
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => Padding(
@@ -317,7 +317,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
               Text(
                 contribution ? 'Guardar neste sonho' : 'Retirar deste sonho',
                 style: const TextStyle(
-                  color: DuoColors.textPrimary,
+                  color: DuoColors.orbitTextPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
                 ),
@@ -328,7 +328,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                     ? 'Faltam ${_money(goal.remainingAmount)} para ${goal.name}.'
                     : 'Você tem ${_money(goal.savedAmount)} reservado.',
                 style: const TextStyle(
-                  color: DuoColors.textSecondary,
+                  color: DuoColors.orbitTextSecondary,
                   fontSize: 12,
                 ),
               ),
@@ -425,7 +425,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: DuoColors.surface,
+      backgroundColor: DuoColors.orbitSurface,
       showDragHandle: true,
       builder: (context) => _HistorySheet(
         goal: goal,
@@ -504,7 +504,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
 
     return showModalBottomSheet<SavingsGoal>(
       context: context,
-      backgroundColor: DuoColors.surface,
+      backgroundColor: DuoColors.orbitSurface,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: SizedBox(
@@ -520,7 +520,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                     Text(
                       'Para qual meta?',
                       style: TextStyle(
-                        color: DuoColors.textPrimary,
+                        color: DuoColors.orbitTextPrimary,
                         fontSize: 19,
                         fontWeight: FontWeight.w900,
                       ),
@@ -529,7 +529,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                     Text(
                       'Escolha onde o valor será guardado.',
                       style: TextStyle(
-                        color: DuoColors.textSecondary,
+                        color: DuoColors.orbitTextSecondary,
                         fontSize: 11,
                       ),
                     ),
@@ -640,10 +640,10 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
         }
 
         return Scaffold(
-          backgroundColor: DuoColors.background,
+          backgroundColor: DuoColors.orbitBackground,
           appBar: AppBar(
-            backgroundColor: DuoColors.background,
-            foregroundColor: DuoColors.textPrimary,
+            backgroundColor: DuoColors.orbitBackground,
+            foregroundColor: DuoColors.orbitTextPrimary,
             surfaceTintColor: Colors.transparent,
             title: const Text(
               'Metas e sonhos',
@@ -655,7 +655,7 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                 tooltip: 'Nova meta',
                 icon: const Icon(
                   Icons.add_circle_rounded,
-                  color: DuoColors.primaryLight,
+                  color: DuoColors.orbitAccent,
                 ),
               ),
               const SizedBox(width: 8),
@@ -663,10 +663,10 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
           ),
           body: controller.isLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: DuoColors.primary),
+                  child: CircularProgressIndicator(color: DuoColors.orbitAccent),
                 )
               : RefreshIndicator(
-                  color: DuoColors.primary,
+                  color: DuoColors.orbitAccent,
                   onRefresh: controller.loadGoals,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -710,12 +710,12 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                                   ),
                                 ),
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: DuoColors.primary.withValues(
+                                  backgroundColor: DuoColors.orbitAccent.withValues(
                                     alpha: .28,
                                   ),
-                                  foregroundColor: DuoColors.primaryLight,
+                                  foregroundColor: DuoColors.orbitAccent,
                                   side: BorderSide(
-                                    color: DuoColors.primaryLight.withValues(
+                                    color: DuoColors.orbitAccent.withValues(
                                       alpha: .4,
                                     ),
                                   ),
@@ -770,18 +770,10 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                                 ? () => _archive(goal)
                                 : null,
                           ),
-                          const SizedBox(height: 18),
-                          OrbitGoalsPortfolioOverview(
-                            goals: controller.goals,
-                            selectedGoalId: goal.id,
-                            formatMoney: _money,
-                            onGoalSelected: _selectGoal,
-                            onSeeAll: () => setState(() {
-                              selectedSection = _GoalsSection.all;
-                            }),
-                          ),
                         ],
                       ] else ...[
+                        const OrbitGoalsIntroCard(),
+                        const SizedBox(height: 12),
                         _Filters(
                           selected: selectedFilter,
                           active: controller.goals
@@ -797,23 +789,19 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
                             selectedFilter = value;
                           }),
                         ),
-                        const SizedBox(height: 14),
-                        if (filteredGoals.isEmpty)
-                          _Empty(filter: selectedFilter, onCreate: _createGoal)
-                        else
-                          for (final goal in filteredGoals) ...[
-                            OrbitGoalListCard(
-                              goal: goal,
-                              formatMoney: _money,
-                              onTap: () {
-                                _selectGoal(goal.id);
-                                setState(() {
-                                  selectedSection = _GoalsSection.overview;
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 10),
-                          ],
+                        const SizedBox(height: 12),
+                        OrbitGoalsPortfolioOverview(
+                          goals: controller.goals,
+                          listGoals: filteredGoals,
+                          selectedGoalId: selectedGoal?.id ?? '',
+                          formatMoney: _money,
+                          onGoalSelected: (goalId) {
+                            _selectGoal(goalId);
+                            setState(() {
+                              selectedSection = _GoalsSection.overview;
+                            });
+                          },
+                        ),
                       ],
                     ],
                   ),
@@ -836,9 +824,11 @@ class _GoalsSectionTabs extends StatelessWidget {
       height: 43,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFF11151D),
+        color: DuoColors.orbitSurface,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: DuoColors.border),
+        border: Border.all(
+          color: DuoColors.orbitBorder.withValues(alpha: .72),
+        ),
       ),
       child: Row(
         children: [
@@ -860,8 +850,11 @@ class _GoalsSectionTabs extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             gradient: active
-                ? const LinearGradient(
-                    colors: [Color(0xFF44237C), Color(0xFF2F1B58)],
+                ? LinearGradient(
+                    colors: [
+                      DuoColors.orbitAccent.withValues(alpha: .42),
+                      DuoColors.orbitAccent.withValues(alpha: .22),
+                    ],
                   )
                 : null,
             borderRadius: BorderRadius.circular(10),
@@ -869,7 +862,9 @@ class _GoalsSectionTabs extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: active ? DuoColors.textPrimary : DuoColors.textSecondary,
+              color: active
+                  ? DuoColors.orbitTextPrimary
+                  : DuoColors.orbitTextSecondary,
               fontSize: 12,
               fontWeight: active ? FontWeight.w800 : FontWeight.w600,
             ),
@@ -896,7 +891,7 @@ class _ContributionGoalOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: DuoColors.surfaceLight,
+      color: DuoColors.orbitSurface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -907,8 +902,8 @@ class _ContributionGoalOption extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isCurrent
-                  ? DuoColors.primaryLight.withValues(alpha: .55)
-                  : DuoColors.border,
+                  ? DuoColors.orbitAccent.withValues(alpha: .55)
+                  : DuoColors.orbitBorder,
             ),
           ),
           child: Row(
@@ -939,7 +934,7 @@ class _ContributionGoalOption extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: DuoColors.textPrimary,
+                              color: DuoColors.orbitTextPrimary,
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
                             ),
@@ -949,7 +944,7 @@ class _ContributionGoalOption extends StatelessWidget {
                           const Text(
                             'Atual',
                             style: TextStyle(
-                              color: DuoColors.primaryLight,
+                              color: DuoColors.orbitAccent,
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
                             ),
@@ -962,7 +957,7 @@ class _ContributionGoalOption extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: DuoColors.textSecondary,
+                        color: DuoColors.orbitTextSecondary,
                         fontSize: 10.5,
                       ),
                     ),
@@ -1004,12 +999,15 @@ class _Filters extends StatelessWidget {
       selected: selected == value,
       onSelected: (_) => onSelected(value),
       label: Text('$label ($count)'),
-      selectedColor: DuoColors.primary.withValues(alpha: .2),
-      side: const BorderSide(color: DuoColors.border),
+      backgroundColor: DuoColors.orbitSurface,
+      selectedColor: DuoColors.orbitAccent.withValues(alpha: .2),
+      side: BorderSide(
+        color: DuoColors.orbitBorder.withValues(alpha: .72),
+      ),
       labelStyle: TextStyle(
         color: selected == value
-            ? DuoColors.primaryLight
-            : DuoColors.textSecondary,
+            ? DuoColors.orbitAccent
+            : DuoColors.orbitTextSecondary,
         fontSize: 11,
         fontWeight: FontWeight.w700,
       ),
@@ -1045,22 +1043,22 @@ class _Empty extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: DuoColors.surface,
+        color: DuoColors.orbitSurface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: DuoColors.border),
+        border: Border.all(color: DuoColors.orbitBorder),
       ),
       child: Column(
         children: [
           const Icon(
             Icons.auto_awesome_rounded,
-            color: DuoColors.primaryLight,
+            color: DuoColors.orbitAccent,
             size: 38,
           ),
           const SizedBox(height: 12),
           Text(
             title,
             style: const TextStyle(
-              color: DuoColors.textPrimary,
+              color: DuoColors.orbitTextPrimary,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1116,7 +1114,7 @@ class _HistorySheet extends StatelessWidget {
                   const Text(
                     'Histórico do sonho',
                     style: TextStyle(
-                      color: DuoColors.textPrimary,
+                      color: DuoColors.orbitTextPrimary,
                       fontSize: 19,
                       fontWeight: FontWeight.w900,
                     ),
@@ -1125,7 +1123,7 @@ class _HistorySheet extends StatelessWidget {
                   Text(
                     goal.name,
                     style: const TextStyle(
-                      color: DuoColors.textSecondary,
+                      color: DuoColors.orbitTextSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -1138,7 +1136,7 @@ class _HistorySheet extends StatelessWidget {
                   ? const Center(
                       child: Text(
                         'Nenhuma movimentação ainda.',
-                        style: TextStyle(color: DuoColors.textSecondary),
+                        style: TextStyle(color: DuoColors.orbitTextSecondary),
                       ),
                     )
                   : ListView.separated(
@@ -1154,9 +1152,9 @@ class _HistorySheet extends StatelessWidget {
                         return Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: DuoColors.surfaceLight,
+                            color: DuoColors.orbitSurface,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: DuoColors.border),
+                            border: Border.all(color: DuoColors.orbitBorder),
                           ),
                           child: Row(
                             children: [
@@ -1182,7 +1180,7 @@ class _HistorySheet extends StatelessWidget {
                                     Text(
                                       contribution ? 'Guardado' : 'Retirado',
                                       style: const TextStyle(
-                                        color: DuoColors.textPrimary,
+                                        color: DuoColors.orbitTextPrimary,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
@@ -1192,7 +1190,7 @@ class _HistorySheet extends StatelessWidget {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        color: DuoColors.textSecondary,
+                                        color: DuoColors.orbitTextSecondary,
                                         fontSize: 10,
                                       ),
                                     ),
