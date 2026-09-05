@@ -117,7 +117,6 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
                     currentUserId: widget.currentUserId,
                     embedInScaffold: true,
                   ),
-            ),
           ),
         ],
       ),

@@ -206,7 +206,7 @@ class _ListsIntro extends StatelessWidget {
               ),
             ),
           ],
-        ],
+        ),
       );
 }
 
