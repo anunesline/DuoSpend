@@ -766,6 +766,7 @@ class _EditorSettingRow extends StatelessWidget {
           ),
         ),
       );
+}
 
 class _RoutineSummary extends StatelessWidget {
   final int today;
