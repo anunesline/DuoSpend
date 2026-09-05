@@ -4,6 +4,7 @@ import '../../../../core/design_system/duo_colors.dart';
 import '../../domain/models/household_task.dart';
 import '../../domain/services/household_scope_id.dart';
 import '../controllers/household_routines_controller.dart';
+import 'household_lists_page.dart';
 import 'household_routines_page.dart';
 
 class HouseholdRoutinesHubPage extends StatefulWidget {
@@ -38,6 +39,7 @@ class HouseholdRoutinesHubPage extends StatefulWidget {
 
 class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
   bool _showShared = false;
+  bool _showLists = false;
 
   String get _personalScopeId => HouseholdScopeId.personal(widget.currentUserId);
 
@@ -84,21 +86,37 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
             child: _RoutineScopeTabs(
               showShared: isShared,
-              onPersonal: () => setState(() => _showShared = false),
+              showLists: _showLists,
+              onPersonal: () => setState(() {
+                _showShared = false;
+                _showLists = false;
+              }),
               onShared: widget.hasSharedHousehold
-                  ? () => setState(() => _showShared = true)
+                  ? () => setState(() {
+                      _showShared = true;
+                      _showLists = false;
+                    })
                   : null,
+              onLists: () => setState(() => _showLists = true),
             ),
           ),
           Expanded(
-            child: HouseholdRoutinesPage(
-              key: ValueKey(scopeId),
-              controller: widget.controller,
-              scopeId: scopeId,
-              scope: scope,
-              memberIds: members,
-              currentUserId: widget.currentUserId,
-              embedInScaffold: true,
+            child: _showLists
+                ? HouseholdListsPage(
+                    key: ValueKey('lists-$scopeId'),
+                    controller: widget.controller,
+                    scopeId: scopeId,
+                    currentUserId: widget.currentUserId,
+                  )
+                : HouseholdRoutinesPage(
+                    key: ValueKey(scopeId),
+                    controller: widget.controller,
+                    scopeId: scopeId,
+                    scope: scope,
+                    memberIds: members,
+                    currentUserId: widget.currentUserId,
+                    embedInScaffold: true,
+                  ),
             ),
           ),
         ],
@@ -109,13 +127,17 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
 
 class _RoutineScopeTabs extends StatelessWidget {
   final bool showShared;
+  final bool showLists;
   final VoidCallback onPersonal;
   final VoidCallback? onShared;
+  final VoidCallback onLists;
 
   const _RoutineScopeTabs({
     required this.showShared,
+    required this.showLists,
     required this.onPersonal,
     required this.onShared,
+    required this.onLists,
   });
 
   @override
@@ -132,12 +154,9 @@ class _RoutineScopeTabs extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _tab('Minhas', !showShared, onPersonal),
-          _tab('Compartilhadas', showShared, onShared),
-          Tooltip(
-            message: 'Listas ainda não estão disponíveis',
-            child: _tab('Listas', false, null),
-          ),
+          _tab('Minhas', !showShared && !showLists, onPersonal),
+          _tab('Compartilhadas', showShared && !showLists, onShared),
+          _tab('Listas', showLists, onLists),
         ],
       ),
     );

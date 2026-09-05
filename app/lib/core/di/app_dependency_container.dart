@@ -24,9 +24,11 @@ import '../../features/consumers/presentation/controllers/consumer_controller.da
 
 import '../../features/household_routines/data/repositories/firestore_household_routine_repository.dart';
 import '../../features/household_routines/data/repositories/firestore_household_task_repository.dart';
+import '../../features/household_routines/data/repositories/firestore_household_list_repository.dart';
 import '../../features/household_routines/data/repositories/hybrid_household_task_reminder_repository.dart';
 import '../../features/household_routines/domain/repositories/household_routine_repository.dart';
 import '../../features/household_routines/domain/repositories/household_task_repository.dart';
+import '../../features/household_routines/domain/repositories/household_list_repository.dart';
 import '../../features/household_routines/domain/repositories/household_task_reminder_repository.dart';
 import '../../features/household_routines/domain/services/household_routine_service.dart';
 import '../../features/household_routines/domain/services/household_task_reminder_service.dart';
@@ -107,6 +109,7 @@ class AppDependencyContainer {
 
   late final HouseholdTaskRepository householdTaskRepository;
   late final HouseholdRoutineRepository householdRoutineRepository;
+  late final HouseholdListRepository householdListRepository;
   late final HouseholdTaskReminderRepository householdTaskReminderRepository;
   late final HouseholdRoutineService householdRoutineService;
   late final HouseholdTaskReminderService householdTaskReminderService;
@@ -136,6 +139,7 @@ class AppDependencyContainer {
     consumerMemoryRepository = InMemoryConsumerMemoryRepository();
     householdTaskRepository = FirestoreHouseholdTaskRepository();
     householdRoutineRepository = FirestoreHouseholdRoutineRepository();
+    householdListRepository = FirestoreHouseholdListRepository();
     householdTaskReminderRepository = HybridHouseholdTaskReminderRepository(
       taskRepository: householdTaskRepository,
     );
@@ -241,6 +245,7 @@ class AppDependencyContainer {
     householdRoutinesController = HouseholdRoutinesController(
       taskRepository: householdTaskRepository,
       routineRepository: householdRoutineRepository,
+      listRepository: householdListRepository,
       routineService: householdRoutineService,
       reminderService: householdTaskReminderService,
     );
