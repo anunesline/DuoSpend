@@ -57,12 +57,17 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
     return Scaffold(
       backgroundColor: DuoColors.orbitBackground,
       appBar: AppBar(
+        toolbarHeight: 58,
         backgroundColor: DuoColors.orbitBackground,
         foregroundColor: DuoColors.orbitTextPrimary,
         surfaceTintColor: Colors.transparent,
         title: const Text(
           'Rotinas',
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -.35),
+          style: TextStyle(
+            fontSize: 21,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -.45,
+          ),
         ),
         actions: [
           IconButton(
@@ -76,7 +81,7 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
             child: _RoutineScopeTabs(
               showShared: isShared,
               onPersonal: () => setState(() => _showShared = false),
@@ -116,11 +121,11 @@ class _RoutineScopeTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 42,
-      padding: const EdgeInsets.all(3),
+      height: 46,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: DuoColors.orbitBorder.withValues(alpha: .55),
         ),
@@ -142,15 +147,15 @@ class _RoutineScopeTabs extends StatelessWidget {
     return Expanded(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(11),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected
-                ? DuoColors.orbitAccent.withValues(alpha: .15)
+                ? DuoColors.orbitAccent.withValues(alpha: .18)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(11),
             border: selected
                 ? Border.all(
                     color: DuoColors.orbitAccent.withValues(alpha: .25),
@@ -167,7 +172,7 @@ class _RoutineScopeTabs extends StatelessWidget {
                   : selected
                   ? DuoColors.orbitTextPrimary
                   : DuoColors.orbitTextSecondary,
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
             ),
           ),

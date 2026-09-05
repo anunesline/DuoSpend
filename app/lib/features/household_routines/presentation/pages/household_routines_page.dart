@@ -408,14 +408,14 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           color: DuoColors.orbitAccent,
           onRefresh: () => widget.controller.load(widget.scopeId),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 126),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 124),
             children: [
               _RoutineSummary(
                 today: todayTasks.where((task) => task.isPending).length,
                 overdue: overdue.length,
                 completed: completedThisWeek,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               if (widget.controller.errorMessage != null)
                 _MessageBanner(
                   message: widget.controller.errorMessage!,
@@ -426,10 +426,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   message: widget.controller.successMessage!,
                   color: DuoColors.success,
                 ),
-              _SectionTitle(
-                'Hoje',
-                trailing: _shortDate(todayStart),
-              ),
+              _SectionTitle('Hoje • ${_shortDate(todayStart)}'),
               const SizedBox(height: 8),
               if (todayTasks.isNotEmpty) ...[
                 _OrbitListCard(
@@ -628,8 +625,8 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 92,
-      padding: const EdgeInsets.fromLTRB(12, 12, 10, 10),
+      height: 98,
+      padding: const EdgeInsets.fromLTRB(13, 13, 10, 11),
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
         borderRadius: BorderRadius.circular(15),
@@ -647,7 +644,7 @@ class _SummaryCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: color,
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -663,7 +660,7 @@ class _SummaryCard extends StatelessWidget {
                       value,
                       style: const TextStyle(
                         color: DuoColors.orbitTextPrimary,
-                        fontSize: 23,
+                        fontSize: 25,
                         height: 1,
                         fontWeight: FontWeight.w900,
                       ),
@@ -711,7 +708,7 @@ class _OrbitListCard extends StatelessWidget {
             if (index != children.length - 1)
               Divider(
                 height: 1,
-                indent: 52,
+                indent: 69,
                 color: DuoColors.orbitBorder.withValues(alpha: .55),
               ),
           ],
@@ -1025,66 +1022,83 @@ class _TaskTile extends StatelessWidget {
         : task.dueAt != null && task.dueAt!.isBefore(DateTime.now())
         ? DuoColors.error
         : DuoColors.orbitAccent;
-    return ListTile(
-      dense: true,
-      minVerticalPadding: 7,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-      leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: accent.withValues(alpha: .13),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            task.belongsToRoutine
-                ? Icons.account_tree_rounded
-                : Icons.checklist_rounded,
-            color: accent,
-            size: 22,
-          ),
-      ),
-      title: Text(
-          task.title,
-          style: task.isCompleted
-              ? const TextStyle(decoration: TextDecoration.lineThrough)
-              : const TextStyle(),
-      ),
-      titleTextStyle: TextStyle(
-          color: task.isCompleted
-              ? DuoColors.orbitTextSecondary
-              : DuoColors.orbitTextPrimary,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-      ),
-      subtitle: subtitleParts.isEmpty
-          ? null
-          : Text(
-              subtitleParts.join(' • '),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: DuoColors.orbitTextSecondary,
-                fontSize: 10.5,
+    return InkWell(
+      onTap: task.isPending ? onComplete : null,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(13, 10, 8, 10),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: .13),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(
+                task.belongsToRoutine
+                    ? Icons.account_tree_rounded
+                    : Icons.checklist_rounded,
+                color: accent,
+                size: 23,
               ),
             ),
-      trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (assigneeId != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 2),
-                child: _MemberAvatar(
-                  name: controller.memberName(
-                    assigneeId,
-                    currentUserId: currentUserId,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: task.isCompleted
+                          ? DuoColors.orbitTextSecondary
+                          : DuoColors.orbitTextPrimary,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      decoration: task.isCompleted
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
                   ),
-                  photoUrl: controller.memberPhotoUrl(assigneeId),
-                ),
+                  if (subtitleParts.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitleParts.join(' • '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: task.dueAt != null &&
+                                task.dueAt!.isBefore(DateTime.now()) &&
+                                task.isPending
+                            ? DuoColors.error
+                            : DuoColors.orbitTextSecondary,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
               ),
+            ),
+            if (assigneeId != null) ...[
+              const SizedBox(width: 8),
+              _MemberAvatar(
+                name: controller.memberName(
+                  assigneeId,
+                  currentUserId: currentUserId,
+                ),
+                photoUrl: controller.memberPhotoUrl(assigneeId),
+              ),
+            ],
             if (task.isPending)
               PopupMenuButton<String>(
                 color: DuoColors.orbitSurface,
+                icon: const Icon(Icons.more_vert_rounded, size: 19),
                 iconColor: DuoColors.orbitTextSecondary,
                 onSelected: (value) {
                   if (value == 'complete') onComplete?.call();
@@ -1096,16 +1110,16 @@ class _TaskTile extends StatelessWidget {
               )
             else
               const Padding(
-                padding: EdgeInsets.all(10),
+                padding: EdgeInsets.fromLTRB(8, 8, 7, 8),
                 child: Icon(
                   Icons.check_circle_rounded,
                   color: DuoColors.success,
-                  size: 19,
+                  size: 21,
                 ),
               ),
           ],
+        ),
       ),
-      onTap: task.isPending ? onComplete : null,
     );
   }
 }
