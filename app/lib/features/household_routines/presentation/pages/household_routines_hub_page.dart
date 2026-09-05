@@ -264,6 +264,9 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
                     scope: scope,
                     memberIds: members,
                     currentUserId: widget.currentUserId,
+                    onOpenSharedTasks: !isShared && widget.hasSharedHousehold
+                        ? () => setState(() => _showShared = true)
+                        : null,
                   ),
           ),
         ],

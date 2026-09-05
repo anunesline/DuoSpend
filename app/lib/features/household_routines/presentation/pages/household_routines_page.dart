@@ -13,6 +13,7 @@ class HouseholdRoutinesPage extends StatefulWidget {
   final HouseholdTaskScope scope;
   final List<String> memberIds;
   final String currentUserId;
+  final VoidCallback? onOpenSharedTasks;
 
   const HouseholdRoutinesPage({
     super.key,
@@ -21,6 +22,7 @@ class HouseholdRoutinesPage extends StatefulWidget {
     required this.scope,
     required this.memberIds,
     required this.currentUserId,
+    this.onOpenSharedTasks,
   });
 
   @override
@@ -440,6 +442,10 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 2, 16, 120),
             children: [
+              if (widget.onOpenSharedTasks != null) ...[
+                _SharedTasksAccessCard(onTap: widget.onOpenSharedTasks!),
+                const SizedBox(height: 10),
+              ],
               _RoutineSummary(
                 today: todayTasks.where((task) => task.isPending).length,
                 overdue: overdue.length,
@@ -550,6 +556,85 @@ ThemeData _orbitFormTheme(BuildContext context) {
       ),
     ),
   );
+}
+
+class _SharedTasksAccessCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _SharedTasksAccessCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: Ink(
+          height: 76,
+          padding: const EdgeInsets.symmetric(horizontal: 13),
+          decoration: BoxDecoration(
+            color: DuoColors.orbitCardSurface,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: DuoColors.orbitBorder.withValues(alpha: .44),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: DuoColors.orbitAccent.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.people_outline_rounded,
+                  color: DuoColors.orbitAccent,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tarefas compartilhadas',
+                      style: TextStyle(
+                        color: DuoColors.orbitTextPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Veja as tarefas em conjunto com seu parceiro',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: DuoColors.orbitTextSecondary,
+                size: 23,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _RoutineSummary extends StatelessWidget {
