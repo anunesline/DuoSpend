@@ -89,25 +89,53 @@ class HouseholdRoutinesController extends ChangeNotifier {
         listId: list.id,
       );
 
-  Future<void> load(String scopeId) async {
+  Future<void> load(String scopeId) => loadScopes([scopeId]);
+
+  /// Loads the existing personal and shared scopes into one presentation
+  /// state. Entries keep their persisted ids, so the same task/list can never
+  /// be rendered twice when scopes overlap.
+  Future<void> loadScopes(Iterable<String> scopeIds) async {
+    final scopes = scopeIds
+        .map((scopeId) => scopeId.trim())
+        .where((scopeId) => scopeId.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
     _setLoading(true);
     try {
       _clearMessages();
-      final results = await Future.wait([
-        taskRepository.getTasksByScope(scopeId),
-        routineRepository.getRoutinesByScope(scopeId),
-      ]);
+      final tasksByScope = await Future.wait(
+        scopes.map(taskRepository.getTasksByScope),
+      );
+      final routinesByScope = await Future.wait(
+        scopes.map(routineRepository.getRoutinesByScope),
+      );
       _tasks
         ..clear()
-        ..addAll(results[0] as List<HouseholdTask>);
+        ..addAll(
+          {
+            for (final task in tasksByScope.expand((tasks) => tasks)) task.id: task,
+          }.values,
+        );
       _routines
         ..clear()
-        ..addAll(results[1] as List<HouseholdRoutine>);
+        ..addAll(
+          {
+            for (final routine in routinesByScope.expand((routines) => routines))
+              routine.id: routine,
+          }.values,
+        );
       _lists
         ..clear();
       _itemsByList.clear();
       try {
-        _lists.addAll(await listRepository.getListsByScope(scopeId));
+        final loadedLists = await Future.wait(
+          scopes.map(listRepository.getListsByScope),
+        );
+        _lists.addAll(
+          {
+            for (final list in loadedLists.expand((lists) => lists)) list.id: list,
+          }.values,
+        );
         _itemsByList.addEntries(
           await Future.wait(
             _lists.map(
@@ -126,7 +154,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
       }
       try {
         _memberProfiles = await userRepository.getUserProfileSummaries(
-          HouseholdScopeId.members(scopeId),
+          scopes.expand(HouseholdScopeId.members).toSet().toList(),
         );
       } catch (_) {
         // Profile decoration must never prevent the routines themselves from

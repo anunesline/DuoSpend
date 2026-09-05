@@ -13,6 +13,7 @@ class HouseholdRoutinesPage extends StatefulWidget {
   final HouseholdTaskScope scope;
   final List<String> memberIds;
   final String currentUserId;
+  final List<String>? loadScopeIds;
 
   const HouseholdRoutinesPage({
     super.key,
@@ -21,6 +22,7 @@ class HouseholdRoutinesPage extends StatefulWidget {
     required this.scope,
     required this.memberIds,
     required this.currentUserId,
+    this.loadScopeIds,
   });
 
   @override
@@ -42,15 +44,31 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   @override
   void initState() {
     super.initState();
-    widget.controller.load(widget.scopeId);
+    _loadContent();
   }
 
   @override
   void didUpdateWidget(covariant HouseholdRoutinesPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.scopeId != widget.scopeId) {
-      widget.controller.load(widget.scopeId);
+    if (oldWidget.scopeId != widget.scopeId ||
+        !_sameScopes(oldWidget.loadScopeIds, widget.loadScopeIds)) {
+      _loadContent();
     }
+  }
+
+  Future<void> _loadContent() => widget.loadScopeIds == null
+      ? widget.controller.load(widget.scopeId)
+      : widget.controller.loadScopes(widget.loadScopeIds!);
+
+  bool _sameScopes(List<String>? first, List<String>? second) {
+    if (identical(first, second)) return true;
+    if (first == null || second == null || first.length != second.length) {
+      return false;
+    }
+    for (var index = 0; index < first.length; index++) {
+      if (first[index] != second[index]) return false;
+    }
+    return true;
   }
 
   Future<DateTime?> _pickDateTime({DateTime? initialValue}) async {
@@ -285,7 +303,7 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
       ),
     );
     if (saved == true) {
-      await widget.controller.load(widget.scopeId);
+      await _loadContent();
     }
   }
 
@@ -436,7 +454,7 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
 
         return RefreshIndicator(
           color: DuoColors.orbitAccent,
-          onRefresh: () => widget.controller.load(widget.scopeId),
+          onRefresh: _loadContent,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 2, 16, 120),
             children: [

@@ -39,8 +39,8 @@ class HouseholdRoutinesHubPage extends StatefulWidget {
 }
 
 class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
-  bool _showShared = false;
   bool _showLists = false;
+  bool _quickActionsExpanded = true;
   final GlobalKey<HouseholdRoutinesPageState> _tasksPageKey = GlobalKey();
 
   String get _personalScopeId => HouseholdScopeId.personal(widget.currentUserId);
@@ -142,16 +142,17 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isShared = _showShared && widget.hasSharedHousehold;
-    final scopeId = isShared
+    final sharedScopeId = widget.hasSharedHousehold
         ? HouseholdScopeId.shared(widget.sharedMemberIds)
-        : _personalScopeId;
-    final scope = isShared
-        ? HouseholdTaskScope.shared
-        : HouseholdTaskScope.personal;
-    final members = isShared
-        ? HouseholdScopeId.members(scopeId)
-        : <String>[widget.currentUserId];
+        : null;
+    final loadScopeIds = <String>[
+      _personalScopeId,
+      if (sharedScopeId != null) sharedScopeId,
+    ];
+    final members = <String>{
+      widget.currentUserId,
+      if (sharedScopeId != null) ...HouseholdScopeId.members(sharedScopeId),
+    }.toList(growable: false);
 
     return Scaffold(
       backgroundColor: DuoColors.orbitBackground,
@@ -179,9 +180,13 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
             tooltip: 'Mais opções',
             icon: const Icon(Icons.more_vert_rounded),
             onSelected: (value) {
-              if (value == 'refresh') widget.controller.load(scopeId);
+              if (value == 'refresh') widget.controller.loadScopes(loadScopeIds);
+              if (value == 'lists') setState(() => _showLists = true);
+              if (value == 'tasks') setState(() => _showLists = false);
             },
             itemBuilder: (context) => const [
+              PopupMenuItem(value: 'tasks', child: Text('Tarefas')),
+              PopupMenuItem(value: 'lists', child: Text('Listas')),
               PopupMenuItem(value: 'refresh', child: Text('Atualizar')),
             ],
           ),
@@ -192,66 +197,47 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
-            child: _RoutineScopeTabs(
-              showShared: isShared,
-              showLists: _showLists,
-              onPersonal: () => setState(() {
-                _showShared = false;
-                _showLists = false;
-              }),
-              onShared: widget.hasSharedHousehold
-                  ? () => setState(() {
-                      _showShared = true;
-                      _showLists = false;
-                    })
-                  : null,
-              onLists: () => setState(() => _showLists = true),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: _QuickActionsGrid(
+            child: _ExpandableQuickActions(
+              expanded: _quickActionsExpanded,
+              onToggle: () => setState(
+                () => _quickActionsExpanded = !_quickActionsExpanded,
+              ),
               onTask: () => _runTaskAction(() async {
                 await _tasksPageKey.currentState?.createTask();
               }),
-              onList: () => _createList(scopeId),
+              onList: () => _createList(_personalScopeId),
               onSequence: () => _runTaskAction(() async {
                 await _tasksPageKey.currentState?.createRoutine();
               }),
               onPartnerReminder: () => _showUnavailable(
                 'Abra uma tarefa compartilhada para lembrar o responsável.',
               ),
-              onShopping: () => _createList(
-                scopeId,
-                initialType: HouseholdListType.shopping,
-              ),
-              onOther: () => _showUnavailable(
-                'Use Nova tarefa para registrar esta atividade.',
-              ),
+              onShopping: () => setState(() => _showLists = true),
             ),
           ),
           Expanded(
             child: _showLists
                 ? HouseholdListsPage(
-                    key: ValueKey('lists-$scopeId'),
+                    key: const ValueKey('lists-unified'),
                     controller: widget.controller,
-                    scopeId: scopeId,
+                    scopeId: _personalScopeId,
                     currentUserId: widget.currentUserId,
                     showFloatingAction: false,
                   )
                 : HouseholdRoutinesPage(
                     key: _tasksPageKey,
                     controller: widget.controller,
-                    scopeId: scopeId,
-                    scope: scope,
+                    scopeId: _personalScopeId,
+                    scope: HouseholdTaskScope.personal,
                     memberIds: members,
                     currentUserId: widget.currentUserId,
+                    loadScopeIds: loadScopeIds,
                   ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        heroTag: 'household-quick-actions-$scopeId',
+        heroTag: 'household-task-create',
         onPressed: () => _runTaskAction(() async {
           await _tasksPageKey.currentState?.createTask();
         }),
@@ -269,69 +255,144 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
   }
 }
 
-class _QuickActionsGrid extends StatelessWidget {
+class _ExpandableQuickActions extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onToggle;
   final VoidCallback onTask;
   final VoidCallback onList;
   final VoidCallback onSequence;
   final VoidCallback onPartnerReminder;
   final VoidCallback onShopping;
-  final VoidCallback onOther;
 
-  const _QuickActionsGrid({
+  const _ExpandableQuickActions({
+    required this.expanded,
+    required this.onToggle,
     required this.onTask,
     required this.onList,
     required this.onSequence,
     required this.onPartnerReminder,
     required this.onShopping,
-    required this.onOther,
   });
 
   @override
-  Widget build(BuildContext context) => GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 3,
-        childAspectRatio: 1.38,
-        mainAxisSpacing: 9,
-        crossAxisSpacing: 8,
-        children: [
-          _QuickAction(
-            icon: Icons.check_circle_outline_rounded,
-            label: 'Nova tarefa',
-            color: DuoColors.orbitAccent,
-            onTap: onTask,
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: DuoColors.orbitCardSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: DuoColors.orbitBorder.withValues(alpha: .46),
           ),
-          _QuickAction(
-            icon: Icons.list_alt_rounded,
-            label: 'Nova lista',
-            color: DuoColors.success,
-            onTap: onList,
-          ),
-          _QuickAction(
-            icon: Icons.link_rounded,
-            label: 'Nova sequência',
-            color: DuoColors.warning,
-            onTap: onSequence,
-          ),
-          _QuickAction(
-            icon: Icons.notifications_none_rounded,
-            label: 'Lembrar parceiro',
-            color: DuoColors.orbitAccent,
-            onTap: onPartnerReminder,
-          ),
-          _QuickAction(
-            icon: Icons.shopping_cart_outlined,
-            label: 'Compras',
-            color: const Color(0xFF4E8BFF),
-            onTap: onShopping,
-          ),
-          _QuickAction(
-            icon: Icons.more_horiz_rounded,
-            label: 'Outra',
-            color: DuoColors.orbitTextSecondary,
-            onTap: onOther,
-          ),
-        ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: onToggle,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.add_circle_outline_rounded,
+                      color: DuoColors.orbitAccent,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 9),
+                    const Expanded(
+                      child: Text(
+                        'Criar e organizar',
+                        style: TextStyle(
+                          color: DuoColors.orbitTextPrimary,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      expanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: DuoColors.orbitTextSecondary,
+                      size: 22,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 180),
+              crossFadeState: expanded
+                  ? CrossFadeState.showFirst
+                  : CrossFadeState.showSecond,
+              firstChild: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.check_circle_outline_rounded,
+                            label: 'Nova tarefa',
+                            color: DuoColors.orbitAccent,
+                            onTap: onTask,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.list_alt_rounded,
+                            label: 'Nova lista',
+                            color: DuoColors.success,
+                            onTap: onList,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.link_rounded,
+                            label: 'Nova sequência',
+                            color: DuoColors.warning,
+                            onTap: onSequence,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Spacer(),
+                        Expanded(
+                          flex: 3,
+                          child: _QuickAction(
+                            icon: Icons.notifications_none_rounded,
+                            label: 'Lembrar parceiro',
+                            color: DuoColors.orbitAccent,
+                            onTap: onPartnerReminder,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 3,
+                          child: _QuickAction(
+                            icon: Icons.shopping_cart_outlined,
+                            label: 'Compras',
+                            color: const Color(0xFF4E8BFF),
+                            onTap: onShopping,
+                          ),
+                        ),
+                        const Spacer(),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              secondChild: const SizedBox.shrink(),
+            ),
+          ],
+        ),
       );
 }
 
@@ -379,80 +440,4 @@ class _QuickAction extends StatelessWidget {
           ],
         ),
       );
-}
-
-class _RoutineScopeTabs extends StatelessWidget {
-  final bool showShared;
-  final bool showLists;
-  final VoidCallback onPersonal;
-  final VoidCallback? onShared;
-  final VoidCallback onLists;
-
-  const _RoutineScopeTabs({
-    required this.showShared,
-    required this.showLists,
-    required this.onPersonal,
-    required this.onShared,
-    required this.onLists,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: DuoColors.orbitCardSurface,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(
-          color: DuoColors.orbitBorder.withValues(alpha: .55),
-        ),
-      ),
-      child: Row(
-        children: [
-          _tab('Minhas', !showShared && !showLists, onPersonal),
-          _tab('Compartilhadas', showShared && !showLists, onShared),
-          _tab('Listas', showLists, onLists),
-        ],
-      ),
-    );
-  }
-
-  Widget _tab(String label, bool selected, VoidCallback? onTap) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected
-                ? DuoColors.orbitAccent.withValues(alpha: .18)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            border: selected
-                ? Border.all(
-                    color: DuoColors.orbitAccent.withValues(alpha: .25),
-                  )
-                : null,
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: onTap == null
-                  ? DuoColors.orbitTextSecondary.withValues(alpha: .45)
-                  : selected
-                  ? DuoColors.orbitTextPrimary
-                  : DuoColors.orbitTextSecondary,
-              fontSize: 11,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
