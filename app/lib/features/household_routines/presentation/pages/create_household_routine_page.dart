@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/design_system/duo_colors.dart';
 import '../../domain/models/household_routine.dart';
 import '../../domain/models/household_task.dart';
 import '../controllers/household_routines_controller.dart';
@@ -51,9 +52,7 @@ class _CreateHouseholdRoutinePageState
     if (routine.repeatEveryDays != null) {
       _repeatDaysController.text = routine.repeatEveryDays.toString();
     }
-    _steps.addAll(
-      routine.steps.map(_RoutineStepDraft.fromStep),
-    );
+    _steps.addAll(routine.steps.map(_RoutineStepDraft.fromStep));
   }
 
   @override
@@ -155,11 +154,20 @@ class _CreateHouseholdRoutinePageState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Editar rotina' : 'Nova rotina'),
-      ),
-      body: ListView(
+    return Theme(
+      data: _routineFormTheme(context),
+      child: Scaffold(
+        backgroundColor: DuoColors.orbitBackground,
+        appBar: AppBar(
+          backgroundColor: DuoColors.orbitBackground,
+          foregroundColor: DuoColors.orbitTextPrimary,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            _isEditing ? 'Editar rotina' : 'Nova rotina',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
           TextField(
@@ -212,7 +220,7 @@ class _CreateHouseholdRoutinePageState
               draft: _steps[i],
               isFirst: i == 0,
               canRemove: _steps.length > 1,
-              isShared: widget.scope == HouseholdTaskScope.shared,
+              controller: widget.controller,
               memberIds: widget.memberIds,
               currentUserId: widget.currentUserId,
               onAssigneeChanged: (value) =>
@@ -227,11 +235,19 @@ class _CreateHouseholdRoutinePageState
             label: const Text('Adicionar etapa'),
           ),
         ],
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.all(16),
-        child: FilledButton.icon(
+        ),
+        bottomNavigationBar: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          child: FilledButton.icon(
           onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            backgroundColor: DuoColors.orbitAccent,
+            foregroundColor: DuoColors.orbitBackground,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+          ),
           icon: _saving
               ? const SizedBox(
                   width: 18,
@@ -250,6 +266,7 @@ class _CreateHouseholdRoutinePageState
                     ? 'Salvar alterações'
                     : 'Criar e iniciar rotina',
           ),
+          ),
         ),
       ),
     );
@@ -261,7 +278,7 @@ class _StepEditor extends StatelessWidget {
   final _RoutineStepDraft draft;
   final bool isFirst;
   final bool canRemove;
-  final bool isShared;
+  final HouseholdRoutinesController controller;
   final List<String> memberIds;
   final String currentUserId;
   final ValueChanged<String?> onAssigneeChanged;
@@ -272,7 +289,7 @@ class _StepEditor extends StatelessWidget {
     required this.draft,
     required this.isFirst,
     required this.canRemove,
-    required this.isShared,
+    required this.controller,
     required this.memberIds,
     required this.currentUserId,
     required this.onAssigneeChanged,
@@ -281,9 +298,15 @@ class _StepEditor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
+      decoration: BoxDecoration(
+        color: DuoColors.orbitCardSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .55)),
+        boxShadow: DuoColors.orbitCardShadow,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(15),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -292,7 +315,10 @@ class _StepEditor extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Etapa ${index + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      color: DuoColors.orbitTextPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
                 if (canRemove)
@@ -329,23 +355,28 @@ class _StepEditor extends StatelessWidget {
                 ),
               ),
             ],
-            if (isShared && memberIds.isNotEmpty) ...[
+            if (memberIds.isNotEmpty) ...[
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: memberIds.contains(draft.assigneeId)
                     ? draft.assigneeId
                     : null,
-                decoration: const InputDecoration(labelText: 'Responsável'),
+                decoration: const InputDecoration(
+                  labelText: 'Responsável pela etapa',
+                ),
                 items: memberIds
                     .map(
-                      (memberId) => DropdownMenuItem(
+                      (memberId) => DropdownMenuItem<String>(
                         value: memberId,
                         child: Text(
-                          memberId == currentUserId ? 'Eu' : 'Outro membro',
+                          controller.memberName(
+                            memberId,
+                            currentUserId: currentUserId,
+                          ),
                         ),
                       ),
                     )
-                    .toList(),
+                    .toList(growable: false),
                 onChanged: onAssigneeChanged,
               ),
             ],
@@ -354,6 +385,31 @@ class _StepEditor extends StatelessWidget {
       ),
     );
   }
+}
+
+ThemeData _routineFormTheme(BuildContext context) {
+  final theme = Theme.of(context);
+  OutlineInputBorder border(Color color) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(13),
+        borderSide: BorderSide(color: color),
+      );
+  return theme.copyWith(
+    colorScheme: theme.colorScheme.copyWith(
+      primary: DuoColors.orbitAccent,
+      surface: DuoColors.orbitCardSurface,
+      onSurface: DuoColors.orbitTextPrimary,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: DuoColors.orbitBackground.withValues(alpha: .55),
+      labelStyle: const TextStyle(color: DuoColors.orbitTextSecondary),
+      hintStyle: TextStyle(color: DuoColors.orbitTextSecondary.withValues(alpha: .7)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: border(DuoColors.orbitBorder.withValues(alpha: .65)),
+      enabledBorder: border(DuoColors.orbitBorder.withValues(alpha: .65)),
+      focusedBorder: border(DuoColors.orbitAccent),
+    ),
+  );
 }
 
 class _RoutineStepDraft {
@@ -370,8 +426,9 @@ class _RoutineStepDraft {
   _RoutineStepDraft.fromStep(HouseholdRoutineStep step)
       : titleController = TextEditingController(text: step.title),
         notesController = TextEditingController(text: step.notes ?? ''),
-        delayHoursController =
-            TextEditingController(text: step.delayAfterPrevious.inHours.toString()),
+        delayHoursController = TextEditingController(
+          text: step.delayAfterPrevious.inHours.toString(),
+        ),
         assigneeId = step.assigneeId;
 
   void dispose() {

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/design_system/duo_card.dart';
 import '../../../../core/design_system/duo_colors.dart';
 import '../../../../core/utils/money_parser.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../domain/models/savings_goal.dart';
 import '../../domain/models/savings_goal_movement.dart';
 import '../controllers/savings_goals_controller.dart';
+import '../widgets/goal_category_visuals.dart';
+import '../widgets/orbit_goals_overview.dart';
 
 enum _GoalListFilter { active, completed, archived }
+
+enum _GoalsSection { overview, all }
 
 class SavingsGoalsPage extends StatefulWidget {
   final WalletModel contextWallet;
@@ -29,285 +32,363 @@ class SavingsGoalsPage extends StatefulWidget {
 
 class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
   late final SavingsGoalsController controller;
+  _GoalsSection selectedSection = _GoalsSection.overview;
   _GoalListFilter selectedFilter = _GoalListFilter.active;
+  String? selectedGoalId;
+  final Set<String> _movementRequests = {};
 
   @override
   void initState() {
     super.initState();
-
     controller = SavingsGoalsController(
       contextWallet: widget.contextWallet,
       financialWallets: widget.individualWallets,
       currentUserId: widget.currentUserId,
     );
-
     controller.loadGoals();
   }
 
-  String _formatMoney(double value) {
-    return NumberFormat.currency(
-      locale: 'pt_BR',
-      symbol: 'R\$',
-      decimalDigits: 2,
-    ).format(value);
+  String _money(double value) => NumberFormat.currency(
+    locale: 'pt_BR',
+    symbol: 'R\$',
+    decimalDigits: 2,
+  ).format(value);
+
+  String _date(DateTime value) => DateFormat('dd/MM/yyyy').format(value);
+
+  void _message(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
   }
 
-  String _formatDeadline(DateTime deadline) {
-    return DateFormat('dd/MM/yyyy').format(deadline);
+  Future<_GoalFormInput?> _goalForm({SavingsGoal? goal}) async {
+    final name = TextEditingController(text: goal?.name ?? '');
+    final target = TextEditingController(
+      text: goal == null
+          ? ''
+          : goal.targetAmount.toStringAsFixed(2).replaceAll('.', ','),
+    );
+    DateTime? deadline = goal?.deadline;
+    var category = goal?.category ?? SavingsGoalCategory.others;
+
+    final result = await showModalBottomSheet<_GoalFormInput>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: DuoColors.orbitSurface,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            4,
+            20,
+            20 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  goal == null ? 'Novo sonho' : 'Editar sonho',
+                  style: const TextStyle(
+                    color: DuoColors.orbitTextPrimary,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Transforme um plano em uma meta que você pode acompanhar.',
+                  style: TextStyle(
+                    color: DuoColors.orbitTextSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                TextField(
+                  controller: name,
+                  autofocus: goal == null,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Nome da meta',
+                    hintText: 'Ex.: Viagem dos sonhos',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: target,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Quanto você quer guardar?',
+                    prefixText: 'R\$ ',
+                    helperText: goal == null
+                        ? null
+                        : 'Já guardado: ${_money(goal.savedAmount)}',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<SavingsGoalCategory>(
+                  initialValue: category,
+                  decoration: const InputDecoration(labelText: 'Categoria'),
+                  items: SavingsGoalCategory.values
+                      .map(
+                        (item) => DropdownMenuItem(
+                          value: item,
+                          child: Row(
+                            children: [
+                              Icon(item.icon, color: item.accent, size: 18),
+                              const SizedBox(width: 10),
+                              Text(item.label),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setSheetState(() => category = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+                InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
+                    final initial =
+                        deadline != null && !deadline!.isBefore(today)
+                        ? deadline!
+                        : today.add(const Duration(days: 30));
+                    final picked = await showDatePicker(
+                      context: sheetContext,
+                      initialDate: initial,
+                      firstDate: today,
+                      lastDate: DateTime(now.year + 30),
+                      helpText: 'Prazo da meta',
+                    );
+                    if (picked != null) {
+                      setSheetState(() => deadline = picked);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: DuoColors.orbitSurface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: DuoColors.orbitBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.calendar_today_rounded,
+                          color: DuoColors.orbitAccent,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            deadline == null
+                                ? 'Adicionar prazo'
+                                : 'Até ${_date(deadline!)}',
+                            style: const TextStyle(
+                              color: DuoColors.orbitTextPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if (deadline != null)
+                          IconButton(
+                            onPressed: () =>
+                                setSheetState(() => deadline = null),
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      final amount = parseMoneyInput(target.text);
+                      if (name.text.trim().isEmpty ||
+                          amount == null ||
+                          amount <= 0) {
+                        return;
+                      }
+                      Navigator.pop(
+                        sheetContext,
+                        _GoalFormInput(
+                          name: name.text.trim(),
+                          targetAmount: amount,
+                          deadline: deadline,
+                          category: category,
+                        ),
+                      );
+                    },
+                    icon: Icon(
+                      goal == null ? Icons.add_rounded : Icons.check_rounded,
+                    ),
+                    label: Text(
+                      goal == null ? 'Criar meta' : 'Salvar alterações',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    name.dispose();
+    target.dispose();
+    return result;
   }
 
   Future<void> _createGoal() async {
-    final nameController = TextEditingController();
-    final targetController = TextEditingController();
-    DateTime? deadline;
-
-    final input = await showDialog<_NewGoalInput>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Nova meta'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      autofocus: true,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        labelText: 'Nome da meta',
-                        hintText: 'Ex.: Viagem',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: targetController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Valor-alvo',
-                        prefixText: 'R\$ ',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final now = DateTime.now();
-                        final pickedDate = await showDatePicker(
-                          context: dialogContext,
-                          initialDate:
-                              deadline ?? now.add(const Duration(days: 30)),
-                          firstDate: DateTime(now.year, now.month, now.day),
-                          lastDate: DateTime(now.year + 30),
-                          helpText: 'Prazo da meta',
-                          cancelText: 'Sem prazo',
-                          confirmText: 'Selecionar',
-                        );
-
-                        if (pickedDate == null) {
-                          return;
-                        }
-
-                        setDialogState(() {
-                          deadline = pickedDate;
-                        });
-                      },
-                      icon: const Icon(Icons.event_rounded),
-                      label: Text(
-                        deadline == null
-                            ? 'Adicionar prazo'
-                            : _formatDeadline(deadline!),
-                      ),
-                    ),
-                    if (deadline != null)
-                      TextButton(
-                        onPressed: () {
-                          setDialogState(() {
-                            deadline = null;
-                          });
-                        },
-                        child: const Text('Remover prazo'),
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                  },
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final targetAmount = _parseMoney(targetController.text);
-
-                    if (nameController.text.trim().isEmpty ||
-                        targetAmount == null ||
-                        targetAmount <= 0) {
-                      return;
-                    }
-
-                    Navigator.pop(
-                      dialogContext,
-                      _NewGoalInput(
-                        name: nameController.text.trim(),
-                        targetAmount: targetAmount,
-                        deadline: deadline,
-                      ),
-                    );
-                  },
-                  child: const Text('Criar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    nameController.dispose();
-    targetController.dispose();
-
-    if (input == null || !mounted) {
-      return;
-    }
-
-    final goal = await controller.createGoal(
+    final input = await _goalForm();
+    if (input == null || !mounted) return;
+    final result = await controller.createGoal(
       name: input.name,
       targetAmount: input.targetAmount,
       deadline: input.deadline,
+      category: input.category,
     );
-
-    if (!mounted) {
-      return;
-    }
-
-    _showMessage(
-      goal == null
+    if (!mounted) return;
+    _message(
+      result == null
           ? controller.errorMessage ?? 'Não foi possível criar a meta.'
-          : 'Meta criada.',
+          : 'Meta criada. Um sonho a caminho ✨',
     );
   }
 
-  Future<void> _showMovementDialog({
-    required SavingsGoal goal,
-    required bool isContribution,
-  }) async {
-    if (controller.financialWallets.isEmpty) {
-      _showMessage('Crie uma carteira individual para movimentar esta meta.');
-      return;
-    }
-
-    final amountController = TextEditingController();
-    var selectedWallet = controller.financialWallets.first;
-
-    final input = await showDialog<_GoalMovementInput>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(isContribution ? 'Fazer aporte' : 'Retirar valor'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    isContribution
-                        ? 'O valor sairá da carteira e ficará reservado.'
-                        : 'O valor reservado voltará para a carteira.',
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedWallet.id,
-                    decoration: InputDecoration(
-                      labelText: isContribution
-                          ? 'Carteira de origem'
-                          : 'Carteira de destino',
-                      border: const OutlineInputBorder(),
-                    ),
-                    items: [
-                      for (final wallet in controller.financialWallets)
-                        DropdownMenuItem(
-                          value: wallet.id,
-                          child: Text(
-                            '${wallet.name} • '
-                            '${_formatMoney(wallet.balance)}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: (walletId) {
-                      if (walletId == null) {
-                        return;
-                      }
-
-                      setDialogState(() {
-                        selectedWallet = controller.financialWallets.firstWhere(
-                          (wallet) => wallet.id == walletId,
-                        );
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: amountController,
-                    autofocus: true,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Valor',
-                      prefixText: 'R\$ ',
-                      helperText: isContribution
-                          ? 'Faltam ${_formatMoney(goal.remainingAmount)}'
-                          : 'Reservado: ${_formatMoney(goal.savedAmount)}',
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                  },
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final amount = _parseMoney(amountController.text);
-
-                    if (amount == null || amount <= 0) {
-                      return;
-                    }
-
-                    Navigator.pop(
-                      dialogContext,
-                      _GoalMovementInput(
-                        wallet: selectedWallet,
-                        amount: amount,
-                      ),
-                    );
-                  },
-                  child: Text(isContribution ? 'Aportar' : 'Retirar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+  Future<void> _editGoal(SavingsGoal goal) async {
+    final input = await _goalForm(goal: goal);
+    if (input == null || !mounted) return;
+    final result = await controller.updateGoal(
+      goal: goal,
+      name: input.name,
+      targetAmount: input.targetAmount,
+      deadline: input.deadline,
+      category: input.category,
     );
+    if (!mounted) return;
+    _message(
+      result == null
+          ? controller.errorMessage ?? 'Não foi possível editar a meta.'
+          : 'Meta atualizada.',
+    );
+  }
 
-    amountController.dispose();
-
-    if (input == null || !mounted) {
+  Future<void> _move(SavingsGoal goal, {required bool contribution}) async {
+    if (controller.financialWallets.isEmpty) {
+      _message('Crie uma carteira individual para movimentar esta meta.');
       return;
     }
-
-    final updatedGoal = isContribution
+    final amount = TextEditingController();
+    var wallet = controller.financialWallets.first;
+    final input = await showModalBottomSheet<_MovementInput>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: DuoColors.orbitSurface,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            4,
+            20,
+            20 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                contribution ? 'Guardar neste sonho' : 'Retirar deste sonho',
+                style: const TextStyle(
+                  color: DuoColors.orbitTextPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                contribution
+                    ? 'Faltam ${_money(goal.remainingAmount)} para ${goal.name}.'
+                    : 'Você tem ${_money(goal.savedAmount)} reservado.',
+                style: const TextStyle(
+                  color: DuoColors.orbitTextSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 20),
+              DropdownButtonFormField<String>(
+                initialValue: wallet.id,
+                decoration: InputDecoration(
+                  labelText: contribution
+                      ? 'Carteira de origem'
+                      : 'Carteira de destino',
+                ),
+                items: controller.financialWallets
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item.id,
+                        child: Text('${item.name} • ${_money(item.balance)}'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (id) {
+                  if (id == null) return;
+                  setSheetState(() {
+                    wallet = controller.financialWallets.firstWhere(
+                      (item) => item.id == id,
+                    );
+                  });
+                },
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: amount,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Valor',
+                  prefixText: 'R\$ ',
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    final value = parseMoneyInput(amount.text);
+                    if (value == null || value <= 0) return;
+                    Navigator.pop(sheetContext, _MovementInput(wallet, value));
+                  },
+                  child: Text(contribution ? 'Guardar' : 'Retirar'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    amount.dispose();
+    if (input == null || !mounted) return;
+    final result = contribution
         ? await controller.contribute(
             goal: goal,
             sourceWallet: input.wallet,
@@ -318,254 +399,195 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
             destinationWallet: input.wallet,
             amount: input.amount,
           );
-
-    if (!mounted) {
-      return;
+    if (!mounted) return;
+    if (result != null) {
+      await controller.loadMovements(result);
+      if (!mounted) return;
     }
-
-    _showMessage(
-      updatedGoal == null
+    _message(
+      result == null
           ? controller.errorMessage ?? 'Não foi possível movimentar a meta.'
-          : isContribution
-          ? 'Aporte realizado.'
+          : contribution
+          ? 'Valor guardado ✨'
           : 'Valor devolvido à carteira.',
     );
   }
 
-  Future<void> _editGoal(SavingsGoal goal) async {
-    final nameController = TextEditingController(text: goal.name);
-    final targetController = TextEditingController(
-      text: goal.targetAmount.toStringAsFixed(2).replaceAll('.', ','),
-    );
-    DateTime? deadline = goal.deadline;
-
-    final input = await showDialog<_EditGoalInput>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Editar meta'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      autofocus: true,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        labelText: 'Nome da meta',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: targetController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Valor-alvo',
-                        prefixText: 'R\$ ',
-                        helperText:
-                            'Reservado: ${_formatMoney(goal.savedAmount)}',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final now = DateTime.now();
-                        final today = DateTime(now.year, now.month, now.day);
-                        final currentDeadline = deadline;
-                        final initialDate =
-                            currentDeadline != null &&
-                                !currentDeadline.isBefore(today)
-                            ? currentDeadline
-                            : today;
-                        final pickedDate = await showDatePicker(
-                          context: dialogContext,
-                          initialDate: initialDate,
-                          firstDate: today,
-                          lastDate: DateTime(now.year + 30),
-                          helpText: 'Prazo da meta',
-                          cancelText: 'Cancelar',
-                          confirmText: 'Selecionar',
-                        );
-
-                        if (pickedDate != null) {
-                          setDialogState(() {
-                            deadline = pickedDate;
-                          });
-                        }
-                      },
-                      icon: const Icon(Icons.event_rounded),
-                      label: Text(
-                        deadline == null
-                            ? 'Adicionar prazo'
-                            : _formatDeadline(deadline!),
-                      ),
-                    ),
-                    if (deadline != null)
-                      TextButton(
-                        onPressed: () {
-                          setDialogState(() {
-                            deadline = null;
-                          });
-                        },
-                        child: const Text('Remover prazo'),
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final targetAmount = _parseMoney(targetController.text);
-
-                    if (nameController.text.trim().isEmpty ||
-                        targetAmount == null ||
-                        targetAmount <= 0) {
-                      return;
-                    }
-
-                    Navigator.pop(
-                      dialogContext,
-                      _EditGoalInput(
-                        name: nameController.text.trim(),
-                        targetAmount: targetAmount,
-                        deadline: deadline,
-                      ),
-                    );
-                  },
-                  child: const Text('Salvar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    nameController.dispose();
-    targetController.dispose();
-
-    if (input == null || !mounted) {
-      return;
-    }
-
-    final updatedGoal = await controller.updateGoal(
-      goal: goal,
-      name: input.name,
-      targetAmount: input.targetAmount,
-      deadline: input.deadline,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    _showMessage(
-      updatedGoal == null
-          ? controller.errorMessage ?? 'Não foi possível editar a meta.'
-          : 'Meta atualizada.',
-    );
-  }
-
-  Future<void> _showMovementHistory(SavingsGoal goal) async {
+  Future<void> _history(SavingsGoal goal) async {
     final movements = await controller.loadMovements(goal);
-
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     if (movements == null) {
-      _showMessage(
-        controller.errorMessage ??
-            'Não foi possível carregar o histórico da meta.',
+      _message(
+        controller.errorMessage ?? 'Não foi possível carregar o histórico.',
       );
       return;
     }
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: DuoColors.surface,
+      backgroundColor: DuoColors.orbitSurface,
       showDragHandle: true,
-      builder: (sheetContext) {
-        return _GoalHistorySheet(
-          goal: goal,
-          movements: movements,
-          currentUserId: widget.currentUserId,
-          wallets: controller.financialWallets,
-          formatMoney: _formatMoney,
-        );
-      },
+      builder: (context) => _HistorySheet(
+        goal: goal,
+        movements: movements,
+        wallets: controller.financialWallets,
+        currentUserId: widget.currentUserId,
+        money: _money,
+      ),
     );
   }
 
-  Future<void> _archiveGoal(SavingsGoal goal) async {
+  Future<void> _archive(SavingsGoal goal) async {
     if (goal.savedAmount > 0) {
-      _showMessage('Retire todo o valor reservado antes de arquivar.');
+      _message('Retire todo o valor reservado antes de arquivar.');
       return;
     }
-
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Arquivar meta?'),
-          content: Text(
-            '“${goal.name}” sairá dos totais e ficará no histórico.',
+      builder: (context) => AlertDialog(
+        title: const Text('Arquivar meta?'),
+        content: Text('“${goal.name}” ficará disponível no histórico.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Arquivar'),
-            ),
-          ],
-        );
-      },
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Arquivar'),
+          ),
+        ],
+      ),
     );
-
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
-    final archivedGoal = await controller.archiveGoal(goal);
-
-    if (!mounted) {
-      return;
-    }
-
-    _showMessage(
-      archivedGoal == null
+    if (confirmed != true || !mounted) return;
+    final result = await controller.archiveGoal(goal);
+    if (!mounted) return;
+    _message(
+      result == null
           ? controller.errorMessage ?? 'Não foi possível arquivar a meta.'
           : 'Meta arquivada.',
     );
   }
 
-  double? _parseMoney(String value) {
-    return parseMoneyInput(value);
-  }
-
-  void _showMessage(String message) {
-    if (!mounted) {
+  Future<void> _startContribution(SavingsGoal contextGoal) async {
+    final activeGoals = controller.goals
+        .where((goal) => goal.isActive)
+        .toList();
+    if (activeGoals.isEmpty) {
+      _message('Não há uma meta ativa disponível para aporte.');
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    SavingsGoal? targetGoal;
+    if (activeGoals.length == 1) {
+      targetGoal = activeGoals.single;
+    } else {
+      targetGoal = await _chooseContributionGoal(
+        activeGoals,
+        contextGoal: contextGoal,
       );
+    }
+    if (targetGoal == null || !mounted) return;
+    await _move(targetGoal, contribution: true);
+  }
+
+  Future<SavingsGoal?> _chooseContributionGoal(
+    List<SavingsGoal> activeGoals, {
+    required SavingsGoal contextGoal,
+  }) {
+    final ordered = [...activeGoals]
+      ..sort((first, second) {
+        if (first.id == contextGoal.id) return -1;
+        if (second.id == contextGoal.id) return 1;
+        return second.updatedAt.compareTo(first.updatedAt);
+      });
+
+    return showModalBottomSheet<SavingsGoal>(
+      context: context,
+      backgroundColor: DuoColors.orbitSurface,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .58,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 2, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Para qual meta?',
+                      style: TextStyle(
+                        color: DuoColors.orbitTextPrimary,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Escolha onde o valor será guardado.',
+                      style: TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: DuoColors.divider),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: ordered.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 9),
+                  itemBuilder: (context, index) {
+                    final goal = ordered[index];
+                    return _ContributionGoalOption(
+                      goal: goal,
+                      isCurrent: goal.id == contextGoal.id,
+                      money: _money,
+                      onTap: () => Navigator.pop(sheetContext, goal),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _selectGoal(String goalId) {
+    if (selectedGoalId == goalId) return;
+    setState(() => selectedGoalId = goalId);
+    SavingsGoal? goal;
+    for (final item in controller.goals) {
+      if (item.id == goalId) {
+        goal = item;
+        break;
+      }
+    }
+    if (goal != null) {
+      _movementRequests.add(goal.id);
+      controller.loadMovements(goal);
+    }
+  }
+
+  void _ensureMovementsLoaded(SavingsGoal goal) {
+    if (_movementRequests.contains(goal.id) ||
+        controller.movementsByGoal.containsKey(goal.id) ||
+        controller.isLoadingHistoryFor(goal.id)) {
+      return;
+    }
+    _movementRequests.add(goal.id);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !controller.movementsByGoal.containsKey(goal.id)) {
+        controller.loadMovements(goal);
+      }
+    });
   }
 
   @override
@@ -579,125 +601,208 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
-        final visibleGoals = controller.goals.where((goal) {
-          switch (selectedFilter) {
-            case _GoalListFilter.active:
-              return goal.isActive;
-            case _GoalListFilter.completed:
-              return goal.isCompleted && !goal.isArchived;
-            case _GoalListFilter.archived:
-              return goal.isArchived;
-          }
+        final filteredGoals = controller.goals.where((goal) {
+          return switch (selectedFilter) {
+            _GoalListFilter.active => goal.isActive,
+            _GoalListFilter.completed => goal.isCompleted && !goal.isArchived,
+            _GoalListFilter.archived => goal.isArchived,
+          };
         }).toList();
 
+        SavingsGoal? selectedGoal;
+        for (final goal in controller.goals) {
+          if (goal.id == selectedGoalId) {
+            selectedGoal = goal;
+            break;
+          }
+        }
+        if (selectedGoal == null) {
+          for (final goal in controller.goals) {
+            if (goal.isActive) {
+              selectedGoal = goal;
+              break;
+            }
+          }
+        }
+        if (selectedGoal == null) {
+          for (final goal in controller.goals) {
+            if (!goal.isArchived) {
+              selectedGoal = goal;
+              break;
+            }
+          }
+        }
+        if (selectedGoal == null && controller.goals.isNotEmpty) {
+          selectedGoal = controller.goals.first;
+        }
+        if (selectedSection == _GoalsSection.overview && selectedGoal != null) {
+          _ensureMovementsLoaded(selectedGoal);
+        }
+
         return Scaffold(
-          backgroundColor: DuoColors.background,
+          backgroundColor: DuoColors.orbitBackground,
           appBar: AppBar(
-            backgroundColor: DuoColors.background,
-            foregroundColor: DuoColors.textPrimary,
+            backgroundColor: DuoColors.orbitBackground,
+            foregroundColor: DuoColors.orbitTextPrimary,
             surfaceTintColor: Colors.transparent,
             title: const Text(
               'Metas e sonhos',
-              style: TextStyle(fontWeight: FontWeight.w800),
+              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -.4),
             ),
-            centerTitle: false,
-          ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: controller.isProcessing ? null : _createGoal,
-            backgroundColor: DuoColors.primary,
-            foregroundColor: DuoColors.textPrimary,
-            child: const Icon(Icons.add_rounded),
+            actions: [
+              IconButton(
+                onPressed: controller.isProcessing ? null : _createGoal,
+                tooltip: 'Nova meta',
+                icon: const Icon(
+                  Icons.add_circle_rounded,
+                  color: DuoColors.orbitAccent,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
           body: controller.isLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: DuoColors.primary),
+                  child: CircularProgressIndicator(color: DuoColors.orbitAccent),
                 )
               : RefreshIndicator(
-                  color: DuoColors.primary,
+                  color: DuoColors.orbitAccent,
                   onRefresh: controller.loadGoals,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 104),
+                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 44),
                     children: [
-                      _GoalsHeader(
-                        wallet: widget.contextWallet,
-                        totalSaved: controller.totalSaved,
-                        totalTarget: controller.totalTarget,
-                        activeGoalCount: controller.activeGoalCount,
-                        formatMoney: _formatMoney,
-                      ),
-                      const SizedBox(height: 26),
-                      const Text(
-                        'Suas metas',
-                        style: TextStyle(
-                          color: DuoColors.textPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _GoalFilters(
-                        selected: selectedFilter,
-                        activeCount: controller.goals
-                            .where((goal) => goal.isActive)
-                            .length,
-                        completedCount: controller.goals
-                            .where(
-                              (goal) => goal.isCompleted && !goal.isArchived,
-                            )
-                            .length,
-                        archivedCount: controller.goals
-                            .where((goal) => goal.isArchived)
-                            .length,
-                        onSelected: (filter) {
-                          setState(() {
-                            selectedFilter = filter;
-                          });
-                        },
+                      _GoalsSectionTabs(
+                        selected: selectedSection,
+                        onSelected: (value) => setState(() {
+                          selectedSection = value;
+                        }),
                       ),
                       const SizedBox(height: 14),
-                      if (visibleGoals.isEmpty)
-                        _EmptyGoals(filter: selectedFilter)
-                      else
-                        for (final goal in visibleGoals) ...[
-                          _GoalCard(
+                      if (selectedSection == _GoalsSection.overview) ...[
+                        if (selectedGoal == null)
+                          _Empty(
+                            filter: _GoalListFilter.active,
+                            onCreate: _createGoal,
+                          )
+                        else if (selectedGoal case final goal?) ...[
+                          OrbitGoalHeroCard(
                             goal: goal,
-                            formattedSaved: _formatMoney(goal.savedAmount),
-                            formattedTarget: _formatMoney(goal.targetAmount),
-                            formattedRemaining: _formatMoney(
-                              goal.remainingAmount,
+                            formatMoney: _money,
+                            formatDate: _date,
+                            movements: controller.movementsByGoal[goal.id],
+                          ),
+                          if (goal.isActive) ...[
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 42,
+                              child: FilledButton.icon(
+                                onPressed: controller.isProcessing
+                                    ? null
+                                    : () => _startContribution(goal),
+                                icon: const Icon(Icons.add_rounded, size: 18),
+                                label: const Text(
+                                  'Guardar',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: DuoColors.orbitAccent.withValues(
+                                    alpha: .28,
+                                  ),
+                                  foregroundColor: DuoColors.orbitAccent,
+                                  side: BorderSide(
+                                    color: DuoColors.orbitAccent.withValues(
+                                      alpha: .4,
+                                    ),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
                             ),
-                            formattedDeadline: goal.deadline == null
-                                ? null
-                                : _formatDeadline(goal.deadline!),
-                            isProcessing:
-                                controller.processingGoalId == goal.id,
-                            onHistory: () => _showMovementHistory(goal),
+                          ],
+                          const SizedBox(height: 12),
+                          OrbitGoalMetrics(
+                            goal: goal,
+                            movements: controller.movementsByGoal[goal.id],
+                            formatMoney: _money,
+                          ),
+                          const SizedBox(height: 18),
+                          OrbitGoalProgressSection(
+                            goal: goal,
+                            movements: controller.movementsByGoal[goal.id],
+                            isLoading: controller.isLoadingHistoryFor(goal.id),
+                            formatMoney: _money,
+                          ),
+                          const SizedBox(height: 18),
+                          OrbitGoalMovementsSection(
+                            movements: controller.movementsByGoal[goal.id],
+                            isLoading: controller.isLoadingHistoryFor(goal.id),
+                            formatMoney: _money,
+                            formatDate: _date,
+                            onSeeAll: () => _history(goal),
+                          ),
+                          const SizedBox(height: 18),
+                          OrbitGoalGuidanceSection(
+                            goal: goal,
+                            movements: controller.movementsByGoal[goal.id],
+                          ),
+                          const SizedBox(height: 18),
+                          OrbitGoalActions(
+                            processing: controller.processingGoalId == goal.id,
+                            onHistory: () => _history(goal),
                             onEdit:
                                 !goal.isArchived &&
                                     goal.createdByUserId == widget.currentUserId
                                 ? () => _editGoal(goal)
                                 : null,
-                            onContribute: goal.isActive
-                                ? () => _showMovementDialog(
-                                    goal: goal,
-                                    isContribution: true,
-                                  )
-                                : null,
                             onWithdraw: goal.savedAmount > 0 && !goal.isArchived
-                                ? () => _showMovementDialog(
-                                    goal: goal,
-                                    isContribution: false,
-                                  )
+                                ? () => _move(goal, contribution: false)
                                 : null,
                             onArchive:
                                 !goal.isArchived &&
                                     goal.createdByUserId == widget.currentUserId
-                                ? () => _archiveGoal(goal)
+                                ? () => _archive(goal)
                                 : null,
                           ),
-                          const SizedBox(height: 12),
                         ],
+                      ] else ...[
+                        const OrbitGoalsIntroCard(),
+                        const SizedBox(height: 14),
+                        _Filters(
+                          selected: selectedFilter,
+                          active: controller.goals
+                              .where((g) => g.isActive)
+                              .length,
+                          completed: controller.goals
+                              .where((g) => g.isCompleted && !g.isArchived)
+                              .length,
+                          archived: controller.goals
+                              .where((g) => g.isArchived)
+                              .length,
+                          onSelected: (value) => setState(() {
+                            selectedFilter = value;
+                          }),
+                        ),
+                        const SizedBox(height: 14),
+                        OrbitGoalsPortfolioOverview(
+                          goals: controller.goals,
+                          listGoals: filteredGoals,
+                          selectedGoalId: selectedGoal?.id ?? '',
+                          formatMoney: _money,
+                          onGoalSelected: (goalId) {
+                            _selectGoal(goalId);
+                            setState(() {
+                              selectedSection = _GoalsSection.overview;
+                            });
+                          },
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -707,419 +812,297 @@ class _SavingsGoalsPageState extends State<SavingsGoalsPage> {
   }
 }
 
-class _GoalsHeader extends StatelessWidget {
-  final WalletModel wallet;
-  final double totalSaved;
-  final double totalTarget;
-  final int activeGoalCount;
-  final String Function(double) formatMoney;
+class _GoalsSectionTabs extends StatelessWidget {
+  final _GoalsSection selected;
+  final ValueChanged<_GoalsSection> onSelected;
 
-  const _GoalsHeader({
-    required this.wallet,
-    required this.totalSaved,
-    required this.totalTarget,
-    required this.activeGoalCount,
-    required this.formatMoney,
-  });
+  const _GoalsSectionTabs({required this.selected, required this.onSelected});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      height: 43,
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        gradient: DuoColors.heroGradient,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: DuoColors.border),
-        boxShadow: DuoColors.softShadow,
+        color: DuoColors.orbitCardSurface,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(
+          color: DuoColors.orbitBorder.withValues(alpha: .68),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            wallet.name,
-            style: const TextStyle(
-              color: DuoColors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Total reservado',
-            style: TextStyle(color: DuoColors.textSecondary, fontSize: 12),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            formatMoney(totalSaved),
-            style: const TextStyle(
-              color: DuoColors.primaryLight,
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '$activeGoalCount metas ativas • '
-            'Alvo total: ${formatMoney(totalTarget)}',
-            style: const TextStyle(
-              color: DuoColors.textSecondary,
-              fontSize: 11,
-            ),
-          ),
+          _tab(_GoalsSection.overview, 'Visão geral'),
+          _tab(_GoalsSection.all, 'Todas as metas'),
         ],
+      ),
+    );
+  }
+
+  Widget _tab(_GoalsSection section, String label) {
+    final active = selected == section;
+    return Expanded(
+      child: InkWell(
+        onTap: () => onSelected(section),
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active
+                ? DuoColors.orbitAccent.withValues(alpha: .14)
+                : Colors.transparent,
+            border: active
+                ? Border.all(
+                    color: DuoColors.orbitAccent.withValues(alpha: .24),
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: active
+                  ? DuoColors.orbitTextPrimary
+                  : DuoColors.orbitTextSecondary,
+              fontSize: 12,
+              fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-class _GoalCard extends StatelessWidget {
+class _ContributionGoalOption extends StatelessWidget {
   final SavingsGoal goal;
-  final String formattedSaved;
-  final String formattedTarget;
-  final String formattedRemaining;
-  final String? formattedDeadline;
-  final bool isProcessing;
-  final VoidCallback onHistory;
-  final VoidCallback? onEdit;
-  final VoidCallback? onContribute;
-  final VoidCallback? onWithdraw;
-  final VoidCallback? onArchive;
+  final bool isCurrent;
+  final String Function(double) money;
+  final VoidCallback onTap;
 
-  const _GoalCard({
+  const _ContributionGoalOption({
     required this.goal,
-    required this.formattedSaved,
-    required this.formattedTarget,
-    required this.formattedRemaining,
-    required this.formattedDeadline,
-    required this.isProcessing,
-    required this.onHistory,
-    required this.onEdit,
-    required this.onContribute,
-    required this.onWithdraw,
-    required this.onArchive,
+    required this.isCurrent,
+    required this.money,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = goal.isArchived
-        ? DuoColors.textHint
-        : goal.isCompleted
-        ? DuoColors.success
-        : DuoColors.primaryLight;
-
-    return DuoCard(
-      borderRadius: 20,
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Material(
+      color: DuoColors.orbitSurface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isCurrent
+                  ? DuoColors.orbitAccent.withValues(alpha: .55)
+                  : DuoColors.orbitBorder,
+            ),
+          ),
+          child: Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: .14),
-                  borderRadius: BorderRadius.circular(13),
+                  color: goal.category.accent.withValues(alpha: .15),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  goal.isArchived
-                      ? Icons.inventory_2_outlined
-                      : goal.isCompleted
-                      ? Icons.flag_rounded
-                      : Icons.savings_rounded,
-                  color: statusColor,
-                  size: 21,
+                  goal.category.icon,
+                  color: goal.category.accent,
+                  size: 19,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 11),
               Expanded(
-                child: Text(
-                  goal.name,
-                  style: const TextStyle(
-                    color: DuoColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Text(
-                '${goal.progressPercentage.toStringAsFixed(0)}%',
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              IconButton(
-                onPressed: isProcessing ? null : onHistory,
-                tooltip: 'Histórico da meta',
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(
-                  Icons.history_rounded,
-                  color: DuoColors.textHint,
-                  size: 20,
-                ),
-              ),
-              if (onEdit != null || onArchive != null)
-                PopupMenuButton<String>(
-                  enabled: !isProcessing,
-                  tooltip: 'Opções da meta',
-                  color: DuoColors.surface,
-                  icon: const Icon(
-                    Icons.more_vert_rounded,
-                    color: DuoColors.textHint,
-                    size: 20,
-                  ),
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      onEdit?.call();
-                    } else if (value == 'archive') {
-                      onArchive?.call();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    if (onEdit != null)
-                      const PopupMenuItem(value: 'edit', child: Text('Editar')),
-                    if (onArchive != null)
-                      const PopupMenuItem(
-                        value: 'archive',
-                        child: Text('Arquivar'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            goal.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: DuoColors.orbitTextPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (isCurrent)
+                          const Text(
+                            'Atual',
+                            style: TextStyle(
+                              color: DuoColors.orbitAccent,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${goal.progressPercentage.toStringAsFixed(0)}% • faltam ${money(goal.remainingAmount)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 10.5,
                       ),
+                    ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: DuoColors.textHint,
+                size: 20,
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              value: goal.progress,
-              minHeight: 9,
-              backgroundColor: DuoColors.surfaceLight,
-              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '$formattedSaved de $formattedTarget',
-            style: const TextStyle(
-              color: DuoColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            goal.isArchived
-                ? 'Meta arquivada'
-                : goal.isCompleted
-                ? 'Meta concluída!'
-                : 'Faltam $formattedRemaining',
-            style: TextStyle(
-              color: goal.isArchived
-                  ? DuoColors.textHint
-                  : goal.isCompleted
-                  ? DuoColors.success
-                  : DuoColors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (formattedDeadline != null) ...[
-            const SizedBox(height: 7),
-            Row(
-              children: [
-                const Icon(
-                  Icons.event_rounded,
-                  color: DuoColors.textHint,
-                  size: 14,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  'Prazo: $formattedDeadline',
-                  style: const TextStyle(
-                    color: DuoColors.textHint,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          if (onContribute != null || onWithdraw != null) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                if (onWithdraw != null)
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: isProcessing ? null : onWithdraw,
-                      child: const Text('Retirar'),
-                    ),
-                  ),
-                if (onWithdraw != null && onContribute != null)
-                  const SizedBox(width: 8),
-                if (onContribute != null)
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: isProcessing ? null : onContribute,
-                      icon: isProcessing
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Aportar'),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
 }
 
-class _GoalFilters extends StatelessWidget {
+class _Filters extends StatelessWidget {
   final _GoalListFilter selected;
-  final int activeCount;
-  final int completedCount;
-  final int archivedCount;
+  final int active;
+  final int completed;
+  final int archived;
   final ValueChanged<_GoalListFilter> onSelected;
 
-  const _GoalFilters({
+  const _Filters({
     required this.selected,
-    required this.activeCount,
-    required this.completedCount,
-    required this.archivedCount,
+    required this.active,
+    required this.completed,
+    required this.archived,
     required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    Widget chip(_GoalListFilter filter, String label, int count) {
-      return ChoiceChip(
-        selected: selected == filter,
-        onSelected: (_) => onSelected(filter),
-        label: Text('$label ($count)'),
-        selectedColor: DuoColors.primary.withValues(alpha: .22),
-        side: const BorderSide(color: DuoColors.border),
-        labelStyle: TextStyle(
-          color: selected == filter
-              ? DuoColors.primaryLight
-              : DuoColors.textSecondary,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-      );
-    }
-
+    Widget chip(_GoalListFilter value, String label, int count) => ChoiceChip(
+      selected: selected == value,
+      onSelected: (_) => onSelected(value),
+      label: Text('$label ($count)'),
+      backgroundColor: DuoColors.orbitSurface,
+      selectedColor: DuoColors.orbitAccent.withValues(alpha: .12),
+      side: BorderSide(
+        color: DuoColors.orbitBorder.withValues(alpha: .68),
+      ),
+      labelStyle: TextStyle(
+        color: selected == value
+            ? DuoColors.orbitAccent
+            : DuoColors.orbitTextSecondary,
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+      ),
+    );
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          chip(_GoalListFilter.active, 'Ativas', activeCount),
+          chip(_GoalListFilter.active, 'Ativas', active),
           const SizedBox(width: 8),
-          chip(_GoalListFilter.completed, 'Concluídas', completedCount),
+          chip(_GoalListFilter.completed, 'Realizadas', completed),
           const SizedBox(width: 8),
-          chip(_GoalListFilter.archived, 'Arquivadas', archivedCount),
+          chip(_GoalListFilter.archived, 'Arquivadas', archived),
         ],
       ),
     );
   }
 }
 
-class _EmptyGoals extends StatelessWidget {
+class _Empty extends StatelessWidget {
   final _GoalListFilter filter;
+  final VoidCallback onCreate;
 
-  const _EmptyGoals({required this.filter});
+  const _Empty({required this.filter, required this.onCreate});
 
   @override
   Widget build(BuildContext context) {
     final title = switch (filter) {
-      _GoalListFilter.active => 'Nenhuma meta ativa',
-      _GoalListFilter.completed => 'Nenhuma meta concluída',
+      _GoalListFilter.active => 'Qual é o próximo sonho?',
+      _GoalListFilter.completed => 'Nenhum sonho realizado ainda',
       _GoalListFilter.archived => 'Nenhuma meta arquivada',
     };
-    final description = switch (filter) {
-      _GoalListFilter.active =>
-        'Crie uma meta e reserve dinheiro das suas carteiras.',
-      _GoalListFilter.completed => 'As metas finalizadas aparecerão aqui.',
-      _GoalListFilter.archived =>
-        'As metas arquivadas continuarão disponíveis aqui.',
-    };
-
-    return DuoCard(
-      borderRadius: 20,
+    return Container(
       padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: DuoColors.orbitSurface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: DuoColors.orbitBorder),
+      ),
       child: Column(
         children: [
           const Icon(
-            Icons.savings_outlined,
-            color: DuoColors.textHint,
-            size: 42,
+            Icons.auto_awesome_rounded,
+            color: DuoColors.orbitAccent,
+            size: 38,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Text(
             title,
             style: const TextStyle(
-              color: DuoColors.textPrimary,
-              fontSize: 15,
+              color: DuoColors.orbitTextPrimary,
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: DuoColors.textSecondary,
-              fontSize: 12,
+          if (filter == _GoalListFilter.active) ...[
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Criar primeira meta'),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _GoalHistorySheet extends StatelessWidget {
+class _HistorySheet extends StatelessWidget {
   final SavingsGoal goal;
   final List<SavingsGoalMovement> movements;
-  final String currentUserId;
   final List<WalletModel> wallets;
-  final String Function(double) formatMoney;
+  final String currentUserId;
+  final String Function(double) money;
 
-  const _GoalHistorySheet({
+  const _HistorySheet({
     required this.goal,
     required this.movements,
-    required this.currentUserId,
     required this.wallets,
-    required this.formatMoney,
+    required this.currentUserId,
+    required this.money,
   });
 
-  String _walletName(String walletId) {
+  String _wallet(String id) {
     for (final wallet in wallets) {
-      if (wallet.id == walletId) {
-        return wallet.name;
-      }
+      if (wallet.id == id) return wallet.name;
     }
-
     return 'Carteira anterior';
-  }
-
-  String _formatDate(DateTime date) {
-    return DateFormat('dd/MM/yyyy • HH:mm').format(date);
   }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .72,
+        height: MediaQuery.sizeOf(context).height * .7,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1129,9 +1112,9 @@ class _GoalHistorySheet extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Histórico da meta',
+                    'Histórico do sonho',
                     style: TextStyle(
-                      color: DuoColors.textPrimary,
+                      color: DuoColors.orbitTextPrimary,
                       fontSize: 19,
                       fontWeight: FontWeight.w900,
                     ),
@@ -1140,7 +1123,7 @@ class _GoalHistorySheet extends StatelessWidget {
                   Text(
                     goal.name,
                     style: const TextStyle(
-                      color: DuoColors.textSecondary,
+                      color: DuoColors.orbitTextSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -1151,16 +1134,9 @@ class _GoalHistorySheet extends StatelessWidget {
             Expanded(
               child: movements.isEmpty
                   ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(28),
-                        child: Text(
-                          'Esta meta ainda não possui aportes ou retiradas.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: DuoColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
+                      child: Text(
+                        'Nenhuma movimentação ainda.',
+                        style: TextStyle(color: DuoColors.orbitTextSecondary),
                       ),
                     )
                   : ListView.separated(
@@ -1169,18 +1145,17 @@ class _GoalHistorySheet extends StatelessWidget {
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final movement = movements[index];
-                        final isContribution = movement.isContribution;
-                        final color = isContribution
+                        final contribution = movement.isContribution;
+                        final color = contribution
                             ? DuoColors.success
                             : DuoColors.warning;
-                        final memberLabel =
-                            movement.createdByUserId == currentUserId
-                            ? 'Você'
-                            : 'Outro membro';
-
-                        return DuoCard(
-                          borderRadius: 16,
+                        return Container(
                           padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: DuoColors.orbitSurface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: DuoColors.orbitBorder),
+                          ),
                           child: Row(
                             children: [
                               Container(
@@ -1191,11 +1166,10 @@ class _GoalHistorySheet extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(
-                                  isContribution
+                                  contribution
                                       ? Icons.add_rounded
                                       : Icons.remove_rounded,
                                   color: color,
-                                  size: 20,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -1204,35 +1178,29 @@ class _GoalHistorySheet extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      isContribution ? 'Aporte' : 'Retirada',
+                                      contribution ? 'Guardado' : 'Retirado',
                                       style: const TextStyle(
-                                        color: DuoColors.textPrimary,
-                                        fontSize: 13,
+                                        color: DuoColors.orbitTextPrimary,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 3),
                                     Text(
-                                      '${_formatDate(movement.occurredAt)}'
-                                      ' • ${_walletName(movement.walletId)}'
-                                      ' • $memberLabel',
+                                      '${DateFormat('dd/MM/yyyy • HH:mm').format(movement.occurredAt)} • ${_wallet(movement.walletId)} • ${movement.createdByUserId == currentUserId ? 'Você' : 'Outro membro'}',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        color: DuoColors.textSecondary,
+                                        color: DuoColors.orbitTextSecondary,
                                         fontSize: 10,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
                               Text(
-                                '${isContribution ? '+' : '-'} '
-                                '${formatMoney(movement.amount)}',
+                                '${contribution ? '+' : '-'} ${money(movement.amount)}',
                                 style: TextStyle(
                                   color: color,
-                                  fontSize: 12,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
@@ -1249,33 +1217,23 @@ class _GoalHistorySheet extends StatelessWidget {
   }
 }
 
-class _EditGoalInput {
+class _GoalFormInput {
   final String name;
   final double targetAmount;
   final DateTime? deadline;
+  final SavingsGoalCategory category;
 
-  const _EditGoalInput({
+  const _GoalFormInput({
     required this.name,
     required this.targetAmount,
     required this.deadline,
+    required this.category,
   });
 }
 
-class _NewGoalInput {
-  final String name;
-  final double targetAmount;
-  final DateTime? deadline;
-
-  const _NewGoalInput({
-    required this.name,
-    required this.targetAmount,
-    required this.deadline,
-  });
-}
-
-class _GoalMovementInput {
+class _MovementInput {
   final WalletModel wallet;
   final double amount;
 
-  const _GoalMovementInput({required this.wallet, required this.amount});
+  const _MovementInput(this.wallet, this.amount);
 }
