@@ -235,7 +235,7 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
                     'A tela de tarefas ainda está sendo preparada.',
               ),
               onList: () => _createList(_personalScopeId),
-              onSequence: () => _runOnTasksPage(
+              onRoutine: () => _runOnTasksPage(
                 (page) => page.createRoutine(),
                 unavailableMessage:
                     'A tela de tarefas ainda está sendo preparada.',
@@ -244,9 +244,6 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
                 _showUnavailable(
                   'Abra uma tarefa compartilhada para lembrar o responsável.',
                 );
-              },
-              onShopping: () async {
-                setState(() => _showLists = true);
               },
             ),
           ),
@@ -280,18 +277,16 @@ class _ExpandableQuickActions extends StatelessWidget {
   final VoidCallback onToggle;
   final Future<void> Function() onTask;
   final Future<void> Function() onList;
-  final Future<void> Function() onSequence;
+  final Future<void> Function() onRoutine;
   final Future<void> Function() onPartnerReminder;
-  final Future<void> Function() onShopping;
 
   const _ExpandableQuickActions({
     required this.expanded,
     required this.onToggle,
     required this.onTask,
     required this.onList,
-    required this.onSequence,
+    required this.onRoutine,
     required this.onPartnerReminder,
-    required this.onShopping,
   });
 
   @override
@@ -360,7 +355,7 @@ class _ExpandableQuickActions extends StatelessWidget {
                             onTap: onTask,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _QuickAction(
                             icon: Icons.list_alt_rounded,
@@ -369,23 +364,12 @@ class _ExpandableQuickActions extends StatelessWidget {
                             onTap: onList,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _QuickAction(
-                            icon: Icons.link_rounded,
-                            label: 'Nova sequência',
-                            color: DuoColors.warning,
-                            onTap: onSequence,
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Spacer(),
                         Expanded(
-                          flex: 3,
                           child: _QuickAction(
                             icon: Icons.notifications_none_rounded,
                             label: 'Lembrar parceiro',
@@ -393,17 +377,15 @@ class _ExpandableQuickActions extends StatelessWidget {
                             onTap: onPartnerReminder,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 12),
                         Expanded(
-                          flex: 3,
                           child: _QuickAction(
-                            icon: Icons.shopping_cart_outlined,
-                            label: 'Compras',
-                            color: const Color(0xFF4E8BFF),
-                            onTap: onShopping,
+                            icon: Icons.link_rounded,
+                            label: 'Criar rotina',
+                            color: DuoColors.warning,
+                            onTap: onRoutine,
                           ),
                         ),
-                        const Spacer(),
                       ],
                     ),
                   ],

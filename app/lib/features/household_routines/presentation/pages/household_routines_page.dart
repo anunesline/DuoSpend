@@ -31,13 +31,20 @@ class HouseholdRoutinesPage extends StatefulWidget {
 
 class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   bool _isOpeningTaskEditor = false;
+  late DateTime _selectedDay;
 
   List<String> _memberIds([HouseholdTask? task]) {
     final members = <String>{
-      ...HouseholdScopeId.members(widget.scopeId),
-      ...widget.memberIds.map((id) => id.trim()).where((id) => id.isNotEmpty),
       widget.currentUserId,
     };
+    final isSharedContext = task?.scope == HouseholdTaskScope.shared ||
+        widget.scope == HouseholdTaskScope.shared;
+    if (isSharedContext) {
+      members.addAll(HouseholdScopeId.members(widget.scopeId));
+      members.addAll(
+        widget.memberIds.map((id) => id.trim()).where((id) => id.isNotEmpty),
+      );
+    }
     final assigneeId = task?.assigneeId?.trim();
     if (assigneeId != null && assigneeId.isNotEmpty) members.add(assigneeId);
     return List.unmodifiable(members);
@@ -46,7 +53,13 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _selectedDay = DateTime(now.year, now.month, now.day);
     _loadContent();
+  }
+
+  void _changeSelectedDay(int offset) {
+    setState(() => _selectedDay = _selectedDay.add(Duration(days: offset)));
   }
 
   @override
@@ -127,115 +140,185 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
 
           return Theme(
             data: _orbitFormTheme(context),
-            child: AlertDialog(
-              backgroundColor: DuoColors.orbitCardSurface,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: DuoColors.orbitBorder.withValues(alpha: .62),
-                ),
+            child: Dialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
               ),
-              title: Text(
-                isEditing ? 'Editar tarefa' : 'Nova tarefa',
-                style: const TextStyle(
-                  color: DuoColors.orbitTextPrimary,
-                  fontWeight: FontWeight.w800,
+              backgroundColor: Colors.transparent,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * .82,
                 ),
-              ),
-              content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    autofocus: !isEditing,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'Tarefa',
-                      hintText: 'Ex.: Tirar o lixo',
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: DuoColors.orbitCardSurface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: DuoColors.orbitBorder.withValues(alpha: .52),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: notesController,
-                    decoration: const InputDecoration(
-                      labelText: 'Observações (opcional)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.schedule_rounded),
-                    title: Text(
-                      dueAt == null
-                          ? 'Definir data e horário'
-                          : _formatDueAt(dueAt!),
-                    ),
-                    subtitle: const Text('Opcional'),
-                    onTap: pickDueAt,
-                    trailing: dueAt == null
-                        ? const Icon(Icons.chevron_right_rounded)
-                        : IconButton(
-                            tooltip: 'Remover horário',
-                            onPressed: () => setDialogState(() => dueAt = null),
-                            icon: const Icon(Icons.close_rounded),
-                          ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: repeatController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Repetir a cada (dias)',
-                      hintText: 'Ex.: 7',
-                      helperText: 'Opcional',
-                    ),
-                  ),
-                  if (memberIds.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: memberIds.contains(assigneeId)
-                          ? assigneeId
-                          : null,
-                      decoration: const InputDecoration(
-                        labelText: 'Responsável pela tarefa',
-                      ),
-                      items: memberIds
-                          .map(
-                            (memberId) => DropdownMenuItem<String>(
-                              value: memberId,
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 14, 8, 12),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: DuoColors.orbitAccent.withValues(alpha: .14),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.checklist_rounded,
+                                color: DuoColors.orbitAccent,
+                              ),
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
                               child: Text(
-                                widget.controller.memberName(
-                                  memberId,
-                                  currentUserId: widget.currentUserId,
+                                isEditing ? 'Editar tarefa' : 'Nova tarefa',
+                                style: const TextStyle(
+                                  color: DuoColors.orbitTextPrimary,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                             ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) => setDialogState(() {
-                        assigneeId = value;
-                      }),
-                    ),
-                  ],
-                ],
-              ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: DuoColors.orbitAccent,
-                    foregroundColor: DuoColors.orbitBackground,
+                            IconButton(
+                              tooltip: 'Fechar',
+                              onPressed: () => Navigator.pop(dialogContext, false),
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(
+                        height: 1,
+                        color: DuoColors.orbitBorder.withValues(alpha: .48),
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: titleController,
+                                autofocus: !isEditing,
+                                textCapitalization: TextCapitalization.sentences,
+                                decoration: const InputDecoration(
+                                  labelText: 'Tarefa',
+                                  hintText: 'Ex.: Tirar o lixo',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: notesController,
+                                maxLines: 2,
+                                textCapitalization: TextCapitalization.sentences,
+                                decoration: const InputDecoration(
+                                  labelText: 'Descrição ou nota',
+                                  hintText: 'Opcional',
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _EditorSettingsGroup(
+                                children: [
+                                  _EditorSettingRow(
+                                    icon: Icons.schedule_rounded,
+                                    label: 'Data e horário',
+                                    value: dueAt == null
+                                        ? 'Não definido'
+                                        : _formatDueAt(dueAt!),
+                                    onTap: pickDueAt,
+                                    trailing: dueAt == null
+                                        ? const Icon(Icons.chevron_right_rounded)
+                                        : IconButton(
+                                            tooltip: 'Remover horário',
+                                            onPressed: () =>
+                                                setDialogState(() => dueAt = null),
+                                            icon: const Icon(Icons.close_rounded),
+                                          ),
+                                  ),
+                                  _EditorSettingRow(
+                                    icon: Icons.repeat_rounded,
+                                    label: 'Frequência',
+                                    child: TextField(
+                                      controller: repeatController,
+                                      keyboardType: TextInputType.number,
+                                      textAlign: TextAlign.right,
+                                      decoration: const InputDecoration(
+                                        hintText: 'A cada dias',
+                                        isDense: true,
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        filled: false,
+                                      ),
+                                    ),
+                                  ),
+                                  if (memberIds.isNotEmpty)
+                                    _EditorSettingRow(
+                                      icon: Icons.person_outline_rounded,
+                                      label: 'Responsável',
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<String>(
+                                          value: memberIds.contains(assigneeId)
+                                              ? assigneeId
+                                              : null,
+                                          isDense: true,
+                                          dropdownColor: DuoColors.orbitSurface,
+                                          items: memberIds
+                                              .map(
+                                                (memberId) => DropdownMenuItem<String>(
+                                                  value: memberId,
+                                                  child: Text(
+                                                    widget.controller.memberName(
+                                                      memberId,
+                                                      currentUserId: widget.currentUserId,
+                                                    ),
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(growable: false),
+                                          onChanged: (value) =>
+                                              setDialogState(() => assigneeId = value),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                        child: Row(
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext, false),
+                              child: const Text('Cancelar'),
+                            ),
+                            const Spacer(),
+                            FilledButton.icon(
+                              onPressed: () => Navigator.pop(dialogContext, true),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: DuoColors.orbitAccent,
+                                foregroundColor: DuoColors.orbitBackground,
+                              ),
+                              icon: const Icon(Icons.check_rounded, size: 18),
+                              label: Text(isEditing ? 'Salvar' : 'Criar tarefa'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Text(isEditing ? 'Salvar' : 'Criar'),
                 ),
-              ],
+              ),
             ),
           );
         },
@@ -333,6 +416,12 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
         final now = DateTime.now();
         final todayStart = DateTime(now.year, now.month, now.day);
         final tomorrowStart = todayStart.add(const Duration(days: 1));
+        final selectedDayStart = DateTime(
+          _selectedDay.year,
+          _selectedDay.month,
+          _selectedDay.day,
+        );
+        final selectedDayEnd = selectedDayStart.add(const Duration(days: 1));
         final weekStart = todayStart.subtract(
           Duration(days: todayStart.weekday - DateTime.monday),
         );
@@ -345,6 +434,14 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   task.dueAt != null &&
                   !task.dueAt!.isBefore(todayStart) &&
                   task.dueAt!.isBefore(tomorrowStart),
+            )
+            .toList();
+        final selectedDayTasks = widget.controller.tasks
+            .where(
+              (task) =>
+                  task.dueAt != null &&
+                  !task.dueAt!.isBefore(selectedDayStart) &&
+                  task.dueAt!.isBefore(selectedDayEnd),
             )
             .toList();
         final overdue = pending
@@ -484,20 +581,24 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   message: widget.controller.successMessage!,
                   color: DuoColors.success,
                 ),
-              _SectionTitle(
-                'Hoje • ${_shortDate(todayStart)}',
+              _DaySectionTitle(
+                day: selectedDayStart,
+                onPrevious: () => _changeSelectedDay(-1),
+                onNext: () => _changeSelectedDay(1),
                 trailing: 'Ordenar',
                 onTrailing: openSecondaryContent,
               ),
               const SizedBox(height: 8),
-              if (todayTasks.isNotEmpty) ...[
+              if (selectedDayTasks.isNotEmpty) ...[
                 _OrbitListCard(
-                  children: [for (final task in todayTasks) taskTile(task)],
+                  children: [
+                    for (final task in selectedDayTasks) taskTile(task),
+                  ],
                 ),
               ] else ...[
                 const _CompactEmptyState(
                   icon: Icons.wb_sunny_outlined,
-                  message: 'Nenhuma tarefa com horário para hoje.',
+                  message: 'Nenhuma tarefa com horário neste dia.',
                 ),
               ],
               const SizedBox(height: 18),
@@ -579,6 +680,92 @@ ThemeData _orbitFormTheme(BuildContext context) {
     ),
   );
 }
+
+class _EditorSettingsGroup extends StatelessWidget {
+  final List<Widget> children;
+
+  const _EditorSettingsGroup({required this.children});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: DuoColors.orbitSurface.withValues(alpha: .72),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: DuoColors.orbitBorder.withValues(alpha: .42),
+          ),
+        ),
+        child: Column(
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              children[index],
+              if (index != children.length - 1)
+                Divider(
+                  height: 1,
+                  indent: 46,
+                  color: DuoColors.orbitBorder.withValues(alpha: .42),
+                ),
+            ],
+          ],
+        ),
+      );
+}
+
+class _EditorSettingRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? value;
+  final Widget? child;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  const _EditorSettingRow({
+    required this.icon,
+    required this.label,
+    this.value,
+    this.child,
+    this.trailing,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          child: Row(
+            children: [
+              Icon(icon, color: DuoColors.orbitTextSecondary, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: DuoColors.orbitTextSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: child ?? Text(
+                  value ?? '',
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: DuoColors.orbitTextPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 4),
+                trailing!,
+              ],
+            ],
+          ),
+        ),
+      );
 
 class _RoutineSummary extends StatelessWidget {
   final int today;
@@ -913,6 +1100,101 @@ class _SectionTitle extends StatelessWidget {
       ],
     );
   }
+}
+
+class _DaySectionTitle extends StatelessWidget {
+  final DateTime day;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final String trailing;
+  final VoidCallback onTrailing;
+
+  const _DaySectionTitle({
+    required this.day,
+    required this.onPrevious,
+    required this.onNext,
+    required this.trailing,
+    required this.onTrailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final difference = day.difference(today).inDays;
+    final prefix = switch (difference) {
+      0 => 'Hoje',
+      1 => 'Amanhã',
+      -1 => 'Ontem',
+      _ => null,
+    };
+    final heading = prefix == null ? _shortDate(day) : '$prefix • ${_shortDate(day)}';
+    return Row(
+      children: [
+        _DayNavigationButton(
+          icon: Icons.chevron_left_rounded,
+          tooltip: 'Dia anterior',
+          onTap: onPrevious,
+        ),
+        Expanded(
+          child: Text(
+            heading,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: DuoColors.orbitTextPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        _DayNavigationButton(
+          icon: Icons.chevron_right_rounded,
+          tooltip: 'Próximo dia',
+          onTap: onNext,
+        ),
+        const SizedBox(width: 6),
+        InkWell(
+          onTap: onTrailing,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+            child: Text(
+              trailing,
+              style: const TextStyle(
+                color: DuoColors.orbitAccent,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DayNavigationButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _DayNavigationButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkResponse(
+        onTap: onTap,
+        radius: 20,
+        child: Tooltip(
+          message: tooltip,
+          child: Icon(icon, color: DuoColors.orbitTextSecondary, size: 22),
+        ),
+      );
 }
 
 class _RoutineTile extends StatelessWidget {
