@@ -38,6 +38,7 @@ class HouseholdListItem {
   HouseholdListItem markPurchased({
     required DateTime at,
     String? by,
+    String? financialReferenceId,
   }) =>
       HouseholdListItem(
         id: id,
@@ -52,7 +53,8 @@ class HouseholdListItem {
         completedBy: by,
         quantity: quantity,
         unit: unit,
-        financialReferenceId: financialReferenceId,
+        financialReferenceId:
+            financialReferenceId ?? this.financialReferenceId,
       );
 
   HouseholdListItem markPending(DateTime at) => HouseholdListItem(
@@ -140,6 +142,8 @@ class HouseholdListItemPurchaseEvent {
   final String identityKey;
   final DateTime purchasedAt;
   final String? purchasedBy;
+  final String? source;
+  final String? sourceReferenceId;
 
   const HouseholdListItemPurchaseEvent({
     required this.id,
@@ -150,6 +154,8 @@ class HouseholdListItemPurchaseEvent {
     required this.identityKey,
     required this.purchasedAt,
     this.purchasedBy,
+    this.source,
+    this.sourceReferenceId,
   });
 
   Map<String, dynamic> toMap() => {
@@ -161,6 +167,8 @@ class HouseholdListItemPurchaseEvent {
         'identityKey': identityKey,
         'purchasedAt': purchasedAt.toIso8601String(),
         'purchasedBy': purchasedBy,
+        'source': source,
+        'sourceReferenceId': sourceReferenceId,
       };
 
   factory HouseholdListItemPurchaseEvent.fromMap(Map<String, dynamic> map) =>
@@ -173,6 +181,8 @@ class HouseholdListItemPurchaseEvent {
         identityKey: map['identityKey']?.toString() ?? '',
         purchasedAt: householdListDateFromValue(map['purchasedAt']) ?? DateTime.now(),
         purchasedBy: map['purchasedBy']?.toString(),
+        source: map['source']?.toString(),
+        sourceReferenceId: map['sourceReferenceId']?.toString(),
       );
 }
 

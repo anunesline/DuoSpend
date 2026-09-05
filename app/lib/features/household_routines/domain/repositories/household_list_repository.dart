@@ -17,6 +17,10 @@ abstract class HouseholdListRepository {
     required HouseholdListItem item,
     required HouseholdListItemPurchaseEvent event,
   });
+  Future<bool> markItemPurchasedFromFinancialTransaction({
+    required HouseholdListItem item,
+    required HouseholdListItemPurchaseEvent event,
+  });
   Future<List<HouseholdListItemPurchaseEvent>> getPurchaseEvents({
     required String scopeId,
     String? identityKey,

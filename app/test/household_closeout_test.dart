@@ -333,6 +333,11 @@ class _ListRepository implements HouseholdListRepository {
     required HouseholdListItemPurchaseEvent event,
   }) async {}
   @override
+  Future<bool> markItemPurchasedFromFinancialTransaction({
+    required HouseholdListItem item,
+    required HouseholdListItemPurchaseEvent event,
+  }) async => false;
+  @override
   Future<void> saveItem(HouseholdListItem item) async {}
   @override
   Future<void> saveList(HouseholdList list) async {}

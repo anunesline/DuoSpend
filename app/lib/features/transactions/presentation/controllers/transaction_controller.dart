@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../home/data/models/wallet_model.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
+import '../../../household_routines/domain/services/shopping_list_transaction_synchronizer.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
@@ -17,6 +18,7 @@ class TransactionController extends ChangeNotifier {
   final CreateTransactionUseCase _createTransactionUseCase;
   final AcceptSharedTransactionUseCase _acceptSharedTransactionUseCase;
   final RejectSharedTransactionUseCase _rejectSharedTransactionUseCase;
+  final ShoppingListPurchaseSynchronizer? _shoppingListSynchronizer;
 
   TransactionController({
     CreateTransactionUseCase? createTransactionUseCase,
@@ -26,6 +28,7 @@ class TransactionController extends ChangeNotifier {
     WalletRepository? walletRepository,
     FinancialSplitService? financialSplitService,
     BalanceSettlementSynchronizer? settlementSynchronizer,
+    ShoppingListPurchaseSynchronizer? shoppingListSynchronizer,
   })  : _createTransactionUseCase = createTransactionUseCase ??
             CreateTransactionUseCase(
               transactionRepository: repository ?? TransactionRepository(),
@@ -35,6 +38,7 @@ class TransactionController extends ChangeNotifier {
               settlementSynchronizer:
                   settlementSynchronizer ?? BalanceSettlementSynchronizer(),
             ),
+        _shoppingListSynchronizer = shoppingListSynchronizer,
         _acceptSharedTransactionUseCase = acceptSharedTransactionUseCase ??
             (createTransactionUseCase != null
                 ? _UnavailableAcceptSharedTransactionUseCase()
@@ -136,6 +140,7 @@ class TransactionController extends ChangeNotifier {
     DateTime? transactionDate,
     String? splitType,
     Map<String, double>? memberShares,
+    String? householdListScopeId,
   }) async {
     if (_isSaving) {
       throw StateError('Uma transação já está sendo salva.');
@@ -177,6 +182,32 @@ class TransactionController extends ChangeNotifier {
         customMemberShares: memberShares,
       );
 
+      if (type == 'expense' &&
+          householdListScopeId != null &&
+          householdListScopeId.trim().isNotEmpty &&
+          _items.isNotEmpty) {
+        try {
+          await (_shoppingListSynchronizer ??
+                  ShoppingListTransactionSynchronizer())
+              .synchronize(
+            scopeId: householdListScopeId,
+            transactionId: result.transaction.id,
+            purchasedAt: result.transaction.date,
+            purchasedBy: paidByMemberId,
+            items: _items
+                .map(
+                  (item) => PurchasedTransactionItem(
+                    id: item.id,
+                    displayName: item.name,
+                  ),
+                )
+                .toList(growable: false),
+          );
+        } catch (_) {
+          // A transação financeira já foi concluída. A sincronização de uma
+          // conveniência não deve repetir nem invalidar seus efeitos oficiais.
+        }
+      }
       _lastResult = result;
       _items.clear();
       return result;

@@ -76,6 +76,28 @@ class FirestoreHouseholdListRepository implements HouseholdListRepository {
   }
 
   @override
+  Future<bool> markItemPurchasedFromFinancialTransaction({
+    required HouseholdListItem item,
+    required HouseholdListItemPurchaseEvent event,
+  }) =>
+      firestore.runTransaction((transaction) async {
+        final itemReference = _items.doc(item.id);
+        final eventReference = _events.doc(event.id);
+        final eventSnapshot = await transaction.get(eventReference);
+        if (eventSnapshot.exists) return false;
+
+        final itemSnapshot = await transaction.get(itemReference);
+        final data = itemSnapshot.data();
+        if (!itemSnapshot.exists || data == null) return false;
+        final persistedItem = HouseholdListItem.fromMap(data);
+        if (persistedItem.isPurchased) return false;
+
+        transaction.set(itemReference, item.toMap());
+        transaction.set(eventReference, event.toMap());
+        return true;
+      });
+
+  @override
   Future<List<HouseholdListItemPurchaseEvent>> getPurchaseEvents({
     required String scopeId,
     String? identityKey,

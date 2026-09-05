@@ -17,6 +17,7 @@ import '../../../consumers/presentation/controllers/consumer_controller.dart';
 import '../../../home/data/models/credit_card_model.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../../home/data/repositories/credit_card_repository.dart';
+import '../../../household_routines/domain/services/household_scope_id.dart';
 import '../../../auth/data/repositories/user_repository.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../domain/financial_split/financial_split_configuration.dart';
@@ -371,6 +372,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         installmentCount: installmentCount, firstInstallmentDate: isInstallment ? firstInstallmentDate : null,
         notes: notesController.text, financialWalletId: financialWalletId, paymentMethod: selectedPaymentMethod,
         paymentSourceId: paymentSourceId, transactionDate: transactionDate,
+        householdListScopeId: transactionWallet.isShared &&
+                transactionWallet.memberIds.length >= 2
+            ? HouseholdScopeId.shared(transactionWallet.memberIds)
+            : HouseholdScopeId.personal(user.uid),
       );
       if (!mounted) return; Navigator.pop(context);
     } catch (_) { _showMessage(transactionController.errorMessage ?? 'Não foi possível salvar a transação.'); }
