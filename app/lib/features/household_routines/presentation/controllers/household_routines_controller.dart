@@ -76,6 +76,19 @@ class HouseholdRoutinesController extends ChangeNotifier {
 
   String? memberPhotoUrl(String userId) => _memberProfiles[userId]?.photoUrl;
 
+  String? resolvedMemberName(String userId) {
+    final name = _memberProfiles[userId]?.displayName.trim();
+    return name == null || name.isEmpty ? null : name;
+  }
+
+  Future<List<HouseholdListItemPurchaseEvent>> loadListPurchaseHistory(
+    HouseholdList list,
+  ) =>
+      listRepository.getPurchaseEventsByList(
+        scopeId: list.scopeId,
+        listId: list.id,
+      );
+
   Future<void> load(String scopeId) async {
     _setLoading(true);
     try {

@@ -4,6 +4,7 @@ import '../../../../core/design_system/duo_colors.dart';
 import '../../domain/models/household_list.dart';
 import '../../domain/models/household_list_item.dart';
 import '../controllers/household_routines_controller.dart';
+import 'household_list_history_page.dart';
 
 class HouseholdListDetailPage extends StatefulWidget {
   final HouseholdRoutinesController controller;
@@ -131,6 +132,28 @@ class _HouseholdListDetailPageState extends State<HouseholdListDetailPage> {
         surfaceTintColor: Colors.transparent,
         title: Text(widget.list.name,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        actions: [
+          if (widget.list.isShopping)
+            TextButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HouseholdListHistoryPage(
+                    list: widget.list,
+                    loadEvents: () =>
+                        widget.controller.loadListPurchaseHistory(widget.list),
+                    resolveMemberName: widget.controller.resolvedMemberName,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.history_rounded, size: 18),
+              label: const Text('Histórico'),
+              style: TextButton.styleFrom(
+                foregroundColor: DuoColors.orbitAccent,
+              ),
+            ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: ListenableBuilder(
         listenable: widget.controller,

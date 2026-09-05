@@ -25,4 +25,8 @@ abstract class HouseholdListRepository {
     required String scopeId,
     String? identityKey,
   });
+  Future<List<HouseholdListItemPurchaseEvent>> getPurchaseEventsByList({
+    required String scopeId,
+    required String listId,
+  });
 }

@@ -106,6 +106,60 @@ void main() {
     expect(restored.isPurchased, isFalse);
     expect(restored.completedAt, isNull);
     expect(await repository.getPurchaseEvents(scopeId: list.scopeId), hasLength(1));
+    expect(
+      await repository.getPurchaseEventsByList(
+        scopeId: list.scopeId,
+        listId: list.id,
+      ),
+      hasLength(1),
+    );
+  });
+
+  test('histórico da lista filtra eventos e ordena do mais recente', () async {
+    final repository = FirestoreHouseholdListRepository(
+      firestore: FakeFirebaseFirestore(),
+    );
+    final list = _list(
+      id: 'market',
+      scopeId: 'user:aline',
+      name: 'Mercado',
+      type: HouseholdListType.shopping,
+      now: DateTime.utc(2026, 9, 1),
+    );
+    final item = _item(list, DateTime.utc(2026, 9, 1));
+    final first = item.markPurchased(at: DateTime.utc(2026, 9, 1));
+    final second = item.markPurchased(at: DateTime.utc(2026, 9, 16));
+    final otherListItem = HouseholdListItem(
+      id: 'other-milk',
+      listId: 'other-list',
+      scopeId: list.scopeId,
+      displayName: 'Leite',
+      identityKey: 'leite',
+      status: HouseholdListItemStatus.purchased,
+      createdAt: DateTime.utc(2026, 9, 1),
+      updatedAt: DateTime.utc(2026, 9, 10),
+      completedAt: DateTime.utc(2026, 9, 10),
+    );
+    await repository.markItemPurchased(
+      item: first,
+      event: _event(first, 'first'),
+    );
+    await repository.saveItem(first.markPending(DateTime.utc(2026, 9, 2)));
+    await repository.markItemPurchased(
+      item: second,
+      event: _event(second, 'second'),
+    );
+    await repository.markItemPurchased(
+      item: otherListItem,
+      event: _event(otherListItem, 'other'),
+    );
+
+    final history = await repository.getPurchaseEventsByList(
+      scopeId: list.scopeId,
+      listId: list.id,
+    );
+    expect(history.map((event) => event.id), ['second', 'first']);
+    expect(history.every((event) => event.listId == list.id), isTrue);
   });
 
   test('normalização respeita diferenças seguras de identidade', () {

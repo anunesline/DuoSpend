@@ -328,6 +328,11 @@ class _ListRepository implements HouseholdListRepository {
     String? identityKey,
   }) async => const [];
   @override
+  Future<List<HouseholdListItemPurchaseEvent>> getPurchaseEventsByList({
+    required String scopeId,
+    required String listId,
+  }) async => const [];
+  @override
   Future<void> markItemPurchased({
     required HouseholdListItem item,
     required HouseholdListItemPurchaseEvent event,

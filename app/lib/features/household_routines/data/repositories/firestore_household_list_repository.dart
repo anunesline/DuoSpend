@@ -110,4 +110,14 @@ class FirestoreHouseholdListRepository implements HouseholdListRepository {
       ..sort((a, b) => a.purchasedAt.compareTo(b.purchasedAt));
     return events;
   }
+
+  @override
+  Future<List<HouseholdListItemPurchaseEvent>> getPurchaseEventsByList({
+    required String scopeId,
+    required String listId,
+  }) async {
+    final events = await getPurchaseEvents(scopeId: scopeId);
+    return events.where((event) => event.listId == listId).toList()
+      ..sort((a, b) => b.purchasedAt.compareTo(a.purchasedAt));
+  }
 }
