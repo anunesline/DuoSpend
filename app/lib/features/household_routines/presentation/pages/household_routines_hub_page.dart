@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/design_system/duo_colors.dart';
 import '../../domain/models/household_task.dart';
 import '../../domain/services/household_scope_id.dart';
 import '../controllers/household_routines_controller.dart';
@@ -50,49 +51,127 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
         ? HouseholdTaskScope.shared
         : HouseholdTaskScope.personal;
     final members = isShared
-        ? widget.sharedMemberIds
+        ? HouseholdScopeId.members(scopeId)
         : <String>[widget.currentUserId];
 
     return Scaffold(
+      backgroundColor: DuoColors.orbitBackground,
       appBar: AppBar(
-        title: const Text('Rotinas da Casa'),
-        bottom: widget.hasSharedHousehold
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(52),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                  child: SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment<bool>(
-                        value: false,
-                        icon: Icon(Icons.person_rounded),
-                        label: Text('Eu'),
-                      ),
-                      ButtonSegment<bool>(
-                        value: true,
-                        icon: Icon(Icons.groups_rounded),
-                        label: Text('Nós'),
-                      ),
-                    ],
-                    selected: {_showShared},
-                    onSelectionChanged: (selection) {
-                      setState(() {
-                        _showShared = selection.first;
-                      });
-                    },
-                  ),
-                ),
-              )
-            : null,
+        backgroundColor: DuoColors.orbitBackground,
+        foregroundColor: DuoColors.orbitTextPrimary,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'Rotinas',
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -.35),
+        ),
+        actions: [
+          IconButton(
+            onPressed: null,
+            tooltip: 'Busca disponível em uma próxima etapa',
+            icon: const Icon(Icons.search_rounded),
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
-      body: HouseholdRoutinesPage(
-        key: ValueKey(scopeId),
-        controller: widget.controller,
-        scopeId: scopeId,
-        scope: scope,
-        memberIds: members,
-        currentUserId: widget.currentUserId,
-        embedInScaffold: true,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+            child: _RoutineScopeTabs(
+              showShared: isShared,
+              onPersonal: () => setState(() => _showShared = false),
+              onShared: widget.hasSharedHousehold
+                  ? () => setState(() => _showShared = true)
+                  : null,
+            ),
+          ),
+          Expanded(
+            child: HouseholdRoutinesPage(
+              key: ValueKey(scopeId),
+              controller: widget.controller,
+              scopeId: scopeId,
+              scope: scope,
+              memberIds: members,
+              currentUserId: widget.currentUserId,
+              embedInScaffold: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoutineScopeTabs extends StatelessWidget {
+  final bool showShared;
+  final VoidCallback onPersonal;
+  final VoidCallback? onShared;
+
+  const _RoutineScopeTabs({
+    required this.showShared,
+    required this.onPersonal,
+    required this.onShared,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: DuoColors.orbitCardSurface,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(
+          color: DuoColors.orbitBorder.withValues(alpha: .55),
+        ),
+      ),
+      child: Row(
+        children: [
+          _tab('Minhas', !showShared, onPersonal),
+          _tab('Compartilhadas', showShared, onShared),
+          Tooltip(
+            message: 'Listas ainda não estão disponíveis',
+            child: _tab('Listas', false, null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tab(String label, bool selected, VoidCallback? onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? DuoColors.orbitAccent.withValues(alpha: .15)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: selected
+                ? Border.all(
+                    color: DuoColors.orbitAccent.withValues(alpha: .25),
+                  )
+                : null,
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: onTap == null
+                  ? DuoColors.orbitTextSecondary.withValues(alpha: .45)
+                  : selected
+                  ? DuoColors.orbitTextPrimary
+                  : DuoColors.orbitTextSecondary,
+              fontSize: 10.5,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ),
       ),
     );
   }

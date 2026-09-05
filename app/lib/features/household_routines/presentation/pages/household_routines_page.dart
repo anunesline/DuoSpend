@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/design_system/duo_colors.dart';
 import '../../domain/models/household_routine.dart';
 import '../../domain/models/household_task.dart';
+import '../../domain/services/household_scope_id.dart';
 import '../controllers/household_routines_controller.dart';
 import 'create_household_routine_page.dart';
 
@@ -28,6 +30,17 @@ class HouseholdRoutinesPage extends StatefulWidget {
 }
 
 class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
+  List<String> _memberIds([HouseholdTask? task]) {
+    final members = <String>{
+      ...HouseholdScopeId.members(widget.scopeId),
+      ...widget.memberIds.map((id) => id.trim()).where((id) => id.isNotEmpty),
+      widget.currentUserId,
+    };
+    final assigneeId = task?.assigneeId?.trim();
+    if (assigneeId != null && assigneeId.isNotEmpty) members.add(assigneeId);
+    return List.unmodifiable(members);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +77,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     );
     String? assigneeId = task?.assigneeId ?? widget.currentUserId;
     DateTime? dueAt = task?.dueAt;
+    final memberIds = _memberIds(task);
 
     final shouldSave = await showDialog<bool>(
       context: context,
@@ -127,23 +141,24 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                       helperText: 'Opcional',
                     ),
                   ),
-                  if (widget.memberIds.isNotEmpty) ...[
+                  if (memberIds.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      initialValue: widget.memberIds.contains(assigneeId)
+                      initialValue: memberIds.contains(assigneeId)
                           ? assigneeId
                           : null,
                       decoration: const InputDecoration(
                         labelText: 'Responsável pela tarefa',
                       ),
-                      items: widget.memberIds
+                      items: memberIds
                           .map(
                             (memberId) => DropdownMenuItem<String>(
                               value: memberId,
                               child: Text(
-                                memberId == widget.currentUserId
-                                    ? 'Eu'
-                                    : 'Outro membro',
+                                widget.controller.memberName(
+                                  memberId,
+                                  currentUserId: widget.currentUserId,
+                                ),
                               ),
                             ),
                           )
@@ -234,7 +249,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           controller: widget.controller,
           scopeId: widget.scopeId,
           scope: widget.scope,
-          memberIds: widget.memberIds,
+          memberIds: _memberIds(),
           currentUserId: widget.currentUserId,
           routine: routine,
         ),
@@ -255,20 +270,24 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           Positioned(
             right: 16,
             bottom: 16,
-            child: FloatingActionButton.extended(
+            child: FloatingActionButton(
               heroTag: 'household-task-${widget.scopeId}',
               onPressed: _createTask,
-              icon: const Icon(Icons.add_task_rounded),
-              label: const Text('Nova tarefa'),
+              backgroundColor: DuoColors.orbitAccent,
+              foregroundColor: DuoColors.orbitBackground,
+              tooltip: 'Nova tarefa',
+              child: const Icon(Icons.add_rounded),
             ),
           ),
           Positioned(
-            right: 16,
+            right: 22,
             bottom: 82,
             child: FloatingActionButton.small(
               heroTag: 'household-routine-${widget.scopeId}',
               onPressed: _createRoutine,
               tooltip: 'Nova rotina',
+              backgroundColor: DuoColors.orbitCardSurface,
+              foregroundColor: DuoColors.orbitAccent,
               child: const Icon(Icons.account_tree_rounded),
             ),
           ),
@@ -301,106 +320,154 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
       listenable: widget.controller,
       builder: (context, _) {
         if (widget.controller.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(color: DuoColors.orbitAccent),
+          );
         }
 
+        final now = DateTime.now();
+        final todayStart = DateTime(now.year, now.month, now.day);
+        final tomorrowStart = todayStart.add(const Duration(days: 1));
+        final weekStart = todayStart.subtract(
+          Duration(days: todayStart.weekday - DateTime.monday),
+        );
         final pending = widget.controller.pendingTasks;
         final completed = widget.controller.completedTasks;
         final routines = widget.controller.routines;
+        final todayTasks = widget.controller.tasks
+            .where(
+              (task) =>
+                  task.dueAt != null &&
+                  !task.dueAt!.isBefore(todayStart) &&
+                  task.dueAt!.isBefore(tomorrowStart),
+            )
+            .toList();
+        final overdue = pending
+            .where(
+              (task) =>
+                  task.dueAt != null && task.dueAt!.isBefore(todayStart),
+            )
+            .toList();
+        final upcoming = pending
+            .where((task) => !todayTasks.contains(task) && !overdue.contains(task))
+            .toList();
+        final recentCompleted = completed
+            .where((task) => !todayTasks.contains(task))
+            .take(5)
+            .toList();
+        final completedThisWeek = completed.where((task) {
+          final completedAt = task.completedAt;
+          return completedAt != null && !completedAt.isBefore(weekStart);
+        }).length;
 
-        if (pending.isEmpty && completed.isEmpty && routines.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Nenhuma tarefa por aqui ainda.\nCrie uma tarefa ou uma rotina encadeada.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _createRoutine,
-                    icon: const Icon(Icons.account_tree_rounded),
-                    label: const Text('Criar rotina'),
-                  ),
-                ],
-              ),
-            ),
+        _TaskTile taskTile(HouseholdTask task) {
+          final isPartnerTask =
+              task.scope == HouseholdTaskScope.shared &&
+              task.assigneeId != null &&
+              task.assigneeId != widget.currentUserId;
+          return _TaskTile(
+            task: task,
+            controller: widget.controller,
+            currentUserId: widget.currentUserId,
+            onComplete: task.isPending
+                ? () => widget.controller.completeTask(task.id)
+                : null,
+            onEdit: task.isPending ? () => _editTask(task) : null,
+            onCancel: task.isPending
+                ? () => widget.controller.cancelTask(task.id)
+                : null,
+            reminderLabel: isPartnerTask
+                ? 'Lembrar responsável'
+                : 'Agendar lembrete',
+            onRemind: task.isPending ? () => _remindTask(task) : null,
           );
         }
 
         return RefreshIndicator(
+          color: DuoColors.orbitAccent,
           onRefresh: () => widget.controller.load(widget.scopeId),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 112),
             children: [
+              _RoutineSummary(
+                today: todayTasks.where((task) => task.isPending).length,
+                overdue: overdue.length,
+                completed: completedThisWeek,
+              ),
+              const SizedBox(height: 16),
               if (widget.controller.errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    widget.controller.errorMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
+                _MessageBanner(
+                  message: widget.controller.errorMessage!,
+                  color: DuoColors.error,
                 ),
               if (widget.controller.successMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    widget.controller.successMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
+                _MessageBanner(
+                  message: widget.controller.successMessage!,
+                  color: DuoColors.success,
                 ),
+              if (todayTasks.isNotEmpty) ...[
+                _SectionTitle(
+                  'Hoje',
+                  trailing: _shortDate(todayStart),
+                ),
+                const SizedBox(height: 7),
+                _OrbitListCard(
+                  children: [for (final task in todayTasks) taskTile(task)],
+                ),
+                const SizedBox(height: 18),
+              ],
+              if (overdue.isNotEmpty) ...[
+                _SectionTitle(
+                  'Atrasadas (${overdue.length})',
+                  color: DuoColors.error,
+                ),
+                const SizedBox(height: 7),
+                _OrbitListCard(
+                  children: [for (final task in overdue) taskTile(task)],
+                ),
+                const SizedBox(height: 18),
+              ],
+              if (upcoming.isNotEmpty) ...[
+                const _SectionTitle('Próximas'),
+                const SizedBox(height: 7),
+                _OrbitListCard(
+                  children: [for (final task in upcoming) taskTile(task)],
+                ),
+                const SizedBox(height: 18),
+              ],
               if (routines.isNotEmpty) ...[
-                const _SectionTitle('Rotinas'),
-                const SizedBox(height: 8),
-                ...routines.map(
-                  (routine) => _RoutineTile(
-                    routine: routine,
-                    onEdit: () => _editRoutine(routine),
-                    onStart: () => widget.controller.startRoutine(
-                      routine: routine,
-                      scope: widget.scope,
-                    ),
-                  ),
+                const _SectionTitle('Sequências'),
+                const SizedBox(height: 7),
+                _OrbitListCard(
+                  children: [
+                    for (final routine in routines)
+                      _RoutineTile(
+                        routine: routine,
+                        onEdit: () => _editRoutine(routine),
+                        onStart: () => widget.controller.startRoutine(
+                          routine: routine,
+                          scope: widget.scope,
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 18),
               ],
-              if (pending.isNotEmpty) ...[
-                const _SectionTitle('Pendentes'),
-                const SizedBox(height: 8),
-                ...pending.map((task) {
-                  final isPartnerTask =
-                      task.scope == HouseholdTaskScope.shared &&
-                          task.assigneeId != null &&
-                          task.assigneeId != widget.currentUserId;
-                  return _TaskTile(
-                    task: task,
-                    currentUserId: widget.currentUserId,
-                    onComplete: () => widget.controller.completeTask(task.id),
-                    onEdit: () => _editTask(task),
-                    onCancel: () => widget.controller.cancelTask(task.id),
-                    reminderLabel: isPartnerTask
-                        ? 'Lembrar responsável'
-                        : 'Agendar lembrete',
-                    onRemind: () => _remindTask(task),
-                  );
-                }),
+              if (recentCompleted.isNotEmpty) ...[
+                const _SectionTitle('Concluídas recentemente'),
+                const SizedBox(height: 7),
+                _OrbitListCard(
+                  children: [
+                    for (final task in recentCompleted) taskTile(task),
+                  ],
+                ),
               ],
-              if (completed.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                const _SectionTitle('Concluídas'),
-                const SizedBox(height: 8),
-                ...completed.map(
-                  (task) => _TaskTile(
-                    task: task,
-                    currentUserId: widget.currentUserId,
-                  ),
+              if (pending.isEmpty &&
+                  completed.isEmpty &&
+                  routines.isEmpty) ...[
+                _EmptyRoutines(
+                  onCreateTask: _createTask,
+                  onCreateRoutine: _createRoutine,
                 ),
               ],
             ],
@@ -419,17 +486,304 @@ String _formatDueAt(DateTime date) {
   return '$day/$month/${date.year} às $hour:$minute';
 }
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  const _SectionTitle(this.title);
+String _shortDate(DateTime date) {
+  const weekdays = [
+    'segunda',
+    'terça',
+    'quarta',
+    'quinta',
+    'sexta',
+    'sábado',
+    'domingo',
+  ];
+  return '${weekdays[date.weekday - 1]}, ${date.day}/${date.month}';
+}
+
+class _RoutineSummary extends StatelessWidget {
+  final int today;
+  final int overdue;
+  final int completed;
+
+  const _RoutineSummary({
+    required this.today,
+    required this.overdue,
+    required this.completed,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryCard(
+            label: 'Hoje',
+            value: '$today',
+            caption: 'pendentes',
+            color: DuoColors.orbitAccent,
+            icon: Icons.check_circle_outline_rounded,
           ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryCard(
+            label: 'Atrasadas',
+            value: '$overdue',
+            caption: 'pendentes',
+            color: DuoColors.error,
+            icon: Icons.schedule_rounded,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryCard(
+            label: 'Concluídas',
+            value: '$completed',
+            caption: 'esta semana',
+            color: DuoColors.success,
+            icon: Icons.check_circle_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final String caption;
+  final Color color;
+  final IconData icon;
+
+  const _SummaryCard({
+    required this.label,
+    required this.value,
+    required this.caption,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 76,
+      padding: const EdgeInsets.fromLTRB(10, 9, 8, 8),
+      decoration: BoxDecoration(
+        color: DuoColors.orbitCardSurface,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(
+          color: DuoColors.orbitBorder.withValues(alpha: .5),
+        ),
+        boxShadow: DuoColors.orbitCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const Spacer(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextPrimary,
+                        fontSize: 19,
+                        height: 1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      caption,
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 8.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(icon, color: color, size: 18),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrbitListCard extends StatelessWidget {
+  final List<Widget> children;
+
+  const _OrbitListCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: DuoColors.orbitCardSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: DuoColors.orbitBorder.withValues(alpha: .52),
+        ),
+        boxShadow: DuoColors.orbitCardShadow,
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < children.length; index++) ...[
+            children[index],
+            if (index != children.length - 1)
+              Divider(
+                height: 1,
+                indent: 52,
+                color: DuoColors.orbitBorder.withValues(alpha: .55),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageBanner extends StatelessWidget {
+  final String message;
+  final Color color;
+
+  const _MessageBanner({required this.message, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: .25)),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(color: color, fontSize: 11),
+      ),
+    );
+  }
+}
+
+class _EmptyRoutines extends StatelessWidget {
+  final VoidCallback onCreateTask;
+  final VoidCallback onCreateRoutine;
+
+  const _EmptyRoutines({
+    required this.onCreateTask,
+    required this.onCreateRoutine,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: DuoColors.orbitCardSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: DuoColors.orbitBorder.withValues(alpha: .5),
+        ),
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.checklist_rounded,
+            color: DuoColors.orbitAccent,
+            size: 30,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Sua rotina começa aqui',
+            style: TextStyle(
+              color: DuoColors.orbitTextPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Crie uma tarefa ou monte uma sequência encadeada.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 10.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onCreateTask,
+                  icon: const Icon(Icons.add_task_rounded, size: 17),
+                  label: const Text('Tarefa'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onCreateRoutine,
+                  icon: const Icon(Icons.account_tree_rounded, size: 17),
+                  label: const Text('Sequência'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final String? trailing;
+  final Color? color;
+
+  const _SectionTitle(this.title, {this.trailing, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: color ?? DuoColors.orbitTextPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        if (trailing != null)
+          Text(
+            trailing!,
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 10,
+            ),
+          ),
+      ],
     );
   }
 }
@@ -456,12 +810,36 @@ class _RoutineTile extends StatelessWidget {
       routine.steps.length == 1 ? '1 etapa' : '${routine.steps.length} etapas',
     ];
     if (repeatLabel != null) subtitleParts.add(repeatLabel);
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.account_tree_rounded),
-        title: Text(routine.name),
-        subtitle: Text(subtitleParts.join(' • ')),
-        trailing: Row(
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 2),
+      leading: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: DuoColors.orbitAccent.withValues(alpha: .13),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.account_tree_rounded,
+            color: DuoColors.orbitAccent,
+            size: 19,
+          ),
+      ),
+      title: Text(routine.name),
+      titleTextStyle: const TextStyle(
+          color: DuoColors.orbitTextPrimary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+      ),
+      subtitle: Text(
+          subtitleParts.join(' • '),
+          style: const TextStyle(
+            color: DuoColors.orbitTextSecondary,
+            fontSize: 9.5,
+          ),
+      ),
+      trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
@@ -475,7 +853,6 @@ class _RoutineTile extends StatelessWidget {
               icon: const Icon(Icons.play_arrow_rounded),
             ),
           ],
-        ),
       ),
     );
   }
@@ -483,6 +860,7 @@ class _RoutineTile extends StatelessWidget {
 
 class _TaskTile extends StatelessWidget {
   final HouseholdTask task;
+  final HouseholdRoutinesController controller;
   final String currentUserId;
   final VoidCallback? onComplete;
   final VoidCallback? onEdit;
@@ -492,6 +870,7 @@ class _TaskTile extends StatelessWidget {
 
   const _TaskTile({
     required this.task,
+    required this.controller,
     required this.currentUserId,
     this.onComplete,
     this.onEdit,
@@ -524,14 +903,16 @@ class _TaskTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitleParts = <String>[];
-    if (task.assigneeId != null) {
+    final assigneeId = task.assigneeId;
+    if (assigneeId != null) {
       subtitleParts.add(
-        task.assigneeId == currentUserId
-            ? 'Responsável: você'
-            : 'Responsável: outro membro',
+        controller.memberName(
+          assigneeId,
+          currentUserId: currentUserId,
+        ),
       );
     }
-    if (task.dueAt != null) subtitleParts.add(_formatDueAt(task.dueAt!));
+    if (task.dueAt != null) subtitleParts.add(_taskTime(task.dueAt!));
     if (task.isRecurring) {
       subtitleParts.add(
         task.repeatEveryDays == 1
@@ -543,23 +924,71 @@ class _TaskTile extends StatelessWidget {
       subtitleParts.add('Etapa ${(task.routineStepIndex ?? 0) + 1}');
     }
 
-    return Card(
-      child: ListTile(
-        leading: Icon(
-          task.isCompleted
-              ? Icons.check_circle_rounded
-              : Icons.radio_button_unchecked_rounded,
-        ),
-        title: Text(
+    final accent = task.isCompleted
+        ? DuoColors.success
+        : task.dueAt != null && task.dueAt!.isBefore(DateTime.now())
+        ? DuoColors.error
+        : DuoColors.orbitAccent;
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 2),
+      leading: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: .13),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            task.belongsToRoutine
+                ? Icons.account_tree_rounded
+                : Icons.checklist_rounded,
+            color: accent,
+            size: 19,
+          ),
+      ),
+      title: Text(
           task.title,
           style: task.isCompleted
               ? const TextStyle(decoration: TextDecoration.lineThrough)
-              : null,
-        ),
-        subtitle:
-            subtitleParts.isEmpty ? null : Text(subtitleParts.join(' • ')),
-        trailing: task.isPending
-            ? PopupMenuButton<String>(
+              : const TextStyle(),
+      ),
+      titleTextStyle: TextStyle(
+          color: task.isCompleted
+              ? DuoColors.orbitTextSecondary
+              : DuoColors.orbitTextPrimary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+      ),
+      subtitle: subtitleParts.isEmpty
+          ? null
+          : Text(
+              subtitleParts.join(' • '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: DuoColors.orbitTextSecondary,
+                fontSize: 9.5,
+              ),
+            ),
+      trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (assigneeId != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: _MemberAvatar(
+                  name: controller.memberName(
+                    assigneeId,
+                    currentUserId: currentUserId,
+                  ),
+                  photoUrl: controller.memberPhotoUrl(assigneeId),
+                ),
+              ),
+            if (task.isPending)
+              PopupMenuButton<String>(
+                color: DuoColors.orbitSurface,
+                iconColor: DuoColors.orbitTextSecondary,
                 onSelected: (value) {
                   if (value == 'complete') onComplete?.call();
                   if (value == 'edit') onEdit?.call();
@@ -568,9 +997,53 @@ class _TaskTile extends StatelessWidget {
                 },
                 itemBuilder: (context) => _menuItems(),
               )
-            : null,
-        onTap: task.isPending ? onComplete : null,
+            else
+              const Padding(
+                padding: EdgeInsets.all(10),
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  color: DuoColors.success,
+                  size: 19,
+                ),
+              ),
+          ],
       ),
+      onTap: task.isPending ? onComplete : null,
     );
   }
+}
+
+class _MemberAvatar extends StatelessWidget {
+  final String name;
+  final String? photoUrl;
+
+  const _MemberAvatar({required this.name, this.photoUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedPhoto = photoUrl?.trim();
+    return CircleAvatar(
+      radius: 12,
+      backgroundColor: DuoColors.orbitAccent.withValues(alpha: .18),
+      backgroundImage: normalizedPhoto == null || normalizedPhoto.isEmpty
+          ? null
+          : NetworkImage(normalizedPhoto),
+      child: normalizedPhoto == null || normalizedPhoto.isEmpty
+          ? Text(
+              name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+              style: const TextStyle(
+                color: DuoColors.orbitAccent,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+String _taskTime(DateTime date) {
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
 }

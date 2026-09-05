@@ -23,6 +23,15 @@ void main() {
     );
   });
 
+  test('escopo compartilhado expõe os membros normalizados', () {
+    expect(
+      HouseholdScopeId.members('household:matheus| aline|matheus'),
+      ['aline', 'matheus'],
+    );
+    expect(HouseholdScopeId.members('user:aline'), ['aline']);
+    expect(HouseholdScopeId.members('wallet:principal'), isEmpty);
+  });
+
   test(
     'tarefa simples recorrente cria proxima ocorrencia pela conclusao real',
     () async {

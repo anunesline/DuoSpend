@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../auth/data/repositories/user_repository.dart';
 import '../../domain/models/household_routine.dart';
 import '../../domain/models/household_task.dart';
 import '../../domain/repositories/household_routine_repository.dart';
 import '../../domain/repositories/household_task_repository.dart';
 import '../../domain/services/household_routine_service.dart';
 import '../../domain/services/household_task_reminder_service.dart';
+import '../../domain/services/household_scope_id.dart';
 
 class HouseholdRoutinesController extends ChangeNotifier {
   final HouseholdTaskRepository taskRepository;
@@ -14,20 +16,23 @@ class HouseholdRoutinesController extends ChangeNotifier {
   final HouseholdRoutineService routineService;
   final HouseholdTaskReminderService reminderService;
   final Uuid uuid;
+  final UserRepository userRepository;
 
   HouseholdRoutinesController({
     required this.taskRepository,
     required this.routineRepository,
     required this.routineService,
     required this.reminderService,
+    UserRepository? userRepository,
     this.uuid = const Uuid(),
-  });
+  }) : userRepository = userRepository ?? UserRepository();
 
   final List<HouseholdTask> _tasks = [];
   final List<HouseholdRoutine> _routines = [];
   bool _isLoading = false;
   String? _errorMessage;
   String? _successMessage;
+  Map<String, UserProfileSummary> _memberProfiles = const {};
 
   List<HouseholdTask> get tasks => List.unmodifiable(_tasks);
   List<HouseholdRoutine> get routines => List.unmodifiable(_routines);
@@ -52,6 +57,14 @@ class HouseholdRoutinesController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
+  Map<String, UserProfileSummary> get memberProfiles => _memberProfiles;
+
+  String memberName(String userId, {required String currentUserId}) {
+    if (userId == currentUserId) return 'Você';
+    return _memberProfiles[userId]?.displayName ?? 'Outro membro';
+  }
+
+  String? memberPhotoUrl(String userId) => _memberProfiles[userId]?.photoUrl;
 
   Future<void> load(String scopeId) async {
     _setLoading(true);
@@ -67,6 +80,15 @@ class HouseholdRoutinesController extends ChangeNotifier {
       _routines
         ..clear()
         ..addAll(results[1] as List<HouseholdRoutine>);
+      try {
+        _memberProfiles = await userRepository.getUserProfileSummaries(
+          HouseholdScopeId.members(scopeId),
+        );
+      } catch (_) {
+        // Profile decoration must never prevent the routines themselves from
+        // loading. The UI keeps a safe member fallback if a profile is absent.
+        _memberProfiles = const {};
+      }
     } catch (_) {
       _errorMessage = 'Não foi possível carregar as rotinas da casa.';
     } finally {
