@@ -61,7 +61,7 @@ class _RecordingShoppingListSynchronizer
   int calls = 0;
 
   @override
-  Future<void> synchronize({
+  Future<ShoppingListSyncReport> synchronize({
     required String scopeId,
     required String transactionId,
     required DateTime purchasedAt,
@@ -69,6 +69,11 @@ class _RecordingShoppingListSynchronizer
     required List<PurchasedTransactionItem> items,
   }) async {
     calls++;
+    return ShoppingListSyncReport(
+      receivedItems: items.length,
+      matchedItems: 0,
+      ambiguousItems: 0,
+    );
   }
 }
 

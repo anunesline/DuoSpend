@@ -12,12 +12,24 @@ class PurchasedTransactionItem {
 }
 
 abstract class ShoppingListPurchaseSynchronizer {
-  Future<void> synchronize({
+  Future<ShoppingListSyncReport> synchronize({
     required String scopeId,
     required String transactionId,
     required DateTime purchasedAt,
     required String? purchasedBy,
     required List<PurchasedTransactionItem> items,
+  });
+}
+
+class ShoppingListSyncReport {
+  final int receivedItems;
+  final int matchedItems;
+  final int ambiguousItems;
+
+  const ShoppingListSyncReport({
+    required this.receivedItems,
+    required this.matchedItems,
+    required this.ambiguousItems,
   });
 }
 
@@ -29,7 +41,7 @@ class ShoppingListTransactionSynchronizer
       : repository = repository ?? FirestoreHouseholdListRepository();
 
   @override
-  Future<void> synchronize({
+  Future<ShoppingListSyncReport> synchronize({
     required String scopeId,
     required String transactionId,
     required DateTime purchasedAt,
@@ -37,12 +49,22 @@ class ShoppingListTransactionSynchronizer
     required List<PurchasedTransactionItem> items,
   }) async {
     if (scopeId.trim().isEmpty || transactionId.trim().isEmpty || items.isEmpty) {
-      return;
+      return ShoppingListSyncReport(
+        receivedItems: items.length,
+        matchedItems: 0,
+        ambiguousItems: 0,
+      );
     }
     final lists = (await repository.getListsByScope(scopeId))
         .where((list) => list.isShopping)
         .toList(growable: false);
-    if (lists.isEmpty) return;
+    if (lists.isEmpty) {
+      return ShoppingListSyncReport(
+        receivedItems: items.length,
+        matchedItems: 0,
+        ambiguousItems: 0,
+      );
+    }
 
     final pendingByIdentity = <String, Map<String, List<HouseholdListItem>>>{};
     for (final list in lists) {
@@ -57,6 +79,8 @@ class ShoppingListTransactionSynchronizer
       }
     }
 
+    var matchedItems = 0;
+    var ambiguousItems = 0;
     for (var index = 0; index < items.length; index++) {
       final purchasedItem = items[index];
       final identity = HouseholdListItemIdentity.normalize(
@@ -64,7 +88,11 @@ class ShoppingListTransactionSynchronizer
       );
       if (identity.isEmpty) continue;
       final candidatesByList = pendingByIdentity[identity];
-      if (candidatesByList == null || candidatesByList.length != 1) continue;
+      if (candidatesByList == null) continue;
+      if (candidatesByList.length != 1) {
+        ambiguousItems++;
+        continue;
+      }
       final candidates = candidatesByList.values.single;
       if (candidates.isEmpty) continue;
       final item = candidates.removeAt(0);
@@ -73,7 +101,7 @@ class ShoppingListTransactionSynchronizer
           : purchasedItem.id.trim();
       final sourceReferenceId = '$transactionId:$stableItemId';
       final eventId = 'financial_${base64Url.encode(utf8.encode(sourceReferenceId))}';
-      await repository.markItemPurchasedFromFinancialTransaction(
+      final changed = await repository.markItemPurchasedFromFinancialTransaction(
         item: item.markPurchased(
           at: purchasedAt,
           by: purchasedBy,
@@ -92,6 +120,12 @@ class ShoppingListTransactionSynchronizer
           sourceReferenceId: sourceReferenceId,
         ),
       );
+      if (changed) matchedItems++;
     }
+    return ShoppingListSyncReport(
+      receivedItems: items.length,
+      matchedItems: matchedItems,
+      ambiguousItems: ambiguousItems,
+    );
   }
 }

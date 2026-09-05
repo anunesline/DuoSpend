@@ -14,6 +14,7 @@ class HouseholdRoutinesPage extends StatefulWidget {
   final List<String> memberIds;
   final String currentUserId;
   final bool embedInScaffold;
+  final bool showFloatingActions;
 
   const HouseholdRoutinesPage({
     super.key,
@@ -23,13 +24,14 @@ class HouseholdRoutinesPage extends StatefulWidget {
     required this.memberIds,
     required this.currentUserId,
     this.embedInScaffold = false,
+    this.showFloatingActions = true,
   });
 
   @override
-  State<HouseholdRoutinesPage> createState() => _HouseholdRoutinesPageState();
+  State<HouseholdRoutinesPage> createState() => HouseholdRoutinesPageState();
 }
 
-class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
+class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   List<String> _memberIds([HouseholdTask? task]) {
     final members = <String>{
       ...HouseholdScopeId.members(widget.scopeId),
@@ -45,6 +47,14 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   void initState() {
     super.initState();
     widget.controller.load(widget.scopeId);
+  }
+
+  @override
+  void didUpdateWidget(covariant HouseholdRoutinesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.scopeId != widget.scopeId) {
+      widget.controller.load(widget.scopeId);
+    }
   }
 
   Future<DateTime?> _pickDateTime({DateTime? initialValue}) async {
@@ -65,7 +75,8 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
-  Future<void> _createTask() => _openTaskEditor();
+  Future<void> createTask() => _openTaskEditor();
+  Future<void> _createTask() => createTask();
   Future<void> _editTask(HouseholdTask task) => _openTaskEditor(task: task);
 
   Future<void> _openTaskEditor({HouseholdTask? task}) async {
@@ -258,7 +269,8 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     );
   }
 
-  Future<void> _createRoutine() => _openRoutineEditor();
+  Future<void> createRoutine() => _openRoutineEditor();
+  Future<void> _createRoutine() => createRoutine();
   Future<void> _editRoutine(HouseholdRoutine routine) =>
       _openRoutineEditor(routine: routine);
 
@@ -284,7 +296,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   @override
   Widget build(BuildContext context) {
     final content = _buildContent();
-    if (widget.embedInScaffold) {
+    if (widget.embedInScaffold && widget.showFloatingActions) {
       return Stack(
         children: [
           content,
@@ -318,7 +330,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Rotinas da Casa'),
+        title: const Text('Tarefas'),
         actions: [
           IconButton(
             onPressed: _createRoutine,

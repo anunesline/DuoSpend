@@ -83,14 +83,14 @@ class FirestoreHouseholdListRepository implements HouseholdListRepository {
       firestore.runTransaction((transaction) async {
         final itemReference = _items.doc(item.id);
         final eventReference = _events.doc(event.id);
-        final eventSnapshot = await transaction.get(eventReference);
-        if (eventSnapshot.exists) return false;
-
         final itemSnapshot = await transaction.get(itemReference);
         final data = itemSnapshot.data();
         if (!itemSnapshot.exists || data == null) return false;
         final persistedItem = HouseholdListItem.fromMap(data);
-        if (persistedItem.isPurchased) return false;
+        if (persistedItem.isPurchased ||
+            persistedItem.financialReferenceId == event.sourceReferenceId) {
+          return false;
+        }
 
         transaction.set(itemReference, item.toMap());
         transaction.set(eventReference, event.toMap());

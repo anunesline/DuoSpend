@@ -61,11 +61,16 @@ class TransactionController extends ChangeNotifier {
   bool _isSaving = false;
   String? _errorMessage;
   CreateTransactionResult? _lastResult;
+  ShoppingListSyncReport? _lastShoppingListSyncReport;
+  String? _shoppingListSyncFailureType;
 
   List<TransactionItemModel> get items => List.unmodifiable(_items);
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
   CreateTransactionResult? get lastResult => _lastResult;
+  ShoppingListSyncReport? get lastShoppingListSyncReport =>
+      _lastShoppingListSyncReport;
+  String? get shoppingListSyncFailureType => _shoppingListSyncFailureType;
 
   void addItem(TransactionItemModel item) {
     _items.add(item);
@@ -148,6 +153,8 @@ class TransactionController extends ChangeNotifier {
 
     _isSaving = true;
     _errorMessage = null;
+    _lastShoppingListSyncReport = null;
+    _shoppingListSyncFailureType = null;
     notifyListeners();
 
     try {
@@ -182,19 +189,20 @@ class TransactionController extends ChangeNotifier {
         customMemberShares: memberShares,
       );
 
+      final persistedItems = result.transaction.items;
       if (type == 'expense' &&
           householdListScopeId != null &&
           householdListScopeId.trim().isNotEmpty &&
-          _items.isNotEmpty) {
+          persistedItems.isNotEmpty) {
         try {
-          await (_shoppingListSynchronizer ??
+          _lastShoppingListSyncReport = await (_shoppingListSynchronizer ??
                   ShoppingListTransactionSynchronizer())
               .synchronize(
             scopeId: householdListScopeId,
             transactionId: result.transaction.id,
             purchasedAt: result.transaction.date,
             purchasedBy: paidByMemberId,
-            items: _items
+            items: persistedItems
                 .map(
                   (item) => PurchasedTransactionItem(
                     id: item.id,
@@ -203,7 +211,12 @@ class TransactionController extends ChangeNotifier {
                 )
                 .toList(growable: false),
           );
-        } catch (_) {
+        } catch (error) {
+          _shoppingListSyncFailureType = error.runtimeType.toString();
+          debugPrint(
+            'Shopping-list sync skipped after financial save '
+            '(${_shoppingListSyncFailureType!}).',
+          );
           // A transação financeira já foi concluída. A sincronização de uma
           // conveniência não deve repetir nem invalidar seus efeitos oficiais.
         }

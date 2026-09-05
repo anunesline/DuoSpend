@@ -372,10 +372,13 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         installmentCount: installmentCount, firstInstallmentDate: isInstallment ? firstInstallmentDate : null,
         notes: notesController.text, financialWalletId: financialWalletId, paymentMethod: selectedPaymentMethod,
         paymentSourceId: paymentSourceId, transactionDate: transactionDate,
-        householdListScopeId: transactionWallet.isShared &&
-                transactionWallet.memberIds.length >= 2
-            ? HouseholdScopeId.shared(transactionWallet.memberIds)
-            : HouseholdScopeId.personal(user.uid),
+        householdListScopeId: HouseholdScopeId.forContext(
+          currentUserId: user.uid,
+          isShared: purchaseDestination ==
+                  FinancialSplitRules.purchaseForPartner ||
+              purchaseDestination == FinancialSplitRules.purchaseForBoth,
+          memberIds: transactionWallet.memberIds,
+        ),
       );
       if (!mounted) return; Navigator.pop(context);
     } catch (_) { _showMessage(transactionController.errorMessage ?? 'Não foi possível salvar a transação.'); }

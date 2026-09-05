@@ -5,6 +5,7 @@ import 'package:app/features/household_routines/data/repositories/firestore_hous
 import 'package:app/features/household_routines/domain/models/household_list.dart';
 import 'package:app/features/household_routines/domain/models/household_list_item.dart';
 import 'package:app/features/household_routines/domain/services/shopping_list_transaction_synchronizer.dart';
+import 'package:app/features/household_routines/domain/services/household_scope_id.dart';
 
 void main() {
   const scopeId = 'user:aline';
@@ -12,7 +13,7 @@ void main() {
 
   test('Leite pendente é concluído e gera um evento financeiro', () async {
     final fixture = await _fixture(scopeId: scopeId, itemName: 'Leite');
-    await fixture.sync('Leite', purchasedAt: purchasedAt);
+    final report = await fixture.sync('Leite', purchasedAt: purchasedAt);
 
     final item = (await fixture.repository.getItemsByList('market')).single;
     final events = await fixture.repository.getPurchaseEvents(scopeId: scopeId);
@@ -22,11 +23,49 @@ void main() {
     expect(events, hasLength(1));
     expect(events.single.source, 'financialTransaction');
     expect(events.single.sourceReferenceId, 'transaction-1:financial-item-1');
+    expect(report.matchedItems, 1);
     expect(
       (await fixture.repository.firestore.collection('transactions').get())
           .docs,
       isEmpty,
     );
+  });
+
+  test('scope da Nova Transação encontra lista pessoal criada em Tarefas',
+      () async {
+    final listScope = HouseholdScopeId.personal('aline');
+    final transactionScope = HouseholdScopeId.forContext(
+      currentUserId: 'aline',
+      isShared: false,
+      // A carteira ativa pode ser compartilhada; compra para si continua
+      // pertencendo ao mesmo escopo pessoal usado por Minhas > Listas.
+      memberIds: const ['aline', 'matheus'],
+    );
+    final fixture = await _fixture(scopeId: listScope, itemName: 'Leite');
+    await fixture.synchronizer.synchronize(
+      scopeId: transactionScope,
+      transactionId: 'android-transaction',
+      purchasedAt: purchasedAt,
+      purchasedBy: 'aline',
+      items: const [
+        PurchasedTransactionItem(
+          id: 'android-milk-item',
+          displayName: 'Leite',
+        ),
+      ],
+    );
+    expect(transactionScope, listScope);
+    expect((await fixture.items()).single.isPurchased, isTrue);
+  });
+
+  test('scope compartilhado independe da ordem dos membros', () {
+    final listScope = HouseholdScopeId.shared(const ['aline', 'matheus']);
+    final transactionScope = HouseholdScopeId.forContext(
+      currentUserId: 'aline',
+      isShared: true,
+      memberIds: const ['matheus', 'aline'],
+    );
+    expect(transactionScope, listScope);
   });
 
   test('diferença de caixa e espaços corresponde', () async {
@@ -58,6 +97,32 @@ void main() {
     );
     await completed.sync('Leite', purchasedAt: purchasedAt);
     expect(await completed.repository.getPurchaseEvents(scopeId: scopeId), isEmpty);
+  });
+
+  test('reprocessar após desmarcar não conclui nem duplica evento', () async {
+    final fixture = await _fixture(scopeId: scopeId, itemName: 'Leite');
+    await fixture.sync('Leite', purchasedAt: purchasedAt);
+    final purchased = (await fixture.items()).single;
+    await fixture.repository.saveItem(
+      purchased.markPending(purchasedAt.add(const Duration(minutes: 1))),
+    );
+
+    final report = await fixture.synchronizer.synchronize(
+      scopeId: scopeId,
+      transactionId: 'transaction-1',
+      purchasedAt: purchasedAt,
+      purchasedBy: 'aline',
+      items: const [
+        PurchasedTransactionItem(
+          id: 'financial-item-1',
+          displayName: 'Leite',
+        ),
+      ],
+    );
+
+    expect((await fixture.items()).single.isPurchased, isFalse);
+    expect(await fixture.repository.getPurchaseEvents(scopeId: scopeId), hasLength(1));
+    expect(report.matchedItems, 0);
   });
 
   test('mesmo produto pendente em listas diferentes permanece intacto', () async {
@@ -99,7 +164,10 @@ class _Fixture {
 
   _Fixture(this.scopeId, this.repository, this.synchronizer);
 
-  Future<void> sync(String name, {required DateTime purchasedAt}) =>
+  Future<ShoppingListSyncReport> sync(
+    String name, {
+    required DateTime purchasedAt,
+  }) =>
       synchronizer.synchronize(
         scopeId: scopeId,
         transactionId: 'transaction-1',

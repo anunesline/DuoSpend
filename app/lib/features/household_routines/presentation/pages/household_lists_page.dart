@@ -9,12 +9,14 @@ class HouseholdListsPage extends StatelessWidget {
   final HouseholdRoutinesController controller;
   final String scopeId;
   final String currentUserId;
+  final bool showFloatingAction;
 
   const HouseholdListsPage({
     super.key,
     required this.controller,
     required this.scopeId,
     required this.currentUserId,
+    this.showFloatingAction = true,
   });
 
   Future<void> _editList(BuildContext context, [HouseholdList? list]) async {
@@ -121,8 +123,6 @@ class HouseholdListsPage extends StatelessWidget {
             ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 110),
               children: [
-                const _ListsIntro(),
-                const SizedBox(height: 14),
                 if (lists.isEmpty)
                   _EmptyLists(onCreate: () => _editList(context))
                 else
@@ -149,65 +149,23 @@ class HouseholdListsPage extends StatelessWidget {
                   ),
               ],
             ),
-            Positioned(
-              right: 20,
-              bottom: 20,
-              child: FloatingActionButton(
-                onPressed: () => _editList(context),
-                backgroundColor: DuoColors.orbitAccent,
-                foregroundColor: DuoColors.orbitBackground,
-                tooltip: 'Nova lista',
-                child: const Icon(Icons.add_rounded, size: 27),
+            if (showFloatingAction)
+              Positioned(
+                right: 20,
+                bottom: 20,
+                child: FloatingActionButton(
+                  onPressed: () => _editList(context),
+                  backgroundColor: DuoColors.orbitAccent,
+                  foregroundColor: DuoColors.orbitBackground,
+                  tooltip: 'Nova lista',
+                  child: const Icon(Icons.add_rounded, size: 27),
+                ),
               ),
-            ),
           ],
         );
       },
     );
   }
-}
-
-class _ListsIntro extends StatelessWidget {
-  const _ListsIntro();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: DuoColors.orbitCardSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .52)),
-        ),
-        child: const Row(
-          children: [
-            _ListIcon(icon: Icons.list_alt_rounded, color: DuoColors.orbitAccent),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Suas listas',
-                    style: TextStyle(
-                      color: DuoColors.orbitTextPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  SizedBox(height: 3),
-                  Text(
-                    'Organize tarefas e compras do seu jeito.',
-                    style: TextStyle(
-                      color: DuoColors.orbitTextSecondary,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
 }
 
 class _ListCard extends StatelessWidget {
@@ -273,6 +231,18 @@ class _ListCard extends StatelessWidget {
                       fontSize: 10.5,
                     ),
                   ),
+                  if (items.isNotEmpty) ...[
+                    const SizedBox(height: 7),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(99),
+                      child: LinearProgressIndicator(
+                        value: purchased / items.length,
+                        minHeight: 4,
+                        backgroundColor: DuoColors.orbitBackground,
+                        valueColor: AlwaysStoppedAnimation(color),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
