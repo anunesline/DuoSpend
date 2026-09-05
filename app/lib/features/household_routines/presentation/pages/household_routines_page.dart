@@ -416,6 +416,80 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           );
         }
 
+        Future<void> openSecondaryContent() => showModalBottomSheet<void>(
+              context: context,
+              backgroundColor: DuoColors.orbitSurface,
+              showDragHandle: true,
+              isScrollControlled: true,
+              builder: (sheetContext) => SafeArea(
+                top: false,
+                child: FractionallySizedBox(
+                  heightFactor: .72,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                    children: [
+                      const Text(
+                        'Organizar tarefas',
+                        style: TextStyle(
+                          color: DuoColors.orbitTextPrimary,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (upcoming.isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        const _SectionTitle('Próximas'),
+                        const SizedBox(height: 8),
+                        _OrbitListCard(
+                          children: [
+                            for (final task in upcoming) taskTile(task),
+                          ],
+                        ),
+                      ],
+                      if (recentCompleted.isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        const _SectionTitle('Concluídas recentemente'),
+                        const SizedBox(height: 8),
+                        _OrbitListCard(
+                          children: [
+                            for (final task in recentCompleted) taskTile(task),
+                          ],
+                        ),
+                      ],
+                      if (routines.isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        const _SectionTitle('Sequências'),
+                        const SizedBox(height: 8),
+                        _OrbitListCard(
+                          children: [
+                            for (final routine in routines)
+                              _RoutineTile(
+                                routine: routine,
+                                onEdit: () => _editRoutine(routine),
+                                onStart: () =>
+                                    widget.controller.startRoutine(
+                                  routine: routine,
+                                  scope: widget.scope,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                      if (upcoming.isEmpty &&
+                          recentCompleted.isEmpty &&
+                          routines.isEmpty) ...[
+                        const SizedBox(height: 18),
+                        const _CompactEmptyState(
+                          icon: Icons.inbox_outlined,
+                          message: 'Não há outras tarefas para organizar.',
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+
         return RefreshIndicator(
           color: DuoColors.orbitAccent,
           onRefresh: () => widget.controller.load(widget.scopeId),
@@ -438,7 +512,11 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   message: widget.controller.successMessage!,
                   color: DuoColors.success,
                 ),
-              _SectionTitle('Hoje • ${_shortDate(todayStart)}'),
+              _SectionTitle(
+                'Hoje • ${_shortDate(todayStart)}',
+                trailing: 'Ordenar',
+                onTrailing: openSecondaryContent,
+              ),
               const SizedBox(height: 8),
               if (todayTasks.isNotEmpty) ...[
                 _OrbitListCard(
@@ -451,60 +529,20 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                 ),
               ],
               const SizedBox(height: 22),
-              if (overdue.isNotEmpty) ...[
-                _SectionTitle(
-                  'Atrasadas (${overdue.length})',
-                  color: DuoColors.error,
-                ),
-                const SizedBox(height: 8),
+              _SectionTitle(
+                'Atrasadas (${overdue.length})',
+                color: DuoColors.error,
+              ),
+              const SizedBox(height: 8),
+              if (overdue.isNotEmpty)
                 _OrbitListCard(
                   children: [for (final task in overdue) taskTile(task)],
+                )
+              else
+                const _CompactEmptyState(
+                  icon: Icons.schedule_rounded,
+                  message: 'Nenhuma tarefa atrasada.',
                 ),
-                const SizedBox(height: 22),
-              ],
-              if (routines.isNotEmpty) ...[
-                const _SectionTitle('Sequências'),
-                const SizedBox(height: 8),
-                _OrbitListCard(
-                  children: [
-                    for (final routine in routines)
-                      _RoutineTile(
-                        routine: routine,
-                        onEdit: () => _editRoutine(routine),
-                        onStart: () => widget.controller.startRoutine(
-                          routine: routine,
-                          scope: widget.scope,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 22),
-              ],
-              if (upcoming.isNotEmpty) ...[
-                const _SectionTitle('Próximas'),
-                const SizedBox(height: 8),
-                _OrbitListCard(
-                  children: [for (final task in upcoming) taskTile(task)],
-                ),
-                const SizedBox(height: 22),
-              ],
-              if (recentCompleted.isNotEmpty) ...[
-                const _SectionTitle('Concluídas recentemente'),
-                const SizedBox(height: 8),
-                _OrbitListCard(
-                  children: [
-                    for (final task in recentCompleted) taskTile(task),
-                  ],
-                ),
-              ],
-              if (pending.isEmpty &&
-                  completed.isEmpty &&
-                  routines.isEmpty) ...[
-                _EmptyRoutines(
-                  onCreateTask: _createTask,
-                  onCreateRoutine: _createRoutine,
-                ),
-              ],
             ],
           ),
         );
@@ -863,8 +901,14 @@ class _SectionTitle extends StatelessWidget {
   final String title;
   final String? trailing;
   final Color? color;
+  final VoidCallback? onTrailing;
 
-  const _SectionTitle(this.title, {this.trailing, this.color});
+  const _SectionTitle(
+    this.title, {
+    this.trailing,
+    this.color,
+    this.onTrailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -881,11 +925,19 @@ class _SectionTitle extends StatelessWidget {
           ),
         ),
         if (trailing != null)
-          Text(
-            trailing!,
-            style: const TextStyle(
-              color: DuoColors.orbitTextSecondary,
-              fontSize: 10,
+          InkWell(
+            onTap: onTrailing,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              child: Text(
+                trailing!,
+                style: const TextStyle(
+                  color: DuoColors.orbitAccent,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
       ],
@@ -1038,25 +1090,25 @@ class _TaskTile extends StatelessWidget {
       onTap: task.isPending ? onComplete : null,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(13, 10, 8, 10),
+        padding: const EdgeInsets.fromLTRB(11, 8, 5, 8),
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: .13),
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 task.belongsToRoutine
                     ? Icons.account_tree_rounded
                     : Icons.checklist_rounded,
                 color: accent,
-                size: 23,
+                size: 21,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1097,7 +1149,8 @@ class _TaskTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (assigneeId != null) ...[
+            if (task.scope == HouseholdTaskScope.shared &&
+                assigneeId != null) ...[
               const SizedBox(width: 8),
               _MemberAvatar(
                 name: controller.memberName(
@@ -1108,8 +1161,29 @@ class _TaskTile extends StatelessWidget {
               ),
             ],
             if (task.isPending)
+              IconButton(
+                onPressed: onComplete,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 36,
+                ),
+                tooltip: 'Concluir',
+                icon: Icon(
+                  Icons.radio_button_unchecked_rounded,
+                  color: accent,
+                  size: 21,
+                ),
+              ),
+            if (task.isPending)
               PopupMenuButton<String>(
                 color: DuoColors.orbitSurface,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 36,
+                ),
                 icon: const Icon(Icons.more_vert_rounded, size: 19),
                 iconColor: DuoColors.orbitTextSecondary,
                 onSelected: (value) {
