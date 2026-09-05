@@ -13,8 +13,6 @@ class HouseholdRoutinesPage extends StatefulWidget {
   final HouseholdTaskScope scope;
   final List<String> memberIds;
   final String currentUserId;
-  final bool embedInScaffold;
-  final bool showFloatingActions;
 
   const HouseholdRoutinesPage({
     super.key,
@@ -23,8 +21,6 @@ class HouseholdRoutinesPage extends StatefulWidget {
     required this.scope,
     required this.memberIds,
     required this.currentUserId,
-    this.embedInScaffold = false,
-    this.showFloatingActions = true,
   });
 
   @override
@@ -294,59 +290,7 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final content = _buildContent();
-    if (widget.embedInScaffold && widget.showFloatingActions) {
-      return Stack(
-        children: [
-          content,
-          Positioned(
-            right: 20,
-            bottom: 20,
-            child: FloatingActionButton(
-              heroTag: 'household-task-${widget.scopeId}',
-              onPressed: _createTask,
-              backgroundColor: DuoColors.orbitAccent,
-              foregroundColor: DuoColors.orbitBackground,
-              tooltip: 'Nova tarefa',
-              child: const Icon(Icons.add_rounded, size: 28),
-            ),
-          ),
-          Positioned(
-            right: 28,
-            bottom: 94,
-            child: FloatingActionButton.small(
-              heroTag: 'household-routine-${widget.scopeId}',
-              onPressed: _createRoutine,
-              tooltip: 'Nova rotina',
-              backgroundColor: DuoColors.orbitCardSurface,
-              foregroundColor: DuoColors.orbitAccent,
-              child: const Icon(Icons.account_tree_rounded),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tarefas'),
-        actions: [
-          IconButton(
-            onPressed: _createRoutine,
-            tooltip: 'Nova rotina',
-            icon: const Icon(Icons.account_tree_rounded),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createTask,
-        icon: const Icon(Icons.add_task_rounded),
-        label: const Text('Nova tarefa'),
-      ),
-      body: content,
-    );
-  }
+  Widget build(BuildContext context) => _buildContent();
 
   Widget _buildContent() {
     return ListenableBuilder(

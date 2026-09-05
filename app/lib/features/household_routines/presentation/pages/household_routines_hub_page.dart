@@ -214,7 +214,18 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
             tooltip: 'Busca disponível em uma próxima etapa',
             icon: const Icon(Icons.search_rounded),
           ),
-          const SizedBox(width: 6),
+          PopupMenuButton<String>(
+            color: DuoColors.orbitSurface,
+            tooltip: 'Mais opções',
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (value) {
+              if (value == 'refresh') widget.controller.load(scopeId);
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'refresh', child: Text('Atualizar')),
+            ],
+          ),
+          const SizedBox(width: 2),
         ],
       ),
       body: Column(
@@ -253,8 +264,6 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
                     scope: scope,
                     memberIds: members,
                     currentUserId: widget.currentUserId,
-                    embedInScaffold: true,
-                    showFloatingActions: false,
                   ),
           ),
         ],
