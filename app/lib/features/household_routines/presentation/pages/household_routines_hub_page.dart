@@ -196,7 +196,7 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
     return Scaffold(
       backgroundColor: DuoColors.orbitBackground,
       appBar: AppBar(
-        toolbarHeight: 58,
+        toolbarHeight: 60,
         backgroundColor: DuoColors.orbitBackground,
         foregroundColor: DuoColors.orbitTextPrimary,
         surfaceTintColor: Colors.transparent,
@@ -220,7 +220,7 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
             child: _RoutineScopeTabs(
               showShared: isShared,
               showLists: _showLists,
@@ -264,6 +264,11 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
         onPressed: () => _openQuickActions(scopeId),
         backgroundColor: DuoColors.orbitAccent,
         foregroundColor: DuoColors.orbitBackground,
+        elevation: 10,
+        highlightElevation: 12,
+        shape: const CircleBorder(
+          side: BorderSide(color: Color(0x66D0B8FF), width: 1.25),
+        ),
         tooltip: 'Criar',
         child: const Icon(Icons.add_rounded, size: 29),
       ),
@@ -292,8 +297,8 @@ class _QuickActionsSheet extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(
         top: false,
         child: Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
           decoration: BoxDecoration(
             color: DuoColors.orbitSurface,
             borderRadius: BorderRadius.circular(22),
@@ -329,14 +334,14 @@ class _QuickActionsSheet extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 3,
-                childAspectRatio: 1.18,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 10,
+                childAspectRatio: 1.1,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 12,
                 children: [
                   _QuickAction(
                     icon: Icons.check_circle_outline_rounded,
@@ -446,11 +451,11 @@ class _RoutineScopeTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 46,
-      padding: const EdgeInsets.all(4),
+      height: 44,
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(13),
         border: Border.all(
           color: DuoColors.orbitBorder.withValues(alpha: .55),
         ),
@@ -469,7 +474,7 @@ class _RoutineScopeTabs extends StatelessWidget {
     return Expanded(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           alignment: Alignment.center,
@@ -477,7 +482,7 @@ class _RoutineScopeTabs extends StatelessWidget {
             color: selected
                 ? DuoColors.orbitAccent.withValues(alpha: .18)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(10),
             border: selected
                 ? Border.all(
                     color: DuoColors.orbitAccent.withValues(alpha: .25),

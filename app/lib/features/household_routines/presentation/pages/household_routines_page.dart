@@ -494,14 +494,14 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           color: DuoColors.orbitAccent,
           onRefresh: () => widget.controller.load(widget.scopeId),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 124),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 120),
             children: [
               _RoutineSummary(
                 today: todayTasks.where((task) => task.isPending).length,
                 overdue: overdue.length,
                 completed: completedThisWeek,
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               if (widget.controller.errorMessage != null)
                 _MessageBanner(
                   message: widget.controller.errorMessage!,
@@ -528,7 +528,7 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   message: 'Nenhuma tarefa com horário para hoje.',
                 ),
               ],
-              const SizedBox(height: 22),
+              const SizedBox(height: 18),
               _SectionTitle(
                 'Atrasadas (${overdue.length})',
                 color: DuoColors.error,
@@ -675,15 +675,14 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 98,
-      padding: const EdgeInsets.fromLTRB(13, 13, 10, 11),
+      height: 102,
+      padding: const EdgeInsets.fromLTRB(12, 13, 10, 12),
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: DuoColors.orbitBorder.withValues(alpha: .5),
+          color: DuoColors.orbitBorder.withValues(alpha: .42),
         ),
-        boxShadow: DuoColors.orbitCardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -710,7 +709,7 @@ class _SummaryCard extends StatelessWidget {
                       value,
                       style: const TextStyle(
                         color: DuoColors.orbitTextPrimary,
-                        fontSize: 25,
+                        fontSize: 27,
                         height: 1,
                         fontWeight: FontWeight.w900,
                       ),
@@ -726,7 +725,7 @@ class _SummaryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(icon, color: color, size: 21),
+              Icon(icon, color: color, size: 22),
             ],
           ),
         ],
@@ -745,11 +744,10 @@ class _OrbitListCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color: DuoColors.orbitBorder.withValues(alpha: .52),
+          color: DuoColors.orbitBorder.withValues(alpha: .42),
         ),
-        boxShadow: DuoColors.orbitCardShadow,
       ),
       child: Column(
         children: [
@@ -759,7 +757,7 @@ class _OrbitListCard extends StatelessWidget {
               Divider(
                 height: 1,
                 indent: 69,
-                color: DuoColors.orbitBorder.withValues(alpha: .55),
+                color: DuoColors.orbitBorder.withValues(alpha: .42),
               ),
           ],
         ],
@@ -801,22 +799,22 @@ class _CompactEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .45)),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .38)),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 19, color: DuoColors.orbitTextSecondary),
+          Icon(icon, size: 18, color: DuoColors.orbitTextSecondary),
           const SizedBox(width: 9),
           Expanded(
             child: Text(
               message,
               style: const TextStyle(
                 color: DuoColors.orbitTextSecondary,
-                fontSize: 11,
+                fontSize: 10.5,
               ),
             ),
           ),
@@ -919,7 +917,7 @@ class _SectionTitle extends StatelessWidget {
             title,
             style: TextStyle(
               color: color ?? DuoColors.orbitTextPrimary,
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1061,7 +1059,7 @@ class _TaskTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final subtitleParts = <String>[];
     final assigneeId = task.assigneeId;
-    if (assigneeId != null) {
+    if (task.scope == HouseholdTaskScope.shared && assigneeId != null) {
       subtitleParts.add(
         controller.memberName(
           assigneeId,
@@ -1090,25 +1088,25 @@ class _TaskTile extends StatelessWidget {
       onTap: task.isPending ? onComplete : null,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(11, 8, 5, 8),
+        padding: const EdgeInsets.fromLTRB(12, 10, 5, 10),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: .13),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(13),
               ),
               child: Icon(
                 task.belongsToRoutine
                     ? Icons.account_tree_rounded
                     : Icons.checklist_rounded,
                 color: accent,
-                size: 21,
+                size: 22,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 11),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1122,7 +1120,7 @@ class _TaskTile extends StatelessWidget {
                       color: task.isCompleted
                           ? DuoColors.orbitTextSecondary
                           : DuoColors.orbitTextPrimary,
-                      fontSize: 13.5,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       decoration: task.isCompleted
                           ? TextDecoration.lineThrough
@@ -1130,7 +1128,7 @@ class _TaskTile extends StatelessWidget {
                     ),
                   ),
                   if (subtitleParts.isNotEmpty) ...[
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       subtitleParts.join(' • '),
                       maxLines: 1,
@@ -1141,7 +1139,7 @@ class _TaskTile extends StatelessWidget {
                                 task.isPending
                             ? DuoColors.error
                             : DuoColors.orbitTextSecondary,
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -1151,7 +1149,7 @@ class _TaskTile extends StatelessWidget {
             ),
             if (task.scope == HouseholdTaskScope.shared &&
                 assigneeId != null) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: 7),
               _MemberAvatar(
                 name: controller.memberName(
                   assigneeId,
@@ -1166,14 +1164,14 @@ class _TaskTile extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 36,
+                  width: 30,
+                  height: 40,
                 ),
                 tooltip: 'Concluir',
                 icon: Icon(
                   Icons.radio_button_unchecked_rounded,
                   color: accent,
-                  size: 21,
+                  size: 22,
                 ),
               ),
             if (task.isPending)
@@ -1181,8 +1179,8 @@ class _TaskTile extends StatelessWidget {
                 color: DuoColors.orbitSurface,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 36,
+                  width: 27,
+                  height: 40,
                 ),
                 icon: const Icon(Icons.more_vert_rounded, size: 19),
                 iconColor: DuoColors.orbitTextSecondary,
