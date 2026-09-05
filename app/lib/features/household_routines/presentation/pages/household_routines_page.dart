@@ -90,9 +90,25 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
             }
           }
 
-          return AlertDialog(
-            title: Text(isEditing ? 'Editar tarefa' : 'Nova tarefa'),
-            content: SingleChildScrollView(
+          return Theme(
+            data: _orbitFormTheme(context),
+            child: AlertDialog(
+              backgroundColor: DuoColors.orbitCardSurface,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: DuoColors.orbitBorder.withValues(alpha: .62),
+                ),
+              ),
+              title: Text(
+                isEditing ? 'Editar tarefa' : 'Nova tarefa',
+                style: const TextStyle(
+                  color: DuoColors.orbitTextPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -170,17 +186,22 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   ],
                 ],
               ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: DuoColors.orbitAccent,
+                    foregroundColor: DuoColors.orbitBackground,
+                  ),
+                  child: Text(isEditing ? 'Salvar' : 'Criar'),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text(isEditing ? 'Salvar' : 'Criar'),
-              ),
-            ],
           );
         },
       ),
@@ -268,20 +289,20 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
         children: [
           content,
           Positioned(
-            right: 16,
-            bottom: 16,
+            right: 20,
+            bottom: 20,
             child: FloatingActionButton(
               heroTag: 'household-task-${widget.scopeId}',
               onPressed: _createTask,
               backgroundColor: DuoColors.orbitAccent,
               foregroundColor: DuoColors.orbitBackground,
               tooltip: 'Nova tarefa',
-              child: const Icon(Icons.add_rounded),
+              child: const Icon(Icons.add_rounded, size: 28),
             ),
           ),
           Positioned(
-            right: 22,
-            bottom: 82,
+            right: 28,
+            bottom: 94,
             child: FloatingActionButton.small(
               heroTag: 'household-routine-${widget.scopeId}',
               onPressed: _createRoutine,
@@ -387,7 +408,7 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           color: DuoColors.orbitAccent,
           onRefresh: () => widget.controller.load(widget.scopeId),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 112),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 126),
             children: [
               _RoutineSummary(
                 today: todayTasks.where((task) => task.isPending).length,
@@ -405,39 +426,36 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                   message: widget.controller.successMessage!,
                   color: DuoColors.success,
                 ),
+              _SectionTitle(
+                'Hoje',
+                trailing: _shortDate(todayStart),
+              ),
+              const SizedBox(height: 8),
               if (todayTasks.isNotEmpty) ...[
-                _SectionTitle(
-                  'Hoje',
-                  trailing: _shortDate(todayStart),
-                ),
-                const SizedBox(height: 7),
                 _OrbitListCard(
                   children: [for (final task in todayTasks) taskTile(task)],
                 ),
-                const SizedBox(height: 18),
+              ] else ...[
+                const _CompactEmptyState(
+                  icon: Icons.wb_sunny_outlined,
+                  message: 'Nenhuma tarefa com horário para hoje.',
+                ),
               ],
+              const SizedBox(height: 22),
               if (overdue.isNotEmpty) ...[
                 _SectionTitle(
                   'Atrasadas (${overdue.length})',
                   color: DuoColors.error,
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: 8),
                 _OrbitListCard(
                   children: [for (final task in overdue) taskTile(task)],
                 ),
-                const SizedBox(height: 18),
-              ],
-              if (upcoming.isNotEmpty) ...[
-                const _SectionTitle('Próximas'),
-                const SizedBox(height: 7),
-                _OrbitListCard(
-                  children: [for (final task in upcoming) taskTile(task)],
-                ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 22),
               ],
               if (routines.isNotEmpty) ...[
                 const _SectionTitle('Sequências'),
-                const SizedBox(height: 7),
+                const SizedBox(height: 8),
                 _OrbitListCard(
                   children: [
                     for (final routine in routines)
@@ -451,11 +469,19 @@ class _HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                       ),
                   ],
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 22),
+              ],
+              if (upcoming.isNotEmpty) ...[
+                const _SectionTitle('Próximas'),
+                const SizedBox(height: 8),
+                _OrbitListCard(
+                  children: [for (final task in upcoming) taskTile(task)],
+                ),
+                const SizedBox(height: 22),
               ],
               if (recentCompleted.isNotEmpty) ...[
                 const _SectionTitle('Concluídas recentemente'),
-                const SizedBox(height: 7),
+                const SizedBox(height: 8),
                 _OrbitListCard(
                   children: [
                     for (final task in recentCompleted) taskTile(task),
@@ -497,6 +523,42 @@ String _shortDate(DateTime date) {
     'domingo',
   ];
   return '${weekdays[date.weekday - 1]}, ${date.day}/${date.month}';
+}
+
+ThemeData _orbitFormTheme(BuildContext context) {
+  final theme = Theme.of(context);
+  return theme.copyWith(
+    colorScheme: theme.colorScheme.copyWith(
+      primary: DuoColors.orbitAccent,
+      surface: DuoColors.orbitCardSurface,
+      onSurface: DuoColors.orbitTextPrimary,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      labelStyle: const TextStyle(color: DuoColors.orbitTextSecondary),
+      hintStyle: TextStyle(
+        color: DuoColors.orbitTextSecondary.withValues(alpha: .72),
+      ),
+      filled: true,
+      fillColor: DuoColors.orbitBackground.withValues(alpha: .52),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(13),
+        borderSide: BorderSide(
+          color: DuoColors.orbitBorder.withValues(alpha: .7),
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(13),
+        borderSide: BorderSide(
+          color: DuoColors.orbitBorder.withValues(alpha: .7),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(13),
+        borderSide: const BorderSide(color: DuoColors.orbitAccent),
+      ),
+    ),
+  );
 }
 
 class _RoutineSummary extends StatelessWidget {
@@ -566,11 +628,11 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 76,
-      padding: const EdgeInsets.fromLTRB(10, 9, 8, 8),
+      height: 92,
+      padding: const EdgeInsets.fromLTRB(12, 12, 10, 10),
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(
           color: DuoColors.orbitBorder.withValues(alpha: .5),
         ),
@@ -585,7 +647,7 @@ class _SummaryCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: color,
-              fontSize: 9.5,
+              fontSize: 10.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -601,23 +663,23 @@ class _SummaryCard extends StatelessWidget {
                       value,
                       style: const TextStyle(
                         color: DuoColors.orbitTextPrimary,
-                        fontSize: 19,
+                        fontSize: 23,
                         height: 1,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       caption,
                       style: const TextStyle(
                         color: DuoColors.orbitTextSecondary,
-                        fontSize: 8.5,
+                        fontSize: 9.5,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(icon, color: color, size: 18),
+              Icon(icon, color: color, size: 21),
             ],
           ),
         ],
@@ -678,6 +740,40 @@ class _MessageBanner extends StatelessWidget {
       child: Text(
         message,
         style: TextStyle(color: color, fontSize: 11),
+      ),
+    );
+  }
+}
+
+class _CompactEmptyState extends StatelessWidget {
+  final IconData icon;
+  final String message;
+
+  const _CompactEmptyState({required this.icon, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: DuoColors.orbitCardSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .45)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: DuoColors.orbitTextSecondary),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: DuoColors.orbitTextSecondary,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -812,31 +908,31 @@ class _RoutineTile extends StatelessWidget {
     if (repeatLabel != null) subtitleParts.add(repeatLabel);
     return ListTile(
       dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 2),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
       leading: Container(
-          width: 34,
-          height: 34,
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
             color: DuoColors.orbitAccent.withValues(alpha: .13),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: const Icon(
             Icons.account_tree_rounded,
             color: DuoColors.orbitAccent,
-            size: 19,
+            size: 22,
           ),
       ),
       title: Text(routine.name),
       titleTextStyle: const TextStyle(
           color: DuoColors.orbitTextPrimary,
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: FontWeight.w700,
       ),
       subtitle: Text(
           subtitleParts.join(' • '),
           style: const TextStyle(
             color: DuoColors.orbitTextSecondary,
-            fontSize: 9.5,
+            fontSize: 10.5,
           ),
       ),
       trailing: Row(
@@ -931,20 +1027,21 @@ class _TaskTile extends StatelessWidget {
         : DuoColors.orbitAccent;
     return ListTile(
       dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 2),
+      minVerticalPadding: 7,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
       leading: Container(
-          width: 34,
-          height: 34,
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
             color: accent.withValues(alpha: .13),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
             task.belongsToRoutine
                 ? Icons.account_tree_rounded
                 : Icons.checklist_rounded,
             color: accent,
-            size: 19,
+            size: 22,
           ),
       ),
       title: Text(
@@ -957,7 +1054,7 @@ class _TaskTile extends StatelessWidget {
           color: task.isCompleted
               ? DuoColors.orbitTextSecondary
               : DuoColors.orbitTextPrimary,
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: FontWeight.w700,
       ),
       subtitle: subtitleParts.isEmpty
@@ -968,7 +1065,7 @@ class _TaskTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: DuoColors.orbitTextSecondary,
-                fontSize: 9.5,
+                fontSize: 10.5,
               ),
             ),
       trailing: Row(
@@ -1023,7 +1120,7 @@ class _MemberAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalizedPhoto = photoUrl?.trim();
     return CircleAvatar(
-      radius: 12,
+      radius: 14,
       backgroundColor: DuoColors.orbitAccent.withValues(alpha: .18),
       backgroundImage: normalizedPhoto == null || normalizedPhoto.isEmpty
           ? null
@@ -1033,7 +1130,7 @@ class _MemberAvatar extends StatelessWidget {
               name.isEmpty ? '?' : name.characters.first.toUpperCase(),
               style: const TextStyle(
                 color: DuoColors.orbitAccent,
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: FontWeight.w800,
               ),
             )
