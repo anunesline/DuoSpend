@@ -30,6 +30,8 @@ class HouseholdRoutinesPage extends StatefulWidget {
 }
 
 class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
+  bool _isOpeningTaskEditor = false;
+
   List<String> _memberIds([HouseholdTask? task]) {
     final members = <String>{
       ...HouseholdScopeId.members(widget.scopeId),
@@ -89,7 +91,15 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
-  Future<void> createTask() => _openTaskEditor();
+  Future<void> createTask() async {
+    if (_isOpeningTaskEditor) return;
+    _isOpeningTaskEditor = true;
+    try {
+      await _openTaskEditor();
+    } finally {
+      _isOpeningTaskEditor = false;
+    }
+  }
   Future<void> _createTask() => createTask();
   Future<void> _editTask(HouseholdTask task) => _openTaskEditor(task: task);
 

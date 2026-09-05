@@ -53,6 +53,37 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
       );
   }
 
+  Future<void> _runOnTasksPage(
+    Future<void> Function(HouseholdRoutinesPageState page) action, {
+    required String unavailableMessage,
+  }) async {
+    if (_showLists) {
+      setState(() => _showLists = false);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+
+    // The task page is intentionally kept behind the Lists view. Wait for its
+    // state to be mounted before routing an action through the GlobalKey;
+    // invoking a nullable currentState used to turn this into a silent no-op.
+    var page = _tasksPageKey.currentState;
+    if (page == null || !page.mounted) {
+      await WidgetsBinding.instance.endOfFrame;
+      page = _tasksPageKey.currentState;
+    }
+    if (page == null || !page.mounted) {
+      if (mounted) _showUnavailable(unavailableMessage);
+      return;
+    }
+
+    try {
+      await action(page);
+    } catch (_) {
+      if (mounted) {
+        _showUnavailable('Não foi possível abrir esta ação. Tente novamente.');
+      }
+    }
+  }
+
   Future<void> _createList(
     String scopeId, {
     HouseholdListType? initialType,
@@ -126,18 +157,14 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
         name: name.text,
         type: type,
       );
-      if (created != null && mounted) setState(() => _showLists = true);
+      if (created != null && mounted) {
+        setState(() => _showLists = true);
+      } else if (mounted) {
+        _showUnavailable('Não foi possível criar a lista. Tente novamente.');
+      }
     }
     await Future<void>.delayed(const Duration(milliseconds: 250));
     name.dispose();
-  }
-
-  Future<void> _runTaskAction(Future<void> Function() action) async {
-    if (_showLists) {
-      setState(() => _showLists = false);
-      await WidgetsBinding.instance.endOfFrame;
-    }
-    await action();
   }
 
   @override
@@ -202,17 +229,25 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
               onToggle: () => setState(
                 () => _quickActionsExpanded = !_quickActionsExpanded,
               ),
-              onTask: () => _runTaskAction(() async {
-                await _tasksPageKey.currentState?.createTask();
-              }),
-              onList: () => _createList(_personalScopeId),
-              onSequence: () => _runTaskAction(() async {
-                await _tasksPageKey.currentState?.createRoutine();
-              }),
-              onPartnerReminder: () => _showUnavailable(
-                'Abra uma tarefa compartilhada para lembrar o responsável.',
+              onTask: () => _runOnTasksPage(
+                (page) => page.createTask(),
+                unavailableMessage:
+                    'A tela de tarefas ainda está sendo preparada.',
               ),
-              onShopping: () => setState(() => _showLists = true),
+              onList: () => _createList(_personalScopeId),
+              onSequence: () => _runOnTasksPage(
+                (page) => page.createRoutine(),
+                unavailableMessage:
+                    'A tela de tarefas ainda está sendo preparada.',
+              ),
+              onPartnerReminder: () async {
+                _showUnavailable(
+                  'Abra uma tarefa compartilhada para lembrar o responsável.',
+                );
+              },
+              onShopping: () async {
+                setState(() => _showLists = true);
+              },
             ),
           ),
           Expanded(
@@ -236,21 +271,6 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'household-task-create',
-        onPressed: () => _runTaskAction(() async {
-          await _tasksPageKey.currentState?.createTask();
-        }),
-        backgroundColor: DuoColors.orbitAccent,
-        foregroundColor: DuoColors.orbitBackground,
-        elevation: 10,
-        highlightElevation: 12,
-        shape: const CircleBorder(
-          side: BorderSide(color: Color(0x66D0B8FF), width: 1.25),
-        ),
-        tooltip: 'Criar',
-        child: const Icon(Icons.add_rounded, size: 29),
-      ),
     );
   }
 }
@@ -258,11 +278,11 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
 class _ExpandableQuickActions extends StatelessWidget {
   final bool expanded;
   final VoidCallback onToggle;
-  final VoidCallback onTask;
-  final VoidCallback onList;
-  final VoidCallback onSequence;
-  final VoidCallback onPartnerReminder;
-  final VoidCallback onShopping;
+  final Future<void> Function() onTask;
+  final Future<void> Function() onList;
+  final Future<void> Function() onSequence;
+  final Future<void> Function() onPartnerReminder;
+  final Future<void> Function() onShopping;
 
   const _ExpandableQuickActions({
     required this.expanded,
@@ -400,7 +420,7 @@ class _QuickAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  final VoidCallback onTap;
+  final Future<void> Function() onTap;
   const _QuickAction({
     required this.icon,
     required this.label,
@@ -409,35 +429,43 @@ class _QuickAction extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: .14),
-                shape: BoxShape.circle,
-                border: Border.all(color: color.withValues(alpha: .28)),
-              ),
-              child: Icon(icon, color: color, size: 19),
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async {
+            await onTap();
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            height: 60,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .14),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: color.withValues(alpha: .28)),
+                  ),
+                  child: Icon(icon, color: color, size: 19),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: DuoColors.orbitTextSecondary,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: DuoColors.orbitTextSecondary,
-                fontSize: 8.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          ),
         ),
       );
 }
