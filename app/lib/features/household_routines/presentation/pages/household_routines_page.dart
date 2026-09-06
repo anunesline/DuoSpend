@@ -15,6 +15,7 @@ class HouseholdRoutinesPage extends StatefulWidget {
   final List<String> memberIds;
   final String currentUserId;
   final List<String>? loadScopeIds;
+  final String? sharedScopeId;
 
   const HouseholdRoutinesPage({
     super.key,
@@ -24,6 +25,7 @@ class HouseholdRoutinesPage extends StatefulWidget {
     required this.memberIds,
     required this.currentUserId,
     this.loadScopeIds,
+    this.sharedScopeId,
   });
 
   @override
@@ -34,14 +36,16 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   bool _isOpeningTaskEditor = false;
   late DateTime _selectedDay;
 
-  List<String> _memberIds([HouseholdTask? task]) {
+  List<String> _memberIdsForScope({
+    required HouseholdTaskScope scope,
+    required String scopeId,
+    HouseholdTask? task,
+  }) {
     final members = <String>{
       widget.currentUserId,
     };
-    final isSharedContext = task?.scope == HouseholdTaskScope.shared ||
-        widget.scope == HouseholdTaskScope.shared;
-    if (isSharedContext) {
-      members.addAll(HouseholdScopeId.members(widget.scopeId));
+    if (scope == HouseholdTaskScope.shared) {
+      members.addAll(HouseholdScopeId.members(scopeId));
       members.addAll(
         widget.memberIds.map((id) => id.trim()).where((id) => id.isNotEmpty),
       );
@@ -124,14 +128,21 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     final repeatController = TextEditingController(
       text: task?.repeatEveryDays?.toString() ?? '',
     );
+    var selectedScope = task?.scope ?? widget.scope;
+    var selectedScopeId = task?.scopeId ?? widget.scopeId;
     String? assigneeId = task?.assigneeId ?? widget.currentUserId;
     DateTime? dueAt = task?.dueAt;
-    final memberIds = _memberIds(task);
 
     final shouldSave = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
+          final memberIds = _memberIdsForScope(
+            scope: selectedScope,
+            scopeId: selectedScopeId,
+            task: task,
+          );
+
           Future<void> pickDueAt() async {
             final picked = await _pickDateTime(initialValue: dueAt);
             if (picked != null && dialogContext.mounted) {
@@ -227,6 +238,39 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                               const SizedBox(height: 16),
                               _EditorSettingsGroup(
                                 children: [
+                                  if (!isEditing && widget.sharedScopeId != null)
+                                    _EditorSettingRow(
+                                      icon: Icons.group_outlined,
+                                      label: 'Contexto',
+                                      child: SegmentedButton<HouseholdTaskScope>(
+                                        showSelectedIcon: false,
+                                        style: const ButtonStyle(
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                        segments: const [
+                                          ButtonSegment(
+                                            value: HouseholdTaskScope.personal,
+                                            label: Text('Pessoal'),
+                                          ),
+                                          ButtonSegment(
+                                            value: HouseholdTaskScope.shared,
+                                            label: Text('Compartilhada'),
+                                          ),
+                                        ],
+                                        selected: {selectedScope},
+                                        onSelectionChanged: (selection) {
+                                          final scope = selection.first;
+                                          setDialogState(() {
+                                            selectedScope = scope;
+                                            selectedScopeId = scope ==
+                                                    HouseholdTaskScope.shared
+                                                ? widget.sharedScopeId!
+                                                : widget.scopeId;
+                                            assigneeId = widget.currentUserId;
+                                          });
+                                        },
+                                      ),
+                                    ),
                                   _EditorSettingRow(
                                     icon: Icons.schedule_rounded,
                                     label: 'Data e horário',
@@ -332,8 +376,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           repeatText.isEmpty ? null : int.tryParse(repeatText);
       if (task == null) {
         await widget.controller.createTask(
-          scopeId: widget.scopeId,
-          scope: widget.scope,
+          scopeId: selectedScopeId,
+          scope: selectedScope,
           title: titleController.text,
           notes: notesController.text,
           assigneeId: assigneeId,

@@ -264,6 +264,7 @@ class _HouseholdRoutinesHubPageState extends State<HouseholdRoutinesHubPage> {
                     memberIds: members,
                     currentUserId: widget.currentUserId,
                     loadScopeIds: loadScopeIds,
+                    sharedScopeId: sharedScopeId,
                   ),
           ),
         ],
