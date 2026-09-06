@@ -435,6 +435,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
 
   Future<HouseholdTask?> updateTask({
     required HouseholdTask task,
+    String? scopeId,
+    HouseholdTaskScope? scope,
     required String title,
     String? notes,
     String? assigneeId,
@@ -457,8 +459,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
 
     final updated = HouseholdTask(
       id: task.id,
-      scopeId: task.scopeId,
-      scope: task.scope,
+      scopeId: _emptyToNull(scopeId) ?? task.scopeId,
+      scope: scope ?? task.scope,
       title: normalizedTitle,
       notes: _emptyToNull(notes),
       assigneeId: _emptyToNull(assigneeId),

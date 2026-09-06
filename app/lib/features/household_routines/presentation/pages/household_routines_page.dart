@@ -238,7 +238,7 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                               const SizedBox(height: 16),
                               _EditorSettingsGroup(
                                 children: [
-                                  if (!isEditing && widget.sharedScopeId != null)
+                                  if (widget.sharedScopeId != null)
                                     _EditorSettingRow(
                                       icon: Icons.group_outlined,
                                       label: 'Contexto',
@@ -387,6 +387,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
       } else {
         await widget.controller.updateTask(
           task: task,
+          scopeId: selectedScopeId,
+          scope: selectedScope,
           title: titleController.text,
           notes: notesController.text,
           assigneeId: assigneeId,
