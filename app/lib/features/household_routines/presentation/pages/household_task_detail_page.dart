@@ -38,7 +38,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
     return days == 1 ? 'Diariamente' : 'A cada $days dias';
   }
 
-  String? get _dateLabel => task.dueAt == null ? null : _dateTimeLabel(task.dueAt!);
+  String? get _dateLabel => task.dueAt == null ? null : _timeLabel(task.dueAt!);
 
   @override
   Widget build(BuildContext context) {
@@ -56,17 +56,17 @@ class HouseholdTaskDetailPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: DuoColors.orbitBackground,
       appBar: AppBar(
-        toolbarHeight: 58,
+        toolbarHeight: 56,
         backgroundColor: DuoColors.orbitBackground,
         surfaceTintColor: Colors.transparent,
         foregroundColor: DuoColors.orbitTextPrimary,
         elevation: 0,
         leading: Padding(
-          padding: const EdgeInsets.only(left: 7),
+          padding: const EdgeInsets.only(left: 11),
           child: IconButton(
             tooltip: 'Voltar',
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19),
           ),
         ),
         actions: [
@@ -94,7 +94,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
       body: SafeArea(
         top: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(26, 11, 26, 24),
+          padding: const EdgeInsets.fromLTRB(28, 13, 28, 24),
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,7 +104,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     color: DuoColors.success.withValues(alpha: .14),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(13),
                     border: Border.all(
                       color: DuoColors.success.withValues(alpha: .26),
                     ),
@@ -126,7 +126,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                         label: _scopeLabel,
                         color: _isShared ? DuoColors.success : DuoColors.orbitAccent,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(
                         task.title,
                         style: TextStyle(
@@ -134,7 +134,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                               ? DuoColors.orbitTextSecondary
                               : DuoColors.orbitTextPrimary,
                           fontSize: 23,
-                          height: 1.1,
+                          height: 1.08,
                           fontWeight: FontWeight.w800,
                           decoration: task.isCompleted
                               ? TextDecoration.lineThrough
@@ -142,13 +142,13 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                         ),
                       ),
                       if (task.notes?.trim().isNotEmpty == true) ...[
-                        const SizedBox(height: 7),
+                        const SizedBox(height: 5),
                         Text(
                           task.notes!.trim(),
                           style: const TextStyle(
                             color: DuoColors.orbitTextSecondary,
                             fontSize: 12,
-                            height: 1.42,
+                            height: 1.38,
                           ),
                         ),
                       ],
@@ -157,47 +157,19 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            _DetailsCard(
-              children: [
-                if (_assigneeName != null)
-                  _DetailRow(
-                    icon: Icons.person_outline_rounded,
-                    label: 'Responsável',
-                    value: _assigneeName!,
-                    valuePrefix: _isShared && task.assigneeId != null
-                        ? _ResolvedMemberAvatar(
-                            name: _assigneeName!,
-                            photoUrl: controller.memberPhotoUrl(task.assigneeId!),
-                          )
-                        : null,
-                  ),
-                if (_frequencyLabel != null)
-                  _DetailRow(
-                    icon: Icons.repeat_rounded,
-                    label: 'Frequência',
-                    value: _frequencyLabel!,
-                  ),
-                if (_dateLabel != null)
-                  _DetailRow(
-                    icon: Icons.schedule_rounded,
-                    label: 'Horário',
-                    value: _dateLabel!,
-                  ),
-                if (task.belongsToRoutine)
-                  _DetailRow(
-                    icon: Icons.account_tree_outlined,
-                    label: 'Rotina',
-                    value: 'Etapa ${(task.routineStepIndex ?? 0) + 1}',
-                  ),
-                if (_assigneeName == null &&
-                    _frequencyLabel == null &&
-                    _dateLabel == null &&
-                    !task.belongsToRoutine)
-                  const _DetailEmptyRow(),
-              ],
+            const SizedBox(height: 22),
+            _TaskAttributes(
+              assigneeName: _assigneeName,
+              assigneeAvatar: _isShared && task.assigneeId != null && _assigneeName != null
+                  ? _ResolvedMemberAvatar(
+                      name: _assigneeName!,
+                      photoUrl: controller.memberPhotoUrl(task.assigneeId!),
+                    )
+                  : null,
+              frequencyLabel: _frequencyLabel,
+              dateLabel: _dateLabel,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             _FollowUpCard(
               completedAt: task.completedAt,
               canRemindPartner: canRemindPartner,
@@ -207,6 +179,48 @@ class HouseholdTaskDetailPage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _TaskAttributes extends StatelessWidget {
+  final String? assigneeName;
+  final Widget? assigneeAvatar;
+  final String? frequencyLabel;
+  final String? dateLabel;
+
+  const _TaskAttributes({
+    required this.assigneeName,
+    required this.assigneeAvatar,
+    required this.frequencyLabel,
+    required this.dateLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[
+      if (assigneeName != null)
+        _DetailRow(
+          icon: Icons.person_outline_rounded,
+          label: 'Responsável',
+          value: assigneeName!,
+          valuePrefix: assigneeAvatar,
+        ),
+      if (frequencyLabel != null)
+        _DetailRow(
+          icon: Icons.repeat_rounded,
+          label: 'Frequência',
+          value: frequencyLabel!,
+        ),
+      if (dateLabel != null)
+        _DetailRow(
+          icon: Icons.schedule_rounded,
+          label: 'Horário',
+          value: dateLabel!,
+        ),
+    ];
+
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return _DetailsCard(children: rows);
   }
 }
 
@@ -220,7 +234,7 @@ class _DetailsCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: DuoColors.orbitCardSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .48)),
+          border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .42)),
         ),
         child: Column(
           children: [
@@ -230,7 +244,7 @@ class _DetailsCard extends StatelessWidget {
                 Divider(
                   height: 1,
                   indent: 43,
-                  color: DuoColors.orbitBorder.withValues(alpha: .5),
+                  color: DuoColors.orbitBorder.withValues(alpha: .42),
                 ),
             ],
           ],
@@ -253,17 +267,17 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Row(
           children: [
-            Icon(icon, color: DuoColors.orbitTextSecondary, size: 17),
-            const SizedBox(width: 9),
+            Icon(icon, color: DuoColors.orbitTextSecondary, size: 16),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 label,
                 style: const TextStyle(
                   color: DuoColors.orbitTextSecondary,
-                    fontSize: 11.5,
+                    fontSize: 10.5,
                 ),
               ),
             ),
@@ -282,7 +296,7 @@ class _DetailRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: DuoColors.orbitTextPrimary,
-                        fontSize: 11.5,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -305,7 +319,7 @@ class _ResolvedMemberAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalizedPhoto = photoUrl?.trim();
     return CircleAvatar(
-      radius: 12,
+      radius: 11,
       backgroundColor: DuoColors.orbitAccent.withValues(alpha: .18),
       backgroundImage: normalizedPhoto == null || normalizedPhoto.isEmpty
           ? null
@@ -315,7 +329,7 @@ class _ResolvedMemberAvatar extends StatelessWidget {
               name.isEmpty ? '?' : name.characters.first.toUpperCase(),
               style: const TextStyle(
                 color: DuoColors.orbitAccent,
-                fontSize: 9,
+                fontSize: 8.5,
                 fontWeight: FontWeight.w800,
               ),
             )
@@ -337,11 +351,11 @@ class _FollowUpCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(11, 12, 11, 11),
+        padding: const EdgeInsets.fromLTRB(10, 11, 10, 10),
         decoration: BoxDecoration(
           color: DuoColors.orbitCardSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .48)),
+          border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .42)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,43 +368,68 @@ class _FollowUpCard extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 9),
             if (completedAt != null)
-              _FollowUpEventCard(
-                label: 'Concluída',
-                value: _shortEventDate(completedAt!),
-                icon: Icons.check_circle_outline_rounded,
-                color: DuoColors.success,
+              Row(
+                children: [
+                  _FollowUpEventCard(
+                    label: 'Concluída',
+                    value: _shortEventDate(completedAt!),
+                    icon: Icons.check_circle_outline_rounded,
+                    color: DuoColors.success,
+                  ),
+                ],
               )
             else
               const Padding(
-                padding: EdgeInsets.fromLTRB(2, 2, 2, 3),
+                padding: EdgeInsets.fromLTRB(1, 3, 1, 4),
                 child: Text(
                   'Ainda não há eventos registrados para esta tarefa.',
                   style: TextStyle(
                     color: DuoColors.orbitTextSecondary,
-                    fontSize: 11,
+                    fontSize: 10.5,
+                    height: 1.35,
                   ),
                 ),
               ),
             if (canRemindPartner) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 9),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () async => onRemind!(),
-                  icon: const Icon(Icons.notifications_none_rounded, size: 18),
-                  label: const Text('Lembrar parceiro'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: DuoColors.orbitTextPrimary,
-                    backgroundColor: DuoColors.orbitAccent.withValues(alpha: .2),
-                    side: BorderSide(
-                      color: DuoColors.orbitAccent.withValues(alpha: .58),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    textStyle: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(9),
+                    onTap: () async => onRemind!(),
+                    child: Container(
+                      height: 35,
+                      decoration: BoxDecoration(
+                        color: DuoColors.orbitAccent.withValues(alpha: .19),
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(
+                          color: DuoColors.orbitAccent.withValues(alpha: .56),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.notifications_none_rounded,
+                            color: DuoColors.orbitTextPrimary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 7),
+                          const Text(
+                            'Lembrar parceiro',
+                            style: TextStyle(
+                              color: DuoColors.orbitTextPrimary,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -416,8 +455,9 @@ class _FollowUpEventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: 132,
-        padding: const EdgeInsets.fromLTRB(9, 8, 9, 9),
+        width: 114,
+        height: 66,
+        padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
         decoration: BoxDecoration(
           color: color.withValues(alpha: .1),
           borderRadius: BorderRadius.circular(10),
@@ -444,7 +484,7 @@ class _FollowUpEventCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const Spacer(),
             Text(
               value,
               style: const TextStyle(
@@ -458,22 +498,6 @@ class _FollowUpEventCard extends StatelessWidget {
       );
 }
 
-class _DetailEmptyRow extends StatelessWidget {
-  const _DetailEmptyRow();
-
-  @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.all(14),
-        child: Text(
-          'Sem outras informações cadastradas.',
-          style: TextStyle(
-            color: DuoColors.orbitTextSecondary,
-            fontSize: 12,
-          ),
-        ),
-      );
-}
-
 class _StatusPill extends StatelessWidget {
   final String label;
   final Color color;
@@ -482,24 +506,22 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
           color: color.withValues(alpha: .14),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label,
-          style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700),
+          style: TextStyle(color: color, fontSize: 9.5, fontWeight: FontWeight.w700),
         ),
       );
 }
 
-String _dateTimeLabel(DateTime date) {
-  final day = date.day.toString().padLeft(2, '0');
-  final month = date.month.toString().padLeft(2, '0');
+String _timeLabel(DateTime date) {
   final hour = date.hour.toString().padLeft(2, '0');
   final minute = date.minute.toString().padLeft(2, '0');
-  return '$day/$month/${date.year} • $hour:$minute';
+  return '$hour:$minute';
 }
 
 String _shortEventDate(DateTime date) {
