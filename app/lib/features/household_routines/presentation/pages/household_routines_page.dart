@@ -6,6 +6,7 @@ import '../../domain/models/household_task.dart';
 import '../../domain/services/household_scope_id.dart';
 import '../controllers/household_routines_controller.dart';
 import 'create_household_routine_page.dart';
+import 'household_task_detail_page.dart';
 
 class HouseholdRoutinesPage extends StatefulWidget {
   final HouseholdRoutinesController controller;
@@ -471,6 +472,38 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
             task: task,
             controller: widget.controller,
             currentUserId: widget.currentUserId,
+            onOpen: () async {
+              await Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HouseholdTaskDetailPage(
+                    task: task,
+                    controller: widget.controller,
+                    currentUserId: widget.currentUserId,
+                    onComplete: task.isPending
+                        ? () async {
+                            await widget.controller.completeTask(task.id);
+                          }
+                        : null,
+                    onEdit: task.isPending
+                        ? () async {
+                            await _editTask(task);
+                          }
+                        : null,
+                    onCancel: task.isPending
+                        ? () async {
+                            await widget.controller.cancelTask(task.id);
+                          }
+                        : null,
+                    onRemind: isPartnerTask
+                        ? () async {
+                            await _remindTask(task);
+                          }
+                        : null,
+                  ),
+                ),
+              );
+            },
             onComplete: task.isPending
                 ? () => widget.controller.completeTask(task.id)
                 : null,
@@ -1272,6 +1305,7 @@ class _TaskTile extends StatelessWidget {
   final HouseholdTask task;
   final HouseholdRoutinesController controller;
   final String currentUserId;
+  final VoidCallback onOpen;
   final VoidCallback? onComplete;
   final VoidCallback? onEdit;
   final VoidCallback? onCancel;
@@ -1282,6 +1316,7 @@ class _TaskTile extends StatelessWidget {
     required this.task,
     required this.controller,
     required this.currentUserId,
+    required this.onOpen,
     this.onComplete,
     this.onEdit,
     this.onCancel,
@@ -1290,9 +1325,7 @@ class _TaskTile extends StatelessWidget {
   });
 
   List<PopupMenuEntry<String>> _menuItems() {
-    final items = <PopupMenuEntry<String>>[
-      const PopupMenuItem(value: 'complete', child: Text('Concluir')),
-    ];
+    final items = <PopupMenuEntry<String>>[];
     if (onEdit != null) {
       items.add(
         const PopupMenuItem(value: 'edit', child: Text('Editar tarefa')),
@@ -1306,7 +1339,9 @@ class _TaskTile extends StatelessWidget {
         ),
       );
     }
-    items.add(const PopupMenuItem(value: 'cancel', child: Text('Cancelar')));
+    if (onCancel != null) {
+      items.add(const PopupMenuItem(value: 'cancel', child: Text('Cancelar')));
+    }
     return items;
   }
 
@@ -1340,7 +1375,7 @@ class _TaskTile extends StatelessWidget {
         ? DuoColors.error
         : DuoColors.orbitAccent;
     return InkWell(
-      onTap: task.isPending ? onComplete : null,
+      onTap: onOpen,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 5, 10),
@@ -1440,7 +1475,6 @@ class _TaskTile extends StatelessWidget {
                 icon: const Icon(Icons.more_vert_rounded, size: 19),
                 iconColor: DuoColors.orbitTextSecondary,
                 onSelected: (value) {
-                  if (value == 'complete') onComplete?.call();
                   if (value == 'edit') onEdit?.call();
                   if (value == 'remind') onRemind?.call();
                   if (value == 'cancel') onCancel?.call();
