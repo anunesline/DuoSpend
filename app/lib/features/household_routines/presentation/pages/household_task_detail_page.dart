@@ -8,7 +8,6 @@ class HouseholdTaskDetailPage extends StatelessWidget {
   final HouseholdTask task;
   final HouseholdRoutinesController controller;
   final String currentUserId;
-  final Future<void> Function()? onComplete;
   final Future<void> Function()? onEdit;
   final Future<void> Function()? onCancel;
   final Future<void> Function()? onRemind;
@@ -18,7 +17,6 @@ class HouseholdTaskDetailPage extends StatelessWidget {
     required this.task,
     required this.controller,
     required this.currentUserId,
-    this.onComplete,
     this.onEdit,
     this.onCancel,
     this.onRemind,
@@ -196,22 +194,6 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                     color: DuoColors.orbitAccent.withValues(alpha: .55),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 13),
-                ),
-              ),
-            ],
-            if (task.isPending && onComplete != null) ...[
-              const SizedBox(height: 22),
-              FilledButton.icon(
-                onPressed: () async {
-                  await onComplete!();
-                  if (context.mounted) Navigator.pop(context);
-                },
-                icon: const Icon(Icons.check_rounded),
-                label: const Text('Concluir tarefa'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: DuoColors.success,
-                  foregroundColor: DuoColors.orbitBackground,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ],

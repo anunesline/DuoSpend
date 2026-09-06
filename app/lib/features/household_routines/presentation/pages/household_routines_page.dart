@@ -480,11 +480,6 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                     task: task,
                     controller: widget.controller,
                     currentUserId: widget.currentUserId,
-                    onComplete: task.isPending
-                        ? () async {
-                            await widget.controller.completeTask(task.id);
-                          }
-                        : null,
                     onEdit: task.isPending
                         ? () async {
                             await _editTask(task);
