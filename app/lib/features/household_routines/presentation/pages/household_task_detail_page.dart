@@ -116,7 +116,10 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _StatusPill(label: _scopeLabel, color: accent),
+                      _StatusPill(
+                        label: _scopeLabel,
+                        color: _isShared ? DuoColors.success : DuoColors.orbitAccent,
+                      ),
                       const SizedBox(height: 7),
                       Text(
                         task.title,
@@ -156,6 +159,12 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                     icon: Icons.person_outline_rounded,
                     label: 'Responsável',
                     value: _assigneeName!,
+                    valuePrefix: _isShared && task.assigneeId != null
+                        ? _ResolvedMemberAvatar(
+                            name: _assigneeName!,
+                            photoUrl: controller.memberPhotoUrl(task.assigneeId!),
+                          )
+                        : null,
                   ),
                 if (_frequencyLabel != null)
                   _DetailRow(
@@ -182,6 +191,27 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                   const _DetailEmptyRow(),
               ],
             ),
+            if (task.completedAt != null) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Acompanhamento',
+                style: TextStyle(
+                  color: DuoColors.orbitTextPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _DetailsCard(
+                children: [
+                  _DetailRow(
+                    icon: Icons.check_circle_outline_rounded,
+                    label: 'Concluída em',
+                    value: _dateTimeLabel(task.completedAt!),
+                  ),
+                ],
+              ),
+            ],
             if (canRemindPartner) ...[
               const SizedBox(height: 16),
               OutlinedButton.icon(
@@ -236,11 +266,13 @@ class _DetailRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final Widget? valuePrefix;
 
   const _DetailRow({
     required this.icon,
     required this.label,
     required this.value,
+    this.valuePrefix,
   });
 
   @override
@@ -260,19 +292,60 @@ class _DetailRow extends StatelessWidget {
               ),
             ),
             Flexible(
-              child: Text(
-                value,
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: DuoColors.orbitTextPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (valuePrefix != null) ...[
+                    valuePrefix!,
+                    const SizedBox(width: 7),
+                  ],
+                  Flexible(
+                    child: Text(
+                      value,
+                      textAlign: TextAlign.right,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
       );
+}
+
+class _ResolvedMemberAvatar extends StatelessWidget {
+  final String name;
+  final String? photoUrl;
+
+  const _ResolvedMemberAvatar({required this.name, this.photoUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedPhoto = photoUrl?.trim();
+    return CircleAvatar(
+      radius: 12,
+      backgroundColor: DuoColors.orbitAccent.withValues(alpha: .18),
+      backgroundImage: normalizedPhoto == null || normalizedPhoto.isEmpty
+          ? null
+          : NetworkImage(normalizedPhoto),
+      child: normalizedPhoto == null || normalizedPhoto.isEmpty
+          ? Text(
+              name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+              style: const TextStyle(
+                color: DuoColors.orbitAccent,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+              ),
+            )
+          : null,
+    );
+  }
 }
 
 class _DetailEmptyRow extends StatelessWidget {
