@@ -436,7 +436,10 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           controller: widget.controller,
           scopeId: widget.scopeId,
           scope: widget.scope,
-          memberIds: _memberIds(),
+          memberIds: _memberIdsForScope(
+            scope: widget.scope,
+            scopeId: widget.scopeId,
+          ),
           currentUserId: widget.currentUserId,
           routine: routine,
         ),
