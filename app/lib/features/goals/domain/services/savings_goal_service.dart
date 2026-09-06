@@ -11,6 +11,7 @@ class SavingsGoalService {
     required String createdByUserId,
     Iterable<String> memberIds = const [],
     double initialAmount = 0,
+    SavingsGoalCategory category = SavingsGoalCategory.others,
     DateTime? deadline,
     DateTime? now,
   }) {
@@ -42,11 +43,7 @@ class SavingsGoalService {
     }
 
     if (normalizedName.isEmpty) {
-      throw ArgumentError.value(
-        name,
-        'name',
-        'Informe um nome para a meta.',
-      );
+      throw ArgumentError.value(name, 'name', 'Informe um nome para a meta.');
     }
 
     if (!targetAmount.isFinite || targetAmount <= 0) {
@@ -92,8 +89,7 @@ class SavingsGoalService {
       currentTime.day,
     );
 
-    if (normalizedDeadline != null &&
-        normalizedDeadline.isBefore(today)) {
+    if (normalizedDeadline != null && normalizedDeadline.isBefore(today)) {
       throw ArgumentError.value(
         deadline,
         'deadline',
@@ -106,6 +102,7 @@ class SavingsGoalService {
       name: normalizedName,
       targetAmount: targetAmount,
       savedAmount: initialAmount,
+      category: category,
       deadline: normalizedDeadline,
       walletId: normalizedWalletId,
       createdByUserId: normalizedUserId,
@@ -122,6 +119,7 @@ class SavingsGoalService {
     required SavingsGoal goal,
     required String name,
     required double targetAmount,
+    SavingsGoalCategory? category,
     DateTime? deadline,
     DateTime? now,
   }) {
@@ -132,11 +130,7 @@ class SavingsGoalService {
     final normalizedName = name.trim();
 
     if (normalizedName.isEmpty) {
-      throw ArgumentError.value(
-        name,
-        'name',
-        'Informe um nome para a meta.',
-      );
+      throw ArgumentError.value(name, 'name', 'Informe um nome para a meta.');
     }
 
     if (!targetAmount.isFinite || targetAmount <= 0) {
@@ -162,7 +156,8 @@ class SavingsGoalService {
       currentTime.month,
       currentTime.day,
     );
-    final keepsLegacyDeadline = normalizedDeadline != null &&
+    final keepsLegacyDeadline =
+        normalizedDeadline != null &&
         goal.deadline != null &&
         normalizedDeadline.year == goal.deadline!.year &&
         normalizedDeadline.month == goal.deadline!.month &&
@@ -181,6 +176,7 @@ class SavingsGoalService {
     return goal.copyWith(
       name: normalizedName,
       targetAmount: targetAmount,
+      category: category,
       deadline: normalizedDeadline,
       clearDeadline: normalizedDeadline == null,
       status: goal.savedAmount >= targetAmount
@@ -230,9 +226,7 @@ class SavingsGoalService {
     }
 
     if (amount > goal.savedAmount) {
-      throw StateError(
-        'A retirada não pode ultrapassar o valor reservado.',
-      );
+      throw StateError('A retirada não pode ultrapassar o valor reservado.');
     }
 
     final updatedAmount = goal.savedAmount - amount;
@@ -244,20 +238,14 @@ class SavingsGoalService {
     );
   }
 
-  SavingsGoal archive({
-    required SavingsGoal goal,
-    DateTime? now,
-  }) {
+  SavingsGoal archive({required SavingsGoal goal, DateTime? now}) {
     return goal.copyWith(
       status: SavingsGoalStatus.archived,
       updatedAt: now ?? DateTime.now(),
     );
   }
 
-  void _validateMovement({
-    required SavingsGoal goal,
-    required double amount,
-  }) {
+  void _validateMovement({required SavingsGoal goal, required double amount}) {
     if (!amount.isFinite || amount <= 0) {
       throw ArgumentError.value(
         amount,

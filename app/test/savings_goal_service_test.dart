@@ -10,6 +10,7 @@ void main() {
   SavingsGoal createGoal({
     double targetAmount = 1000,
     double initialAmount = 0,
+    SavingsGoalCategory category = SavingsGoalCategory.others,
     DateTime? deadline,
   }) {
     return service.create(
@@ -20,6 +21,7 @@ void main() {
       createdByUserId: 'user-1',
       memberIds: const ['user-1', 'user-2', 'user-2'],
       initialAmount: initialAmount,
+      category: category,
       deadline: deadline,
       now: now,
     );
@@ -29,6 +31,7 @@ void main() {
     test('cria meta ativa com progresso e prazo normalizados', () {
       final goal = createGoal(
         initialAmount: 250,
+        category: SavingsGoalCategory.emergency,
         deadline: DateTime(2026, 12, 20, 18),
       );
 
@@ -36,6 +39,7 @@ void main() {
       expect(goal.savedAmount, 250);
       expect(goal.remainingAmount, 750);
       expect(goal.progressPercentage, 25);
+      expect(goal.category, SavingsGoalCategory.emergency);
       expect(goal.deadline, DateTime(2026, 12, 20));
       expect(goal.memberIds, ['user-1', 'user-2']);
       expect(goal.hasMember('user-2'), isTrue);
@@ -83,10 +87,7 @@ void main() {
     test('impede retirada acima do valor reservado', () {
       final goal = createGoal(initialAmount: 100);
 
-      expect(
-        () => service.withdraw(goal: goal, amount: 101),
-        throwsStateError,
-      );
+      expect(() => service.withdraw(goal: goal, amount: 101), throwsStateError);
     });
 
     test('valida nome, valores, carteira, usuário e prazo', () {
@@ -142,15 +143,13 @@ void main() {
     });
 
     test('edição mantém valor reservado e recalcula o status', () {
-      final completed = createGoal(
-        targetAmount: 500,
-        initialAmount: 500,
-      );
+      final completed = createGoal(targetAmount: 500, initialAmount: 500);
 
       final updated = service.update(
         goal: completed,
         name: 'Reserva ampliada',
         targetAmount: 800,
+        category: SavingsGoalCategory.investment,
         deadline: DateTime(2026, 12, 20, 18),
         now: now.add(const Duration(days: 1)),
       );
@@ -158,15 +157,13 @@ void main() {
       expect(updated.name, 'Reserva ampliada');
       expect(updated.targetAmount, 800);
       expect(updated.savedAmount, 500);
+      expect(updated.category, SavingsGoalCategory.investment);
       expect(updated.status, SavingsGoalStatus.active);
       expect(updated.deadline, DateTime(2026, 12, 20));
     });
 
     test('edição não reduz alvo abaixo do valor reservado', () {
-      final goal = createGoal(
-        targetAmount: 1000,
-        initialAmount: 600,
-      );
+      final goal = createGoal(targetAmount: 1000, initialAmount: 600);
 
       expect(
         () => service.update(
@@ -180,9 +177,8 @@ void main() {
     });
 
     test('edição preserva prazo legado no passado', () {
-      final goal = createGoal(
-        deadline: DateTime(2026, 8, 25),
-      ).copyWith(deadline: DateTime(2026, 8, 20));
+      final goal = createGoal(deadline: DateTime(2026, 8, 25))
+          .copyWith(deadline: DateTime(2026, 8, 20));
 
       final updated = service.update(
         goal: goal,

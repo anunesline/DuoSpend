@@ -3,6 +3,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../models/user_model.dart';
 
+class UserProfileSummary {
+  final String userId;
+  final String displayName;
+  final String? photoUrl;
+
+  const UserProfileSummary({
+    required this.userId,
+    required this.displayName,
+    this.photoUrl,
+  });
+}
+
 class UserRepository {
   final FirebaseFirestore _firestore;
 
@@ -68,6 +80,38 @@ class UserRepository {
     );
 
     return email;
+  }
+
+  Future<Map<String, UserProfileSummary>> getUserProfileSummaries(
+    Iterable<String> userIds,
+  ) async {
+    final normalizedIds = userIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final entries = await Future.wait(
+      normalizedIds.map((userId) async {
+        final snapshot = await _firestore.collection('users').doc(userId).get();
+        final data = snapshot.data();
+        if (!snapshot.exists || data == null) return null;
+        final displayName = _readNonEmptyString(data['displayName']) ??
+            _readNonEmptyString(data['name']) ??
+            _readNonEmptyString(data['email']);
+        if (displayName == null) return null;
+        return MapEntry(
+          userId,
+          UserProfileSummary(
+            userId: userId,
+            displayName: displayName,
+            photoUrl: _readNonEmptyString(data['photoUrl']),
+          ),
+        );
+      }),
+    );
+    return Map.unmodifiable({
+      for (final entry in entries)
+        if (entry != null) entry.key: entry.value,
+    });
   }
 
   String? _readNonEmptyString(

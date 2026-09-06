@@ -127,71 +127,77 @@ class _OrbitInsightContent extends StatelessWidget {
         : NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(amount);
 
     return DuoCard(
-      borderRadius: 22,
+      borderRadius: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(2),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: .14),
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Icon(Icons.auto_awesome_rounded, color: accent, size: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .14),
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  const SizedBox(width: 11),
-                  const Expanded(
-                    child: Text(
-                      'Orbit percebeu',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: DuoColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right_rounded, color: DuoColors.textHint),
-                ],
-              ),
-              const SizedBox(height: 13),
-              Text(
-                insight.title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: DuoColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                insight.message,
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.35,
-                  color: DuoColors.textSecondary,
-                ),
-              ),
-              if (formattedAmount != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  formattedAmount,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
                     color: accent,
+                    size: 16,
                   ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Orbit percebeu',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: DuoColors.textPrimary,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: DuoColors.textHint,
+                  size: 21,
                 ),
               ],
+            ),
+            const SizedBox(height: 9),
+            Text(
+              insight.title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: DuoColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              insight.message,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.3,
+                color: DuoColors.textSecondary,
+              ),
+            ),
+            if (formattedAmount != null) ...[
+              const SizedBox(height: 7),
+              Text(
+                formattedAmount,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: accent,
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -204,9 +210,10 @@ class _OrbitLoadingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const DuoCard(
-      borderRadius: 22,
+      borderRadius: 20,
+      padding: EdgeInsets.symmetric(horizontal: 15, vertical: 14),
       child: SizedBox(
-        height: 72,
+        height: 54,
         child: Center(
           child: CircularProgressIndicator(
             color: DuoColors.primary,

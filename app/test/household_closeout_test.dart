@@ -3,6 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/household_routines/domain/models/household_routine.dart';
 import 'package:app/features/household_routines/domain/models/household_task.dart';
 import 'package:app/features/household_routines/domain/models/household_task_reminder.dart';
+import 'package:app/features/household_routines/domain/models/household_list.dart';
+import 'package:app/features/household_routines/domain/models/household_list_item.dart';
+import 'package:app/features/household_routines/domain/repositories/household_list_repository.dart';
 import 'package:app/features/household_routines/domain/repositories/household_routine_repository.dart';
 import 'package:app/features/household_routines/domain/repositories/household_task_repository.dart';
 import 'package:app/features/household_routines/domain/repositories/household_task_reminder_repository.dart';
@@ -21,6 +24,15 @@ void main() {
       HouseholdScopeId.shared(const ['aline', 'matheus']),
       'household:aline|matheus',
     );
+  });
+
+  test('escopo compartilhado expõe os membros normalizados', () {
+    expect(
+      HouseholdScopeId.members('household:matheus| aline|matheus'),
+      ['aline', 'matheus'],
+    );
+    expect(HouseholdScopeId.members('user:aline'), ['aline']);
+    expect(HouseholdScopeId.members('wallet:principal'), isEmpty);
   });
 
   test(
@@ -202,6 +214,7 @@ HouseholdRoutinesController _controller(
   return HouseholdRoutinesController(
     taskRepository: tasks,
     routineRepository: routines,
+    listRepository: _ListRepository(),
     routineService: routineService,
     reminderService: HouseholdTaskReminderService(
       repository: _ReminderRepository(),
@@ -293,4 +306,44 @@ class _ReminderRepository implements HouseholdTaskReminderRepository {
     required String recipientUserId,
   }) async =>
       null;
+}
+
+class _ListRepository implements HouseholdListRepository {
+  @override
+  Future<void> deleteItem(String itemId) async {}
+  @override
+  Future<void> deleteList(String listId) async {}
+  @override
+  Future<HouseholdList?> getListById(String listId) async => null;
+  @override
+  Future<List<HouseholdListItem>> getItemsByList(String listId) async => const [];
+  @override
+  Future<List<HouseholdList>> getListsByScope(
+    String scopeId, {
+    bool includeArchived = false,
+  }) async => const [];
+  @override
+  Future<List<HouseholdListItemPurchaseEvent>> getPurchaseEvents({
+    required String scopeId,
+    String? identityKey,
+  }) async => const [];
+  @override
+  Future<List<HouseholdListItemPurchaseEvent>> getPurchaseEventsByList({
+    required String scopeId,
+    required String listId,
+  }) async => const [];
+  @override
+  Future<void> markItemPurchased({
+    required HouseholdListItem item,
+    required HouseholdListItemPurchaseEvent event,
+  }) async {}
+  @override
+  Future<bool> markItemPurchasedFromFinancialTransaction({
+    required HouseholdListItem item,
+    required HouseholdListItemPurchaseEvent event,
+  }) async => false;
+  @override
+  Future<void> saveItem(HouseholdListItem item) async {}
+  @override
+  Future<void> saveList(HouseholdList list) async {}
 }

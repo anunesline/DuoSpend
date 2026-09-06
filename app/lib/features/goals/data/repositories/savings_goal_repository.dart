@@ -15,11 +15,9 @@ class SavingsGoalRepository {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
 
-  SavingsGoalRepository({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  SavingsGoalRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   String createGoalId() {
     return _firestore.collection(_goalsCollection).doc().id;
@@ -71,9 +69,8 @@ class SavingsGoalRepository {
       updatedAt: DateTime.now(),
     );
 
-    await _goalReference(normalizedGoal.id).set(
-      SavingsGoalModel.toMap(normalizedGoal),
-    );
+    await _goalReference(normalizedGoal.id)
+        .set(SavingsGoalModel.toMap(normalizedGoal));
   }
 
   Future<List<SavingsGoal>> getGoalsByWallet(String walletId) async {
@@ -89,22 +86,23 @@ class SavingsGoalRepository {
         .where('memberIds', arrayContains: userId)
         .get();
 
-    final goals = snapshot.docs
-        .map(
-          (document) => SavingsGoalModel.fromMap(
-            document.data(),
-            documentId: document.id,
-          ),
-        )
-        .where((goal) => goal.walletId == normalizedWalletId)
-        .toList()
-      ..sort((first, second) {
-        if (first.isArchived != second.isArchived) {
-          return first.isArchived ? 1 : -1;
-        }
+    final goals =
+        snapshot.docs
+            .map(
+              (document) => SavingsGoalModel.fromMap(
+                document.data(),
+                documentId: document.id,
+              ),
+            )
+            .where((goal) => goal.walletId == normalizedWalletId)
+            .toList()
+          ..sort((first, second) {
+            if (first.isArchived != second.isArchived) {
+              return first.isArchived ? 1 : -1;
+            }
 
-        return second.updatedAt.compareTo(first.updatedAt);
-      });
+            return second.updatedAt.compareTo(first.updatedAt);
+          });
 
     return List.unmodifiable(goals);
   }
@@ -161,19 +159,19 @@ class SavingsGoalRepository {
       throw StateError('Usuário sem acesso à meta.');
     }
 
-    final snapshot = await goalReference
-        .collection(_movementsCollection)
-        .get();
-    final movements = snapshot.docs.map(
-      (document) => SavingsGoalMovementModel.fromMap(
-        document.data(),
-        documentId: document.id,
-      ),
-    ).toList()
-      ..sort(
-        (first, second) =>
-            second.occurredAt.compareTo(first.occurredAt),
-      );
+    final snapshot = await goalReference.collection(_movementsCollection).get();
+    final movements =
+        snapshot.docs
+            .map(
+              (document) => SavingsGoalMovementModel.fromMap(
+                document.data(),
+                documentId: document.id,
+              ),
+            )
+            .toList()
+          ..sort(
+            (first, second) => second.occurredAt.compareTo(first.occurredAt),
+          );
 
     return List.unmodifiable(movements);
   }
@@ -212,9 +210,7 @@ class SavingsGoalRepository {
     );
   }
 
-  Future<WalletModel> getFinancialWallet({
-    required String walletId,
-  }) async {
+  Future<WalletModel> getFinancialWallet({required String walletId}) async {
     final userId = _requireUserId();
     final normalizedWalletId = walletId.trim();
 
@@ -251,6 +247,7 @@ class SavingsGoalRepository {
     required String goalId,
     required String name,
     required double targetAmount,
+    SavingsGoalCategory? category,
     DateTime? deadline,
     DateTime? updatedAt,
   }) async {
@@ -297,9 +294,7 @@ class SavingsGoalRepository {
       }
 
       if (persistedGoal.createdByUserId != userId) {
-        throw StateError(
-          'Somente o responsável pela meta pode editá-la.',
-        );
+        throw StateError('Somente o responsável pela meta pode editá-la.');
       }
 
       if (persistedGoal.isArchived) {
@@ -312,12 +307,9 @@ class SavingsGoalRepository {
         );
       }
 
-      final today = DateTime(
-        updateDate.year,
-        updateDate.month,
-        updateDate.day,
-      );
-      final keepsLegacyDeadline = normalizedDeadline != null &&
+      final today = DateTime(updateDate.year, updateDate.month, updateDate.day);
+      final keepsLegacyDeadline =
+          normalizedDeadline != null &&
           persistedGoal.deadline != null &&
           normalizedDeadline.year == persistedGoal.deadline!.year &&
           normalizedDeadline.month == persistedGoal.deadline!.month &&
@@ -336,6 +328,7 @@ class SavingsGoalRepository {
       final updatedGoal = persistedGoal.copyWith(
         name: normalizedName,
         targetAmount: targetAmount,
+        category: category,
         deadline: normalizedDeadline,
         clearDeadline: normalizedDeadline == null,
         status: persistedGoal.savedAmount >= targetAmount
@@ -385,9 +378,7 @@ class SavingsGoalRepository {
       }
 
       if (goal.createdByUserId != userId) {
-        throw StateError(
-          'Somente o responsável pela meta pode arquivá-la.',
-        );
+        throw StateError('Somente o responsável pela meta pode arquivá-la.');
       }
 
       if (goal.isArchived) {
@@ -395,9 +386,7 @@ class SavingsGoalRepository {
       }
 
       if (goal.savedAmount > 0) {
-        throw StateError(
-          'Retire o valor reservado antes de arquivar a meta.',
-        );
+        throw StateError('Retire o valor reservado antes de arquivar a meta.');
       }
 
       final archivedGoal = goal.copyWith(
@@ -447,8 +436,7 @@ class SavingsGoalRepository {
       );
     }
 
-    if (!financialWallet.isIndividual ||
-        !financialWallet.isOwner(userId)) {
+    if (!financialWallet.isIndividual || !financialWallet.isOwner(userId)) {
       throw StateError(
         'A movimentação deve usar uma carteira individual do usuário.',
       );
@@ -486,16 +474,14 @@ class SavingsGoalRepository {
         throw StateError('Usuário sem acesso à meta.');
       }
 
-      if (movementType == 'withdrawal' &&
-          goal.createdByUserId != userId) {
+      if (movementType == 'withdrawal' && goal.createdByUserId != userId) {
         throw StateError(
           'Somente o responsável pela meta pode retirar valores.',
         );
       }
 
       if (movementDocument.exists) {
-        final persistedType =
-            movementDocument.data()?['type']?.toString();
+        final persistedType = movementDocument.data()?['type']?.toString();
 
         if (persistedType != movementType) {
           throw StateError(
@@ -512,9 +498,7 @@ class SavingsGoalRepository {
         walletId: financialWallet.id,
       );
 
-      final currentBalance = _parseDouble(
-        walletDocument.data()!['balance'],
-      );
+      final currentBalance = _parseDouble(walletDocument.data()!['balance']);
 
       late SavingsGoal updatedGoal;
       late double updatedWalletBalance;
@@ -525,9 +509,7 @@ class SavingsGoalRepository {
         }
 
         if (amount > goal.remainingAmount) {
-          throw StateError(
-            'O aporte ultrapassa o valor restante da meta.',
-          );
+          throw StateError('O aporte ultrapassa o valor restante da meta.');
         }
 
         if (amount > currentBalance) {
@@ -550,9 +532,7 @@ class SavingsGoalRepository {
         }
 
         if (amount > goal.savedAmount) {
-          throw StateError(
-            'A retirada ultrapassa o valor reservado na meta.',
-          );
+          throw StateError('A retirada ultrapassa o valor reservado na meta.');
         }
 
         updatedGoal = goal.copyWith(
@@ -619,11 +599,8 @@ class SavingsGoalRepository {
     final ownerId = data['ownerId']?.toString().trim();
     final walletType = data['type']?.toString();
 
-    if (ownerId != userId ||
-        walletType != WalletType.individual.value) {
-      throw StateError(
-        'A carteira financeira não pertence ao usuário.',
-      );
+    if (ownerId != userId || walletType != WalletType.individual.value) {
+      throw StateError('A carteira financeira não pertence ao usuário.');
     }
   }
 

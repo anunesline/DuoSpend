@@ -1,36 +1,51 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../auth/data/repositories/user_repository.dart';
 import '../../domain/models/household_routine.dart';
 import '../../domain/models/household_task.dart';
+import '../../domain/models/household_list.dart';
+import '../../domain/models/household_list_item.dart';
+import '../../domain/repositories/household_list_repository.dart';
 import '../../domain/repositories/household_routine_repository.dart';
 import '../../domain/repositories/household_task_repository.dart';
 import '../../domain/services/household_routine_service.dart';
 import '../../domain/services/household_task_reminder_service.dart';
+import '../../domain/services/household_scope_id.dart';
 
 class HouseholdRoutinesController extends ChangeNotifier {
   final HouseholdTaskRepository taskRepository;
   final HouseholdRoutineRepository routineRepository;
+  final HouseholdListRepository listRepository;
   final HouseholdRoutineService routineService;
   final HouseholdTaskReminderService reminderService;
   final Uuid uuid;
+  final UserRepository userRepository;
 
   HouseholdRoutinesController({
     required this.taskRepository,
     required this.routineRepository,
+    required this.listRepository,
     required this.routineService,
     required this.reminderService,
+    UserRepository? userRepository,
     this.uuid = const Uuid(),
-  });
+  }) : userRepository = userRepository ?? UserRepository();
 
   final List<HouseholdTask> _tasks = [];
   final List<HouseholdRoutine> _routines = [];
+  final List<HouseholdList> _lists = [];
+  final Map<String, List<HouseholdListItem>> _itemsByList = {};
   bool _isLoading = false;
   String? _errorMessage;
   String? _successMessage;
+  Map<String, UserProfileSummary> _memberProfiles = const {};
 
   List<HouseholdTask> get tasks => List.unmodifiable(_tasks);
   List<HouseholdRoutine> get routines => List.unmodifiable(_routines);
+  List<HouseholdList> get lists => List.unmodifiable(_lists);
+  List<HouseholdListItem> itemsForList(String listId) =>
+      List.unmodifiable(_itemsByList[listId] ?? const []);
   List<HouseholdTask> get pendingTasks => List.unmodifiable(
         _tasks.where((task) => task.isPending).toList()
           ..sort((a, b) {
@@ -52,25 +67,325 @@ class HouseholdRoutinesController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
+  Map<String, UserProfileSummary> get memberProfiles => _memberProfiles;
 
-  Future<void> load(String scopeId) async {
+  String memberName(String userId, {required String currentUserId}) {
+    if (userId == currentUserId) return 'Você';
+    return _memberProfiles[userId]?.displayName ?? 'Outro membro';
+  }
+
+  String? memberPhotoUrl(String userId) => _memberProfiles[userId]?.photoUrl;
+
+  String? resolvedMemberName(String userId) {
+    final name = _memberProfiles[userId]?.displayName.trim();
+    return name == null || name.isEmpty ? null : name;
+  }
+
+  Future<List<HouseholdListItemPurchaseEvent>> loadListPurchaseHistory(
+    HouseholdList list,
+  ) =>
+      listRepository.getPurchaseEventsByList(
+        scopeId: list.scopeId,
+        listId: list.id,
+      );
+
+  Future<void> load(String scopeId) => loadScopes([scopeId]);
+
+  /// Loads the existing personal and shared scopes into one presentation
+  /// state. Entries keep their persisted ids, so the same task/list can never
+  /// be rendered twice when scopes overlap.
+  Future<void> loadScopes(Iterable<String> scopeIds) async {
+    final scopes = scopeIds
+        .map((scopeId) => scopeId.trim())
+        .where((scopeId) => scopeId.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
     _setLoading(true);
     try {
       _clearMessages();
-      final results = await Future.wait([
-        taskRepository.getTasksByScope(scopeId),
-        routineRepository.getRoutinesByScope(scopeId),
-      ]);
+      final tasksByScope = await Future.wait(
+        scopes.map(taskRepository.getTasksByScope),
+      );
+      final routinesByScope = await Future.wait(
+        scopes.map(routineRepository.getRoutinesByScope),
+      );
       _tasks
         ..clear()
-        ..addAll(results[0] as List<HouseholdTask>);
+        ..addAll(
+          {
+            for (final task in tasksByScope.expand((tasks) => tasks)) task.id: task,
+          }.values,
+        );
       _routines
         ..clear()
-        ..addAll(results[1] as List<HouseholdRoutine>);
+        ..addAll(
+          {
+            for (final routine in routinesByScope.expand((routines) => routines))
+              routine.id: routine,
+          }.values,
+        );
+      _lists
+        ..clear();
+      _itemsByList.clear();
+      try {
+        final loadedLists = await Future.wait(
+          scopes.map(listRepository.getListsByScope),
+        );
+        _lists.addAll(
+          {
+            for (final list in loadedLists.expand((lists) => lists)) list.id: list,
+          }.values,
+        );
+        _itemsByList.addEntries(
+          await Future.wait(
+            _lists.map(
+              (list) async => MapEntry(
+                list.id,
+                await listRepository.getItemsByList(list.id),
+              ),
+            ),
+          ),
+        );
+      } catch (_) {
+        // List access must not block the approved routines flow if a user is
+        // still on older Firestore rules while this feature rolls out.
+        _lists.clear();
+        _itemsByList.clear();
+      }
+      try {
+        _memberProfiles = await userRepository.getUserProfileSummaries(
+          scopes.expand(HouseholdScopeId.members).toSet().toList(),
+        );
+      } catch (_) {
+        // Profile decoration must never prevent the routines themselves from
+        // loading. The UI keeps a safe member fallback if a profile is absent.
+        _memberProfiles = const {};
+      }
     } catch (_) {
       _errorMessage = 'Não foi possível carregar as rotinas da casa.';
     } finally {
       _setLoading(false);
+    }
+  }
+
+  Future<HouseholdList?> createList({
+    required String scopeId,
+    required String name,
+    required HouseholdListType type,
+  }) async {
+    final normalizedName = name.trim();
+    if (normalizedName.isEmpty) {
+      _setError('Informe o nome da lista.');
+      return null;
+    }
+    final now = DateTime.now();
+    final list = HouseholdList(
+      id: uuid.v4(),
+      scopeId: scopeId,
+      name: normalizedName,
+      type: type,
+      status: HouseholdListStatus.active,
+      createdAt: now,
+      updatedAt: now,
+    );
+    try {
+      _clearMessages();
+      await listRepository.saveList(list);
+      _lists.add(list);
+      notifyListeners();
+      return list;
+    } catch (_) {
+      _setError('Não foi possível criar a lista.');
+      return null;
+    }
+  }
+
+  Future<HouseholdList?> updateList({
+    required HouseholdList list,
+    required String name,
+    required HouseholdListType type,
+  }) async {
+    final normalizedName = name.trim();
+    if (normalizedName.isEmpty) {
+      _setError('Informe o nome da lista.');
+      return null;
+    }
+    final updated = list.copyWith(
+      name: normalizedName,
+      type: type,
+      updatedAt: DateTime.now(),
+    );
+    try {
+      _clearMessages();
+      await listRepository.saveList(updated);
+      _replaceList(updated);
+      notifyListeners();
+      return updated;
+    } catch (_) {
+      _setError('Não foi possível atualizar a lista.');
+      return null;
+    }
+  }
+
+  Future<bool> archiveList(HouseholdList list) async {
+    final archived = list.copyWith(
+      status: HouseholdListStatus.archived,
+      updatedAt: DateTime.now(),
+    );
+    try {
+      _clearMessages();
+      await listRepository.saveList(archived);
+      _lists.removeWhere((item) => item.id == list.id);
+      notifyListeners();
+      return true;
+    } catch (_) {
+      _setError('Não foi possível arquivar a lista.');
+      return false;
+    }
+  }
+
+  Future<bool> deleteEmptyList(HouseholdList list) async {
+    final items = await listRepository.getItemsByList(list.id);
+    if (items.isNotEmpty) {
+      _setError('Arquive esta lista para preservar seus itens e histórico.');
+      return false;
+    }
+    try {
+      _clearMessages();
+      await listRepository.deleteList(list.id);
+      _lists.removeWhere((item) => item.id == list.id);
+      notifyListeners();
+      return true;
+    } catch (_) {
+      _setError('Não foi possível excluir a lista.');
+      return false;
+    }
+  }
+
+  Future<void> loadListItems(String listId) async {
+    try {
+      _itemsByList[listId] = await listRepository.getItemsByList(listId);
+      notifyListeners();
+    } catch (_) {
+      _setError('Não foi possível carregar os itens da lista.');
+    }
+  }
+
+  Future<HouseholdListItem?> createListItem({
+    required HouseholdList list,
+    required String displayName,
+    num? quantity,
+    String? unit,
+  }) async {
+    final normalizedName = displayName.trim();
+    if (normalizedName.isEmpty) {
+      _setError('Informe o item da lista.');
+      return null;
+    }
+    final now = DateTime.now();
+    final item = HouseholdListItem(
+      id: uuid.v4(),
+      listId: list.id,
+      scopeId: list.scopeId,
+      displayName: normalizedName,
+      identityKey: HouseholdListItemIdentity.normalize(normalizedName),
+      status: HouseholdListItemStatus.pending,
+      createdAt: now,
+      updatedAt: now,
+      quantity: quantity,
+      unit: _emptyToNull(unit),
+    );
+    try {
+      _clearMessages();
+      await listRepository.saveItem(item);
+      final items = _itemsByList.putIfAbsent(list.id, () => []);
+      items.add(item);
+      _sortListItems(items);
+      notifyListeners();
+      return item;
+    } catch (_) {
+      _setError('Não foi possível adicionar o item.');
+      return null;
+    }
+  }
+
+  Future<HouseholdListItem?> updateListItem({
+    required HouseholdListItem item,
+    required String displayName,
+    num? quantity,
+    String? unit,
+  }) async {
+    final normalizedName = displayName.trim();
+    if (normalizedName.isEmpty) {
+      _setError('Informe o item da lista.');
+      return null;
+    }
+    final updated = item.edit(
+      displayName: normalizedName,
+      identityKey: HouseholdListItemIdentity.normalize(normalizedName),
+      quantity: quantity,
+      unit: _emptyToNull(unit),
+      updatedAt: DateTime.now(),
+    );
+    try {
+      _clearMessages();
+      await listRepository.saveItem(updated);
+      _replaceListItem(updated);
+      notifyListeners();
+      return updated;
+    } catch (_) {
+      _setError('Não foi possível atualizar o item.');
+      return null;
+    }
+  }
+
+  Future<bool> setListItemPurchased({
+    required HouseholdListItem item,
+    required bool purchased,
+    String? completedBy,
+  }) async {
+    final now = DateTime.now();
+    final updated = purchased
+        ? item.markPurchased(at: now, by: _emptyToNull(completedBy))
+        : item.markPending(now);
+    try {
+      _clearMessages();
+      if (purchased) {
+        await listRepository.markItemPurchased(
+          item: updated,
+          event: HouseholdListItemPurchaseEvent(
+            id: uuid.v4(),
+            itemId: item.id,
+            listId: item.listId,
+            scopeId: item.scopeId,
+            displayName: item.displayName,
+            identityKey: item.identityKey,
+            purchasedAt: now,
+            purchasedBy: _emptyToNull(completedBy),
+          ),
+        );
+      } else {
+        await listRepository.saveItem(updated);
+      }
+      _replaceListItem(updated);
+      notifyListeners();
+      return true;
+    } catch (_) {
+      _setError('Não foi possível atualizar o item.');
+      return false;
+    }
+  }
+
+  Future<bool> deleteListItem(HouseholdListItem item) async {
+    try {
+      _clearMessages();
+      await listRepository.deleteItem(item.id);
+      _itemsByList[item.listId]?.removeWhere((saved) => saved.id == item.id);
+      notifyListeners();
+      return true;
+    } catch (_) {
+      _setError('Não foi possível remover o item.');
+      return false;
     }
   }
 
@@ -120,6 +435,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
 
   Future<HouseholdTask?> updateTask({
     required HouseholdTask task,
+    String? scopeId,
+    HouseholdTaskScope? scope,
     required String title,
     String? notes,
     String? assigneeId,
@@ -142,8 +459,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
 
     final updated = HouseholdTask(
       id: task.id,
-      scopeId: task.scopeId,
-      scope: task.scope,
+      scopeId: _emptyToNull(scopeId) ?? task.scopeId,
+      scope: scope ?? task.scope,
       title: normalizedTitle,
       notes: _emptyToNull(notes),
       assigneeId: _emptyToNull(assigneeId),
@@ -406,6 +723,33 @@ class HouseholdRoutinesController extends ChangeNotifier {
     } else {
       _routines[index] = routine;
     }
+  }
+
+  void _replaceList(HouseholdList list) {
+    final index = _lists.indexWhere((item) => item.id == list.id);
+    if (index == -1) {
+      _lists.add(list);
+    } else {
+      _lists[index] = list;
+    }
+  }
+
+  void _replaceListItem(HouseholdListItem item) {
+    final items = _itemsByList.putIfAbsent(item.listId, () => []);
+    final index = items.indexWhere((saved) => saved.id == item.id);
+    if (index == -1) {
+      items.add(item);
+    } else {
+      items[index] = item;
+    }
+    _sortListItems(items);
+  }
+
+  void _sortListItems(List<HouseholdListItem> items) {
+    items.sort((a, b) {
+      if (a.isPurchased != b.isPurchased) return a.isPurchased ? 1 : -1;
+      return a.createdAt.compareTo(b.createdAt);
+    });
   }
 
   void _setLoading(bool value) {
