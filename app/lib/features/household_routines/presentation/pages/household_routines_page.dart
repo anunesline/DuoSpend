@@ -314,6 +314,7 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                               ? assigneeId
                                               : null,
                                           isDense: true,
+                                          isExpanded: true,
                                           dropdownColor: DuoColors.orbitSurface,
                                           items: memberIds
                                               .map(
