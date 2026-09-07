@@ -34,8 +34,8 @@ class HouseholdTaskDetailPage extends StatelessWidget {
 
   String? get _frequencyLabel {
     final days = task.repeatEveryDays;
-    if (days == null || days <= 0) return null;
-    if (days == 1) return 'Diariamente';
+    if (days == null || days <= 0) return 'Uma vez';
+    if (days == 1) return 'Todos os dias';
     if (days == 7 && task.dueAt != null) {
       return 'Toda ${_weekdayLabel(task.dueAt!)}';
     }
@@ -44,13 +44,15 @@ class HouseholdTaskDetailPage extends StatelessWidget {
 
   String? get _dateLabel => task.dueAt == null ? null : _timeLabel(task.dueAt!);
 
-  String get _listLabel {
+  String get _taskCategoryLabel {
+    final category = task.taskCategory?.trim();
+    if (category != null && category.isNotEmpty) return category;
     final listId = task.listId;
-    if (listId == null || listId.trim().isEmpty) return 'Sem lista';
+    if (listId == null || listId.trim().isEmpty) return 'Não definida';
     for (final list in controller.lists) {
       if (list.id == listId) return list.name.trim();
     }
-    return 'Lista indisponível';
+    return 'Não definida';
   }
 
   String get _reminderLabel {
@@ -68,11 +70,6 @@ class HouseholdTaskDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = task.isCompleted
-        ? DuoColors.success
-        : task.dueAt != null && task.dueAt!.isBefore(DateTime.now())
-        ? DuoColors.error
-        : DuoColors.orbitAccent;
     final canRemindPartner =
         _isShared &&
         task.isPending &&
@@ -94,24 +91,22 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        width: 48,
-                        height: 48,
+                        width: 58,
+                        height: 58,
                         decoration: BoxDecoration(
                           color: DuoColors.success.withValues(alpha: .14),
-                          borderRadius: BorderRadius.circular(13),
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: DuoColors.success.withValues(alpha: .26),
                           ),
                         ),
                         child: Icon(
-                          task.belongsToRoutine
-                              ? Icons.account_tree_rounded
-                              : Icons.checklist_rounded,
+                          Icons.delete_outline_rounded,
                           color: DuoColors.success,
-                          size: 25,
+                          size: 31,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 13),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,7 +124,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                                 color: task.isCompleted
                                     ? DuoColors.orbitTextSecondary
                                     : DuoColors.orbitTextPrimary,
-                                fontSize: 23,
+                                fontSize: 24,
                                 height: 1.08,
                                 fontWeight: FontWeight.w800,
                                 decoration: task.isCompleted
@@ -153,7 +148,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 18),
                   _TaskAttributes(
                     assigneeName: _assigneeName,
                     assigneeAvatar:
@@ -169,7 +164,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                         : null,
                     frequencyLabel: _frequencyLabel,
                     dateLabel: _dateLabel,
-                    listLabel: _listLabel,
+                    taskCategoryLabel: _taskCategoryLabel,
                     reminderLabel: _reminderLabel,
                   ),
                   const SizedBox(height: 14),
@@ -271,7 +266,7 @@ class _TaskAttributes extends StatelessWidget {
   final Widget? assigneeAvatar;
   final String? frequencyLabel;
   final String? dateLabel;
-  final String listLabel;
+  final String taskCategoryLabel;
   final String reminderLabel;
 
   const _TaskAttributes({
@@ -279,7 +274,7 @@ class _TaskAttributes extends StatelessWidget {
     required this.assigneeAvatar,
     required this.frequencyLabel,
     required this.dateLabel,
-    required this.listLabel,
+    required this.taskCategoryLabel,
     required this.reminderLabel,
   });
 
@@ -293,12 +288,11 @@ class _TaskAttributes extends StatelessWidget {
           value: assigneeName!,
           valuePrefix: assigneeAvatar,
         ),
-      if (frequencyLabel != null)
-        _DetailRow(
-          icon: Icons.repeat_rounded,
-          label: 'Frequência',
-          value: frequencyLabel!,
-        ),
+      _DetailRow(
+        icon: Icons.repeat_rounded,
+        label: 'Frequência',
+        value: frequencyLabel ?? 'Uma vez',
+      ),
       if (dateLabel != null)
         _DetailRow(
           icon: Icons.schedule_rounded,
@@ -306,9 +300,9 @@ class _TaskAttributes extends StatelessWidget {
           value: dateLabel!,
         ),
       _DetailRow(
-        icon: Icons.format_list_bulleted_rounded,
-        label: 'Lista',
-        value: listLabel,
+        icon: Icons.home_outlined,
+        label: 'Tarefa de',
+        value: taskCategoryLabel,
       ),
       _DetailRow(
         icon: Icons.notifications_none_rounded,
@@ -365,7 +359,7 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     child: Row(
       children: [
         Icon(icon, color: DuoColors.orbitTextSecondary, size: 16),
@@ -471,12 +465,12 @@ class _FollowUpCard extends StatelessWidget {
         const Text(
           'Acompanhamento',
           style: TextStyle(
-            color: DuoColors.orbitTextPrimary,
-            fontSize: 12,
+            color: DuoColors.orbitAccent,
+            fontSize: 11.5,
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 9),
+        const SizedBox(height: 11),
         if (completedAt != null || remindedAt != null)
           Row(
             children: [
@@ -507,15 +501,35 @@ class _FollowUpCard extends StatelessWidget {
             ],
           )
         else
-          const Padding(
-            padding: EdgeInsets.fromLTRB(1, 3, 1, 4),
-            child: Text(
-              'Ainda não há eventos registrados para esta tarefa.',
-              style: TextStyle(
-                color: DuoColors.orbitTextSecondary,
-                fontSize: 10.5,
-                height: 1.35,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+            decoration: BoxDecoration(
+              color: DuoColors.orbitBackground.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: DuoColors.orbitBorder.withValues(alpha: .28),
               ),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.timelapse_rounded,
+                  size: 16,
+                  color: DuoColors.orbitTextSecondary,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Nenhuma atualização por enquanto',
+                    style: TextStyle(
+                      color: DuoColors.orbitTextSecondary,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         if (canRemindPartner) ...[

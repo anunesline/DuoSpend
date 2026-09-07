@@ -17,6 +17,7 @@ class HouseholdTask {
   final DateTime? completedAt;
   final String? completedByUserId;
   final String? listId;
+  final String? taskCategory;
   final int? reminderMinutesBefore;
   final DateTime? lastRemindedAt;
   final String? lastRemindedByUserId;
@@ -40,6 +41,7 @@ class HouseholdTask {
     this.completedAt,
     this.completedByUserId,
     this.listId,
+    this.taskCategory,
     this.reminderMinutesBefore,
     this.lastRemindedAt,
     this.lastRemindedByUserId,
@@ -89,6 +91,7 @@ class HouseholdTask {
     DateTime? completedAt,
     String? completedByUserId,
     String? listId,
+    String? taskCategory,
     int? reminderMinutesBefore,
     DateTime? lastRemindedAt,
     String? lastRemindedByUserId,
@@ -112,6 +115,7 @@ class HouseholdTask {
       completedAt: completedAt ?? this.completedAt,
       completedByUserId: completedByUserId ?? this.completedByUserId,
       listId: listId ?? this.listId,
+      taskCategory: taskCategory ?? this.taskCategory,
       reminderMinutesBefore:
           reminderMinutesBefore ?? this.reminderMinutesBefore,
       lastRemindedAt: lastRemindedAt ?? this.lastRemindedAt,
@@ -138,6 +142,7 @@ class HouseholdTask {
     'completedAt': completedAt?.toIso8601String(),
     'completedByUserId': completedByUserId,
     'listId': listId,
+    'taskCategory': taskCategory,
     'reminderMinutesBefore': reminderMinutesBefore,
     'lastRemindedAt': lastRemindedAt?.toIso8601String(),
     'lastRemindedByUserId': lastRemindedByUserId,
@@ -163,6 +168,7 @@ class HouseholdTask {
       completedAt: _dateFromValue(map['completedAt']),
       completedByUserId: map['completedByUserId']?.toString(),
       listId: map['listId']?.toString(),
+      taskCategory: map['taskCategory']?.toString(),
       reminderMinutesBefore: _intFromValue(map['reminderMinutesBefore']),
       lastRemindedAt: _dateFromValue(map['lastRemindedAt']),
       lastRemindedByUserId: map['lastRemindedByUserId']?.toString(),

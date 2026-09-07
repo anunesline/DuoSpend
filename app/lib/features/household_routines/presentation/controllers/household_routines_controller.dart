@@ -399,6 +399,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
     DateTime? dueAt,
     int? repeatEveryDays,
     String? listId,
+    String? taskCategory,
     int? reminderMinutesBefore,
   }) async {
     final normalizedTitle = title.trim();
@@ -422,6 +423,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
       dueAt: dueAt,
       repeatEveryDays: repeatEveryDays,
       listId: _emptyToNull(listId),
+      taskCategory: _emptyToNull(taskCategory),
       reminderMinutesBefore: reminderMinutesBefore,
       createdAt: now,
       updatedAt: now,
@@ -448,6 +450,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
     DateTime? dueAt,
     int? repeatEveryDays,
     String? listId,
+    String? taskCategory,
     int? reminderMinutesBefore,
   }) async {
     if (!task.isPending) {
@@ -479,6 +482,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
       completedAt: task.completedAt,
       completedByUserId: task.completedByUserId,
       listId: _emptyToNull(listId),
+      taskCategory: _emptyToNull(taskCategory),
       reminderMinutesBefore: reminderMinutesBefore,
       lastRemindedAt: task.lastRemindedAt,
       lastRemindedByUserId: task.lastRemindedByUserId,

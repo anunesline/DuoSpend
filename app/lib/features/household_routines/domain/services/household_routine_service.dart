@@ -68,6 +68,7 @@ class HouseholdRoutineService {
         dueAt: nextDueAt,
         repeatEveryDays: task.repeatEveryDays,
         listId: task.listId,
+        taskCategory: task.taskCategory,
         reminderMinutesBefore: task.reminderMinutesBefore,
         createdAt: completedAt,
         updatedAt: completedAt,

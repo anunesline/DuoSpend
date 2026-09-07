@@ -8,6 +8,8 @@ import '../controllers/household_routines_controller.dart';
 import 'create_household_routine_page.dart';
 import 'household_task_detail_page.dart';
 
+enum _TaskRecurrence { once, daily, weekly, custom }
+
 class HouseholdRoutinesPage extends StatefulWidget {
   final HouseholdRoutinesController controller;
   final String scopeId;
@@ -126,14 +128,26 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     final titleController = TextEditingController(text: task?.title ?? '');
     final notesController = TextEditingController(text: task?.notes ?? '');
     final repeatController = TextEditingController(
-      text: task?.repeatEveryDays?.toString() ?? '',
+      text: task?.repeatEveryDays != null &&
+              task!.repeatEveryDays != 1 &&
+              task.repeatEveryDays != 7
+          ? task.repeatEveryDays.toString()
+          : '',
     );
     var selectedScope = task?.scope ?? widget.scope;
     var selectedScopeId = task?.scopeId ?? widget.scopeId;
     String? assigneeId = task?.assigneeId ?? widget.currentUserId;
     DateTime? dueAt = task?.dueAt;
-    String? listId = task?.listId;
+    var recurrence = _recurrenceFromRepeatEveryDays(task?.repeatEveryDays);
+    var selectedWeekday = dueAt?.weekday ?? DateTime.now().weekday;
+    var taskCategory = task?.taskCategory;
+    var isCustomCategory = taskCategory != null &&
+        !_taskCategoryOptions.contains(taskCategory);
+    final categoryController = TextEditingController(
+      text: isCustomCategory ? taskCategory : '',
+    );
     int? reminderMinutesBefore = task?.reminderMinutesBefore;
+    String? recurrenceError;
 
     final shouldSave = await showDialog<bool>(
       context: context,
@@ -144,15 +158,35 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
             scopeId: selectedScopeId,
             task: task,
           );
-          final availableLists = widget.controller.lists
-              .where((list) => list.scopeId == selectedScopeId && list.isActive)
-              .toList(growable: false);
-
           Future<void> pickDueAt() async {
             final picked = await _pickDateTime(initialValue: dueAt);
             if (picked != null && dialogContext.mounted) {
-              setDialogState(() => dueAt = picked);
+              setDialogState(() {
+                dueAt = picked;
+                if (recurrence == _TaskRecurrence.weekly) {
+                  setWeeklyDueDate(selectedWeekday);
+                }
+              });
             }
+          }
+
+          void setWeeklyDueDate(int weekday) {
+            final now = DateTime.now();
+            final selectedTime = dueAt ?? now;
+            var daysAhead = weekday - now.weekday;
+            final isTodayAfterSelectedTime = daysAhead == 0 &&
+                (selectedTime.hour < now.hour ||
+                    (selectedTime.hour == now.hour &&
+                        selectedTime.minute <= now.minute));
+            if (daysAhead < 0 || isTodayAfterSelectedTime) daysAhead += 7;
+            final targetDate = now.add(Duration(days: daysAhead));
+            dueAt = DateTime(
+              targetDate.year,
+              targetDate.month,
+              targetDate.day,
+              selectedTime.hour,
+              selectedTime.minute,
+            );
           }
 
           return Theme(
@@ -295,47 +329,140 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                   _EditorSettingRow(
                                     icon: Icons.repeat_rounded,
                                     label: 'Frequência',
-                                    child: TextField(
-                                      controller: repeatController,
-                                      keyboardType: TextInputType.number,
-                                      textAlign: TextAlign.right,
-                                      decoration: const InputDecoration(
-                                        hintText: 'A cada dias',
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<_TaskRecurrence>(
+                                        value: recurrence,
                                         isDense: true,
-                                        border: InputBorder.none,
-                                        enabledBorder: InputBorder.none,
-                                        focusedBorder: InputBorder.none,
-                                        filled: false,
+                                        isExpanded: true,
+                                        dropdownColor: DuoColors.orbitSurface,
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: _TaskRecurrence.once,
+                                            child: Text('Uma vez'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: _TaskRecurrence.daily,
+                                            child: Text('Todos os dias'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: _TaskRecurrence.weekly,
+                                            child: Text('Toda semana'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: _TaskRecurrence.custom,
+                                            child: Text('A cada X dias'),
+                                          ),
+                                        ],
+                                        onChanged: (value) {
+                                          if (value == null) return;
+                                          setDialogState(() {
+                                            recurrence = value;
+                                            if (value == _TaskRecurrence.weekly) {
+                                              setWeeklyDueDate(selectedWeekday);
+                                            }
+                                          });
+                                        },
                                       ),
                                     ),
                                   ),
+                                  if (recurrence == _TaskRecurrence.weekly)
+                                    _EditorSettingRow(
+                                      icon: Icons.calendar_today_outlined,
+                                      label: 'Dia da semana',
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<int>(
+                                          value: selectedWeekday,
+                                          isDense: true,
+                                          isExpanded: true,
+                                          dropdownColor: DuoColors.orbitSurface,
+                                          items: List.generate(
+                                            7,
+                                            (index) => DropdownMenuItem(
+                                              value: index + 1,
+                                              child: Text(_weekdayLabel(index + 1)),
+                                            ),
+                                          ),
+                                          onChanged: (value) {
+                                            if (value == null) return;
+                                            setDialogState(() {
+                                              selectedWeekday = value;
+                                              setWeeklyDueDate(value);
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  if (recurrence == _TaskRecurrence.custom)
+                                    _EditorSettingRow(
+                                      icon: Icons.repeat_rounded,
+                                      label: 'Repetir a cada',
+                                      child: TextField(
+                                        controller: repeatController,
+                                        keyboardType: TextInputType.number,
+                                        textAlign: TextAlign.right,
+                                        onChanged: (_) {
+                                          if (recurrenceError != null) {
+                                            setDialogState(() => recurrenceError = null);
+                                          }
+                                        },
+                                        decoration: InputDecoration(
+                                          hintText: 'dias',
+                                          isDense: true,
+                                          suffixText: 'dias',
+                                          errorText: recurrenceError,
+                                          border: InputBorder.none,
+                                          enabledBorder: InputBorder.none,
+                                          focusedBorder: InputBorder.none,
+                                          filled: false,
+                                        ),
+                                      ),
+                                    ),
                                   _EditorSettingRow(
-                                    icon: Icons.format_list_bulleted_rounded,
-                                    label: 'Lista',
+                                    icon: Icons.home_outlined,
+                                    label: 'Tarefa de',
                                     child: DropdownButtonHideUnderline(
                                       child: DropdownButton<String?>(
-                                        value: availableLists.any((list) => list.id == listId)
-                                            ? listId
-                                            : null,
+                                        value: isCustomCategory
+                                            ? '__custom__'
+                                            : taskCategory,
                                         isDense: true,
                                         isExpanded: true,
                                         dropdownColor: DuoColors.orbitSurface,
                                         items: [
                                           const DropdownMenuItem<String?>(
                                             value: null,
-                                            child: Text('Sem lista'),
+                                            child: Text('Não definido'),
                                           ),
-                                          ...availableLists.map(
-                                            (list) => DropdownMenuItem<String?>(
-                                              value: list.id,
-                                              child: Text(list.name),
+                                          ..._taskCategoryOptions.map(
+                                            (category) => DropdownMenuItem<String?>(
+                                              value: category,
+                                              child: Text(category),
                                             ),
                                           ),
+                                          const DropdownMenuItem<String?>(
+                                            value: '__custom__',
+                                            child: Text('Adicionar opção…'),
+                                          ),
                                         ],
-                                        onChanged: (value) => setDialogState(() => listId = value),
+                                        onChanged: (value) => setDialogState(() {
+                                          isCustomCategory = value == '__custom__';
+                                          taskCategory = isCustomCategory ? null : value;
+                                        }),
                                       ),
                                     ),
                                   ),
+                                  if (isCustomCategory)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: TextField(
+                                        controller: categoryController,
+                                        textCapitalization: TextCapitalization.sentences,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Nova classificação',
+                                          hintText: 'Ex.: Estudos',
+                                        ),
+                                      ),
+                                    ),
                                   _EditorSettingRow(
                                     icon: Icons.notifications_none_rounded,
                                     label: 'Lembrete',
@@ -401,7 +528,21 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                             ),
                             const Spacer(),
                             FilledButton.icon(
-                              onPressed: () => Navigator.pop(dialogContext, true),
+                              onPressed: () {
+                                if (recurrence == _TaskRecurrence.custom) {
+                                  final days = int.tryParse(
+                                    repeatController.text.trim(),
+                                  );
+                                  if (days == null || days < 2) {
+                                    setDialogState(() {
+                                      recurrenceError =
+                                          'Informe um número inteiro de 2 dias ou mais.';
+                                    });
+                                    return;
+                                  }
+                                }
+                                Navigator.pop(dialogContext, true);
+                              },
                               style: FilledButton.styleFrom(
                                 backgroundColor: DuoColors.orbitAccent,
                                 foregroundColor: DuoColors.orbitBackground,
@@ -424,8 +565,15 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
 
     if (shouldSave == true) {
       final repeatText = repeatController.text.trim();
-      final repeatEveryDays =
-          repeatText.isEmpty ? null : int.tryParse(repeatText);
+      final repeatEveryDays = switch (recurrence) {
+        _TaskRecurrence.once => null,
+        _TaskRecurrence.daily => 1,
+        _TaskRecurrence.weekly => 7,
+        _TaskRecurrence.custom => int.tryParse(repeatText),
+      };
+      final savedCategory = isCustomCategory
+          ? categoryController.text.trim()
+          : taskCategory;
       if (task == null) {
         await widget.controller.createTask(
           scopeId: selectedScopeId,
@@ -435,7 +583,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           assigneeId: assigneeId,
           dueAt: dueAt,
           repeatEveryDays: repeatEveryDays,
-          listId: listId,
+          listId: task?.listId,
+          taskCategory: savedCategory,
           reminderMinutesBefore: reminderMinutesBefore,
         );
       } else {
@@ -448,7 +597,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           assigneeId: assigneeId,
           dueAt: dueAt,
           repeatEveryDays: repeatEveryDays,
-          listId: listId,
+          listId: task.listId,
+          taskCategory: savedCategory,
           reminderMinutesBefore: reminderMinutesBefore,
         );
       }
@@ -461,6 +611,7 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     titleController.dispose();
     notesController.dispose();
     repeatController.dispose();
+    categoryController.dispose();
   }
 
   Future<void> _remindTask(HouseholdTask task) async {
@@ -1635,3 +1786,22 @@ String _taskTime(DateTime date) {
   final minute = date.minute.toString().padLeft(2, '0');
   return '$hour:$minute';
 }
+
+const _taskCategoryOptions = ['Casa', 'Trabalho', 'Pessoal'];
+
+_TaskRecurrence _recurrenceFromRepeatEveryDays(int? days) {
+  if (days == null || days <= 0) return _TaskRecurrence.once;
+  if (days == 1) return _TaskRecurrence.daily;
+  if (days == 7) return _TaskRecurrence.weekly;
+  return _TaskRecurrence.custom;
+}
+
+String _weekdayLabel(int weekday) => const [
+  'Segunda-feira',
+  'Terça-feira',
+  'Quarta-feira',
+  'Quinta-feira',
+  'Sexta-feira',
+  'Sábado',
+  'Domingo',
+][weekday - 1];
