@@ -132,6 +132,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     var selectedScopeId = task?.scopeId ?? widget.scopeId;
     String? assigneeId = task?.assigneeId ?? widget.currentUserId;
     DateTime? dueAt = task?.dueAt;
+    String? listId = task?.listId;
+    int? reminderMinutesBefore = task?.reminderMinutesBefore;
 
     final shouldSave = await showDialog<bool>(
       context: context,
@@ -142,6 +144,9 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
             scopeId: selectedScopeId,
             task: task,
           );
+          final availableLists = widget.controller.lists
+              .where((list) => list.scopeId == selectedScopeId && list.isActive)
+              .toList(growable: false);
 
           Future<void> pickDueAt() async {
             final picked = await _pickDateTime(initialValue: dueAt);
@@ -304,6 +309,52 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                       ),
                                     ),
                                   ),
+                                  _EditorSettingRow(
+                                    icon: Icons.format_list_bulleted_rounded,
+                                    label: 'Lista',
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String?>(
+                                        value: availableLists.any((list) => list.id == listId)
+                                            ? listId
+                                            : null,
+                                        isDense: true,
+                                        isExpanded: true,
+                                        dropdownColor: DuoColors.orbitSurface,
+                                        items: [
+                                          const DropdownMenuItem<String?>(
+                                            value: null,
+                                            child: Text('Sem lista'),
+                                          ),
+                                          ...availableLists.map(
+                                            (list) => DropdownMenuItem<String?>(
+                                              value: list.id,
+                                              child: Text(list.name),
+                                            ),
+                                          ),
+                                        ],
+                                        onChanged: (value) => setDialogState(() => listId = value),
+                                      ),
+                                    ),
+                                  ),
+                                  _EditorSettingRow(
+                                    icon: Icons.notifications_none_rounded,
+                                    label: 'Lembrete',
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<int?>(
+                                        value: reminderMinutesBefore,
+                                        isDense: true,
+                                        isExpanded: true,
+                                        dropdownColor: DuoColors.orbitSurface,
+                                        items: const [
+                                          DropdownMenuItem<int?>(value: null, child: Text('Sem lembrete')),
+                                          DropdownMenuItem<int?>(value: 15, child: Text('15 min antes')),
+                                          DropdownMenuItem<int?>(value: 30, child: Text('30 min antes')),
+                                          DropdownMenuItem<int?>(value: 60, child: Text('1 h antes')),
+                                        ],
+                                        onChanged: (value) => setDialogState(() => reminderMinutesBefore = value),
+                                      ),
+                                    ),
+                                  ),
                                   if (memberIds.isNotEmpty)
                                     _EditorSettingRow(
                                       icon: Icons.person_outline_rounded,
@@ -384,6 +435,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           assigneeId: assigneeId,
           dueAt: dueAt,
           repeatEveryDays: repeatEveryDays,
+          listId: listId,
+          reminderMinutesBefore: reminderMinutesBefore,
         );
       } else {
         await widget.controller.updateTask(
@@ -395,6 +448,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
           assigneeId: assigneeId,
           dueAt: dueAt,
           repeatEveryDays: repeatEveryDays,
+          listId: listId,
+          reminderMinutesBefore: reminderMinutesBefore,
         );
       }
     }
@@ -498,7 +553,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
         final overdue = pending
             .where(
               (task) =>
-                  task.dueAt != null && task.dueAt!.isBefore(todayStart),
+                  task.isManuallyMarkedOverdue ||
+                  (task.dueAt != null && task.dueAt!.isBefore(todayStart)),
             )
             .toList();
         final upcoming = pending
@@ -550,7 +606,10 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
               );
             },
             onComplete: task.isPending
-                ? () => widget.controller.completeTask(task.id)
+                ? () => widget.controller.completeTask(
+                    task.id,
+                    completedByUserId: widget.currentUserId,
+                  )
                 : null,
             onEdit: task.isPending ? () => _editTask(task) : null,
             onCancel: task.isPending

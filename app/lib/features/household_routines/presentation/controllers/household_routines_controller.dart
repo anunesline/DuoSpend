@@ -47,23 +47,22 @@ class HouseholdRoutinesController extends ChangeNotifier {
   List<HouseholdListItem> itemsForList(String listId) =>
       List.unmodifiable(_itemsByList[listId] ?? const []);
   List<HouseholdTask> get pendingTasks => List.unmodifiable(
-        _tasks.where((task) => task.isPending).toList()
-          ..sort((a, b) {
-            final aDue = a.dueAt;
-            final bDue = b.dueAt;
-            if (aDue == null && bDue == null) return 0;
-            if (aDue == null) return 1;
-            if (bDue == null) return -1;
-            return aDue.compareTo(bDue);
-          }),
-      );
+    _tasks.where((task) => task.isPending).toList()..sort((a, b) {
+      final aDue = a.dueAt;
+      final bDue = b.dueAt;
+      if (aDue == null && bDue == null) return 0;
+      if (aDue == null) return 1;
+      if (bDue == null) return -1;
+      return aDue.compareTo(bDue);
+    }),
+  );
   List<HouseholdTask> get completedTasks => List.unmodifiable(
-        _tasks.where((task) => task.isCompleted).toList()
-          ..sort(
-            (a, b) => (b.completedAt ?? b.updatedAt)
-                .compareTo(a.completedAt ?? a.updatedAt),
-          ),
-      );
+    _tasks.where((task) => task.isCompleted).toList()..sort(
+      (a, b) => (b.completedAt ?? b.updatedAt).compareTo(
+        a.completedAt ?? a.updatedAt,
+      ),
+    ),
+  );
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
@@ -83,11 +82,10 @@ class HouseholdRoutinesController extends ChangeNotifier {
 
   Future<List<HouseholdListItemPurchaseEvent>> loadListPurchaseHistory(
     HouseholdList list,
-  ) =>
-      listRepository.getPurchaseEventsByList(
-        scopeId: list.scopeId,
-        listId: list.id,
-      );
+  ) => listRepository.getPurchaseEventsByList(
+    scopeId: list.scopeId,
+    listId: list.id,
+  );
 
   Future<void> load(String scopeId) => loadScopes([scopeId]);
 
@@ -113,19 +111,21 @@ class HouseholdRoutinesController extends ChangeNotifier {
         ..clear()
         ..addAll(
           {
-            for (final task in tasksByScope.expand((tasks) => tasks)) task.id: task,
+            for (final task in tasksByScope.expand((tasks) => tasks))
+              task.id: task,
           }.values,
         );
       _routines
         ..clear()
         ..addAll(
           {
-            for (final routine in routinesByScope.expand((routines) => routines))
+            for (final routine in routinesByScope.expand(
+              (routines) => routines,
+            ))
               routine.id: routine,
           }.values,
         );
-      _lists
-        ..clear();
+      _lists..clear();
       _itemsByList.clear();
       try {
         final loadedLists = await Future.wait(
@@ -133,7 +133,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
         );
         _lists.addAll(
           {
-            for (final list in loadedLists.expand((lists) => lists)) list.id: list,
+            for (final list in loadedLists.expand((lists) => lists))
+              list.id: list,
           }.values,
         );
         _itemsByList.addEntries(
@@ -397,6 +398,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
     String? assigneeId,
     DateTime? dueAt,
     int? repeatEveryDays,
+    String? listId,
+    int? reminderMinutesBefore,
   }) async {
     final normalizedTitle = title.trim();
     if (normalizedTitle.isEmpty) {
@@ -418,6 +421,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
       status: HouseholdTaskStatus.pending,
       dueAt: dueAt,
       repeatEveryDays: repeatEveryDays,
+      listId: _emptyToNull(listId),
+      reminderMinutesBefore: reminderMinutesBefore,
       createdAt: now,
       updatedAt: now,
     );
@@ -442,6 +447,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
     String? assigneeId,
     DateTime? dueAt,
     int? repeatEveryDays,
+    String? listId,
+    int? reminderMinutesBefore,
   }) async {
     if (!task.isPending) {
       _setError('Apenas tarefas pendentes podem ser editadas.');
@@ -470,6 +477,12 @@ class HouseholdRoutinesController extends ChangeNotifier {
       createdAt: task.createdAt,
       updatedAt: DateTime.now(),
       completedAt: task.completedAt,
+      completedByUserId: task.completedByUserId,
+      listId: _emptyToNull(listId),
+      reminderMinutesBefore: reminderMinutesBefore,
+      lastRemindedAt: task.lastRemindedAt,
+      lastRemindedByUserId: task.lastRemindedByUserId,
+      markedOverdueAt: task.markedOverdueAt,
       routineId: task.routineId,
       routineStepIndex: task.routineStepIndex,
       previousTaskId: task.previousTaskId,
@@ -563,7 +576,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
       _clearMessages();
       await routineRepository.saveRoutine(updated);
       _replaceRoutine(updated);
-      _successMessage = 'Rotina atualizada. As etapas já concluídas foram preservadas.';
+      _successMessage =
+          'Rotina atualizada. As etapas já concluídas foram preservadas.';
       notifyListeners();
       return updated;
     } catch (_) {
@@ -593,12 +607,16 @@ class HouseholdRoutinesController extends ChangeNotifier {
     }
   }
 
-  Future<HouseholdTask?> completeTask(String taskId) async {
+  Future<HouseholdTask?> completeTask(
+    String taskId, {
+    String? completedByUserId,
+  }) async {
     try {
       _clearMessages();
       final nextTask = await routineService.completeTask(
         taskId: taskId,
         completedAt: DateTime.now(),
+        completedByUserId: _emptyToNull(completedByUserId),
       );
       final current = await taskRepository.getTaskById(taskId);
       if (current != null) _replaceTask(current);
@@ -633,7 +651,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
   }) async {
     try {
       _clearMessages();
-      final isPartnerReminder = task.scope == HouseholdTaskScope.shared &&
+      final isPartnerReminder =
+          task.scope == HouseholdTaskScope.shared &&
           task.assigneeId != null &&
           task.assigneeId != currentUserId;
       final result = await reminderService.remindAssignee(
@@ -643,6 +662,14 @@ class HouseholdRoutinesController extends ChangeNotifier {
         remindAt: remindAt,
       );
       if (result.sent) {
+        final reminder = result.reminder!;
+        final updatedTask = task.copyWith(
+          lastRemindedAt: reminder.createdAt,
+          lastRemindedByUserId: reminder.senderUserId,
+          updatedAt: reminder.createdAt,
+        );
+        await taskRepository.saveTask(updatedTask);
+        _replaceTask(updatedTask);
         _successMessage = isPartnerReminder
             ? 'Lembrete enviado ao responsável.'
             : 'Lembrete agendado.';
@@ -650,7 +677,8 @@ class HouseholdRoutinesController extends ChangeNotifier {
         return true;
       }
       if (result.blocked) {
-        final minutes = result.retryAfter!.inMinutes +
+        final minutes =
+            result.retryAfter!.inMinutes +
             (result.retryAfter!.inSeconds % 60 == 0 ? 0 : 1);
         _setError(
           minutes >= 60
@@ -667,9 +695,21 @@ class HouseholdRoutinesController extends ChangeNotifier {
     }
   }
 
-  List<HouseholdRoutineStep> _normalizeSteps(
-    List<HouseholdRoutineStep> steps,
-  ) {
+  Future<void> markTaskOverdue(String taskId) async {
+    final task = await taskRepository.getTaskById(taskId);
+    if (task == null || !task.isPending || task.isManuallyMarkedOverdue) {
+      return;
+    }
+    final updated = task.copyWith(
+      markedOverdueAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    await taskRepository.saveTask(updated);
+    _replaceTask(updated);
+    notifyListeners();
+  }
+
+  List<HouseholdRoutineStep> _normalizeSteps(List<HouseholdRoutineStep> steps) {
     return steps
         .where((step) => step.title.trim().isNotEmpty)
         .map(
