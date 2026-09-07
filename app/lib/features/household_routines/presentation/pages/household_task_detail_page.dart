@@ -35,7 +35,20 @@ class HouseholdTaskDetailPage extends StatelessWidget {
   String? get _frequencyLabel {
     final days = task.repeatEveryDays;
     if (days == null || days <= 0) return null;
-    return days == 1 ? 'Diariamente' : 'A cada $days dias';
+    if (days == 1) return 'Todos os dias';
+    if (days == 7 && task.dueAt != null) {
+      const weekdays = [
+        'segunda-feira',
+        'terça-feira',
+        'quarta-feira',
+        'quinta-feira',
+        'sexta-feira',
+        'sábado',
+        'domingo',
+      ];
+      return 'Toda ${weekdays[task.dueAt!.weekday - 1]}';
+    }
+    return 'A cada $days dias';
   }
 
   String? get _dateLabel => task.dueAt == null ? null : _timeLabel(task.dueAt!);
@@ -45,9 +58,10 @@ class HouseholdTaskDetailPage extends StatelessWidget {
     final accent = task.isCompleted
         ? DuoColors.success
         : task.dueAt != null && task.dueAt!.isBefore(DateTime.now())
-            ? DuoColors.error
-            : DuoColors.orbitAccent;
-    final canRemindPartner = _isShared &&
+        ? DuoColors.error
+        : DuoColors.orbitAccent;
+    final canRemindPartner =
+        _isShared &&
         task.isPending &&
         task.assigneeId != null &&
         task.assigneeId != currentUserId &&
@@ -56,17 +70,17 @@ class HouseholdTaskDetailPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: DuoColors.orbitBackground,
       appBar: AppBar(
-        toolbarHeight: 56,
+        toolbarHeight: 52,
         backgroundColor: DuoColors.orbitBackground,
         surfaceTintColor: Colors.transparent,
         foregroundColor: DuoColors.orbitTextPrimary,
         elevation: 0,
         leading: Padding(
-          padding: const EdgeInsets.only(left: 11),
+          padding: const EdgeInsets.only(left: 8),
           child: IconButton(
             tooltip: 'Voltar',
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19),
+            icon: const Icon(Icons.arrow_back_rounded, size: 24),
           ),
         ),
         actions: [
@@ -83,9 +97,15 @@ class HouseholdTaskDetailPage extends StatelessWidget {
               },
               itemBuilder: (context) => [
                 if (onEdit != null)
-                  const PopupMenuItem(value: 'edit', child: Text('Editar tarefa')),
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Text('Editar tarefa'),
+                  ),
                 if (onCancel != null)
-                  const PopupMenuItem(value: 'cancel', child: Text('Cancelar tarefa')),
+                  const PopupMenuItem(
+                    value: 'cancel',
+                    child: Text('Cancelar tarefa'),
+                  ),
               ],
             ),
           const SizedBox(width: 4),
@@ -94,46 +114,46 @@ class HouseholdTaskDetailPage extends StatelessWidget {
       body: SafeArea(
         top: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(28, 13, 28, 24),
+          padding: const EdgeInsets.fromLTRB(26, 16, 26, 28),
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 64,
+                  height: 64,
                   decoration: BoxDecoration(
                     color: DuoColors.success.withValues(alpha: .14),
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: DuoColors.success.withValues(alpha: .26),
                     ),
                   ),
                   child: Icon(
-                    task.belongsToRoutine
-                        ? Icons.account_tree_rounded
-                        : Icons.checklist_rounded,
+                    Icons.delete_outline_rounded,
                     color: DuoColors.success,
-                    size: 25,
+                    size: 35,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _StatusPill(
                         label: _scopeLabel,
-                        color: _isShared ? DuoColors.success : DuoColors.orbitAccent,
+                        color: _isShared
+                            ? DuoColors.success
+                            : DuoColors.orbitAccent,
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 9),
                       Text(
                         task.title,
                         style: TextStyle(
                           color: task.isCompleted
                               ? DuoColors.orbitTextSecondary
                               : DuoColors.orbitTextPrimary,
-                          fontSize: 23,
+                          fontSize: 22,
                           height: 1.08,
                           fontWeight: FontWeight.w800,
                           decoration: task.isCompleted
@@ -142,13 +162,13 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                         ),
                       ),
                       if (task.notes?.trim().isNotEmpty == true) ...[
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 12),
                         Text(
                           task.notes!.trim(),
                           style: const TextStyle(
                             color: DuoColors.orbitTextSecondary,
-                            fontSize: 12,
-                            height: 1.38,
+                            fontSize: 11.5,
+                            height: 1.35,
                           ),
                         ),
                       ],
@@ -157,10 +177,11 @@ class HouseholdTaskDetailPage extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 38),
             _TaskAttributes(
               assigneeName: _assigneeName,
-              assigneeAvatar: _isShared && task.assigneeId != null && _assigneeName != null
+              assigneeAvatar:
+                  _isShared && task.assigneeId != null && _assigneeName != null
                   ? _ResolvedMemberAvatar(
                       name: _assigneeName!,
                       photoUrl: controller.memberPhotoUrl(task.assigneeId!),
@@ -169,7 +190,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
               frequencyLabel: _frequencyLabel,
               dateLabel: _dateLabel,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 15),
             _FollowUpCard(
               completedAt: task.completedAt,
               canRemindPartner: canRemindPartner,
@@ -231,25 +252,25 @@ class _DetailsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: DuoColors.orbitCardSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .42)),
-        ),
-        child: Column(
-          children: [
-            for (var index = 0; index < children.length; index++) ...[
-              children[index],
-              if (index < children.length - 1)
-                Divider(
-                  height: 1,
-                  indent: 43,
-                  color: DuoColors.orbitBorder.withValues(alpha: .42),
-                ),
-            ],
-          ],
-        ),
-      );
+    decoration: BoxDecoration(
+      color: DuoColors.orbitCardSurface,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .76)),
+    ),
+    child: Column(
+      children: [
+        for (var index = 0; index < children.length; index++) ...[
+          children[index],
+          if (index < children.length - 1)
+            Divider(
+              height: 1,
+              indent: 43,
+              color: DuoColors.orbitBorder.withValues(alpha: .42),
+            ),
+        ],
+      ],
+    ),
+  );
 }
 
 class _DetailRow extends StatelessWidget {
@@ -267,46 +288,47 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Row(
-          children: [
-            Icon(icon, color: DuoColors.orbitTextSecondary, size: 16),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: DuoColors.orbitTextSecondary,
-                    fontSize: 10.5,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    child: Row(
+      children: [
+        Icon(icon, color: DuoColors.orbitTextSecondary, size: 15),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (valuePrefix != null) ...[
+                valuePrefix!,
+                const SizedBox(width: 7),
+              ],
+              Flexible(
+                child: Text(
+                  value,
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: DuoColors.orbitTextPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-            Flexible(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (valuePrefix != null) ...[
-                    valuePrefix!,
-                    const SizedBox(width: 7),
-                  ],
-                  Flexible(
-                    child: Text(
-                      value,
-                      textAlign: TextAlign.right,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: DuoColors.orbitTextPrimary,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 class _ResolvedMemberAvatar extends StatelessWidget {
@@ -319,7 +341,7 @@ class _ResolvedMemberAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalizedPhoto = photoUrl?.trim();
     return CircleAvatar(
-      radius: 11,
+      radius: 14,
       backgroundColor: DuoColors.orbitAccent.withValues(alpha: .18),
       backgroundImage: normalizedPhoto == null || normalizedPhoto.isEmpty
           ? null
@@ -329,7 +351,7 @@ class _ResolvedMemberAvatar extends StatelessWidget {
               name.isEmpty ? '?' : name.characters.first.toUpperCase(),
               style: const TextStyle(
                 color: DuoColors.orbitAccent,
-                fontSize: 8.5,
+                fontSize: 10,
                 fontWeight: FontWeight.w800,
               ),
             )
@@ -351,93 +373,93 @@ class _FollowUpCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(10, 11, 10, 10),
-        decoration: BoxDecoration(
-          color: DuoColors.orbitCardSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .42)),
+    padding: const EdgeInsets.fromLTRB(11, 14, 11, 11),
+    decoration: BoxDecoration(
+      color: DuoColors.orbitCardSurface,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .7)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Acompanhamento',
+          style: TextStyle(
+            color: DuoColors.orbitAccent,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Acompanhamento',
-              style: TextStyle(
-                color: DuoColors.orbitTextPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 9),
-            if (completedAt != null)
-              Row(
-                children: [
-                  _FollowUpEventCard(
-                    label: 'Concluída',
-                    value: _shortEventDate(completedAt!),
-                    icon: Icons.check_circle_outline_rounded,
-                    color: DuoColors.success,
-                  ),
-                ],
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.fromLTRB(1, 3, 1, 4),
-                child: Text(
-                  'Ainda não há eventos registrados para esta tarefa.',
-                  style: TextStyle(
-                    color: DuoColors.orbitTextSecondary,
-                    fontSize: 10.5,
-                    height: 1.35,
-                  ),
-                ),
-              ),
-            if (canRemindPartner) ...[
-              const SizedBox(height: 9),
-              SizedBox(
-                width: double.infinity,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(9),
-                    onTap: () async => onRemind!(),
-                    child: Container(
-                      height: 35,
-                      decoration: BoxDecoration(
-                        color: DuoColors.orbitAccent.withValues(alpha: .19),
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(
-                          color: DuoColors.orbitAccent.withValues(alpha: .56),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.notifications_none_rounded,
-                            color: DuoColors.orbitTextPrimary,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 7),
-                          const Text(
-                            'Lembrar parceiro',
-                            style: TextStyle(
-                              color: DuoColors.orbitTextPrimary,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+        const SizedBox(height: 12),
+        if (completedAt != null)
+          Row(
+            children: [
+              _FollowUpEventCard(
+                label: 'Concluída',
+                value: _shortEventDate(completedAt!),
+                icon: Icons.check_circle_outline_rounded,
+                color: DuoColors.success,
               ),
             ],
-          ],
-        ),
-      );
+          )
+        else
+          const Padding(
+            padding: EdgeInsets.fromLTRB(1, 3, 1, 4),
+            child: Text(
+              'Ainda não há eventos registrados para esta tarefa.',
+              style: TextStyle(
+                color: DuoColors.orbitTextSecondary,
+                fontSize: 10.5,
+                height: 1.35,
+              ),
+            ),
+          ),
+        if (canRemindPartner) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(9),
+                onTap: () async => onRemind!(),
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: DuoColors.orbitAccent.withValues(alpha: .19),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: DuoColors.orbitAccent.withValues(alpha: .56),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.notifications_none_rounded,
+                        color: Color(0xFFD0B8FF),
+                        size: 19,
+                      ),
+                      const SizedBox(width: 7),
+                      const Text(
+                        'Lembrar parceiro',
+                        style: TextStyle(
+                          color: Color(0xFFD0B8FF),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 class _FollowUpEventCard extends StatelessWidget {
@@ -455,47 +477,47 @@ class _FollowUpEventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: 114,
-        height: 66,
-        padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: .18)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    width: 114,
+    height: 66,
+    padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .1),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color.withValues(alpha: .18)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 13),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+            Icon(icon, color: color, size: 13),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
                 ),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              value,
-              style: const TextStyle(
-                color: DuoColors.orbitTextPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
               ),
             ),
           ],
         ),
-      );
+        const Spacer(),
+        Text(
+          value,
+          style: const TextStyle(
+            color: DuoColors.orbitTextPrimary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _StatusPill extends StatelessWidget {
@@ -506,16 +528,20 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .14),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(color: color, fontSize: 9.5, fontWeight: FontWeight.w700),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        color: color,
+        fontSize: 9.5,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
 }
 
 String _timeLabel(DateTime date) {
