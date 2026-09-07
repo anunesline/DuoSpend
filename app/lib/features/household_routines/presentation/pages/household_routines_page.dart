@@ -158,18 +158,6 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
             scopeId: selectedScopeId,
             task: task,
           );
-          Future<void> pickDueAt() async {
-            final picked = await _pickDateTime(initialValue: dueAt);
-            if (picked != null && dialogContext.mounted) {
-              setDialogState(() {
-                dueAt = picked;
-                if (recurrence == _TaskRecurrence.weekly) {
-                  setWeeklyDueDate(selectedWeekday);
-                }
-              });
-            }
-          }
-
           void setWeeklyDueDate(int weekday) {
             final now = DateTime.now();
             final selectedTime = dueAt ?? now;
@@ -187,6 +175,18 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
               selectedTime.hour,
               selectedTime.minute,
             );
+          }
+
+          Future<void> pickDueAt() async {
+            final picked = await _pickDateTime(initialValue: dueAt);
+            if (picked != null && dialogContext.mounted) {
+              setDialogState(() {
+                dueAt = picked;
+                if (recurrence == _TaskRecurrence.weekly) {
+                  setWeeklyDueDate(selectedWeekday);
+                }
+              });
+            }
           }
 
           return Theme(
