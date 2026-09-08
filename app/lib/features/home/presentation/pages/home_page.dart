@@ -530,6 +530,9 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final wallet = controller.wallet;
         final summary = orbitController.summary;
+        final size = MediaQuery.of(context).size;
+        final isTablet = size.width >= 600;
+        final horizontalPadding = isTablet ? 24.0 : 16.0;
 
         return Scaffold(
           backgroundColor: DuoColors.orbitBackground,
@@ -537,93 +540,181 @@ class _HomePageState extends State<HomePage> {
           bottomNavigationBar: _OrbitBottomNavigation(
             onHome: () {},
             onFinance: _openFinanceHub,
-            onCreate: wallet == null ? null : _showQuickCreateMenu,
             onRoutines: _openHouseholdRoutinesPage,
             onAi: _openInsightsPage,
           ),
-          body: controller.isLoading
-              ? const _PremiumLoadingState()
-              : Stack(
+          body: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusScope.of(context).unfocus(),
+            child: Stack(
                   children: [
-                    const Positioned.fill(child: _OrbitBackdrop()),
+                    const Positioned.fill(
+                      child: ColoredBox(color: DuoColors.orbitBackground),
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: size.height * .35,
+                      child: const _OrbitBackdrop(),
+                    ),
                     SafeArea(
                       bottom: false,
                       child: RefreshIndicator(
-                        color: const Color(0xFF9EEA8A),
-                        backgroundColor: const Color(0xFF111622),
+                        color: DuoColors.success,
+                        backgroundColor: DuoColors.orbitSurface,
                         onRefresh: _loadHome,
-                        child: SingleChildScrollView(
+                        child: CustomScrollView(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _OrbitHeader(
-                                photoUrl: controller.userPhotoUrl,
-                                onNotifications: () => _showMessage(
-                                  'Você não tem novas notificações.',
+                          slivers: [
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  horizontalPadding,
+                                  8,
+                                  horizontalPadding,
+                                  8,
+                                ),
+                                child: _OrbitHeader(
+                                  photoUrl: controller.userPhotoUrl,
+                                  onNotifications: () => _showMessage(
+                                    'Você não tem novas notificações.',
+                                  ),
                                 ),
                               ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 16),
-                                child: _GreetingBlock(
-                                  greeting: _greeting,
-                                  userName: controller.userName,
-                                  emoji: _greetingEmoji,
-                                  subtitle: _questionCopy,
+                            ),
+                            if (controller.isLoading)
+                              const SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: _PremiumLoadingState(),
+                              )
+                            else ...[
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    horizontalPadding,
+                                    16,
+                                    horizontalPadding,
+                                    0,
+                                  ),
+                                  child: _GreetingBlock(
+                                    greeting: _greeting,
+                                    userName: controller.userName,
+                                    emoji: _greetingEmoji,
+                                    subtitle: _questionCopy,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
-                              _BalanceCard(
-                                balance: wallet?.balance ?? 0,
-                                income: controller.totalIncome,
-                                expense: controller.totalExpense,
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 20),
                               ),
-                              const SizedBox(height: 12),
-                              _BudgetCard(
-                                budget: summary.budget,
-                                isLoading: orbitController.isLoading,
-                                onTap: _openBudgetsPage,
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _InvoiceCard(
-                                      invoice: summary.invoice,
-                                      onTap: _openFinancialCalendarPage,
-                                    ),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: horizontalPadding,
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _GoalCard(
-                                      goal: summary.goal,
-                                      onTap: _openSavingsGoalsPage,
-                                    ),
+                                  child: _BalanceCard(
+                                    balance: wallet?.balance ?? 0,
+                                    income: controller.totalIncome,
+                                    expense: controller.totalExpense,
                                   ),
-                                ],
+                                ),
                               ),
-                              const SizedBox(height: 20),
-                              _SectionTitle(
-                                title: 'Insights da IA',
-                                actionLabel: wallet == null ? null : 'Ver tudo',
-                                onAction: wallet == null ? null : _openInsightsPage,
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 12),
                               ),
-                              const SizedBox(height: 12),
-                              if (wallet != null)
-                                OrbitInsightCard(
-                                  wallet: wallet,
-                                  onTap: _openInsightsPage,
-                                )
-                              else
-                                const _EmptyInsightCard(),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: horizontalPadding,
+                                  ),
+                                  child: _BudgetCard(
+                                    budget: summary.budget,
+                                    isLoading: orbitController.isLoading,
+                                    onTap: _openBudgetsPage,
+                                  ),
+                                ),
+                              ),
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 12),
+                              ),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: horizontalPadding,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: _InvoiceCard(
+                                          invoice: summary.invoice,
+                                          onTap: _openFinancialCalendarPage,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _GoalCard(
+                                          goal: summary.goal,
+                                          onTap: _openSavingsGoalsPage,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 20),
+                              ),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: horizontalPadding,
+                                  ),
+                                  child: _SectionTitle(
+                                    title: 'Insights da IA',
+                                    actionLabel: wallet == null ? null : 'Ver tudo',
+                                    onAction:
+                                        wallet == null ? null : _openInsightsPage,
+                                  ),
+                                ),
+                              ),
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 12),
+                              ),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: horizontalPadding,
+                                  ),
+                                  child: wallet != null
+                                      ? OrbitInsightCard(
+                                          wallet: wallet,
+                                          onTap: _openInsightsPage,
+                                        )
+                                      : const _EmptyInsightCard(),
+                                ),
+                              ),
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 120),
+                              ),
                             ],
-                          ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: MediaQuery.paddingOf(context).bottom + 38,
+                      child: Center(
+                        child: _CreateButton(
+                          onTap: wallet == null ? null : _showQuickCreateMenu,
                         ),
                       ),
                     ),
                   ],
-                ),
+            ),
+          ),
         );
       },
     );
@@ -1419,14 +1510,12 @@ class _OrbitHorizonPainter extends CustomPainter {
 class _OrbitBottomNavigation extends StatelessWidget {
   final VoidCallback onHome;
   final VoidCallback onFinance;
-  final VoidCallback? onCreate;
   final VoidCallback onRoutines;
   final VoidCallback onAi;
 
   const _OrbitBottomNavigation({
     required this.onHome,
     required this.onFinance,
-    required this.onCreate,
     required this.onRoutines,
     required this.onAi,
   });
@@ -1444,12 +1533,8 @@ class _OrbitBottomNavigation extends StatelessWidget {
               color: DuoColors.orbitSurface.withValues(alpha: .92),
               border: const Border(top: BorderSide(color: DuoColors.orbitBorder)),
             ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
+            child: Row(
               children: [
-                Row(
-                  children: [
                     Expanded(
                       child: _NavItem(
                         icon: Icons.home_rounded,
@@ -1480,9 +1565,6 @@ class _OrbitBottomNavigation extends StatelessWidget {
                         onTap: onAi,
                       ),
                     ),
-                  ],
-                ),
-                Positioned(top: -16, child: _CreateButton(onTap: onCreate)),
               ],
             ),
           ),
