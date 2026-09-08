@@ -8,6 +8,7 @@ import 'package:app/features/home/data/models/credit_card_model.dart';
 import 'package:app/features/home/data/models/wallet_model.dart';
 import 'package:app/features/home/data/repositories/credit_card_repository.dart';
 import 'package:app/features/home/data/repositories/wallet_repository.dart';
+import 'package:app/features/household_routines/domain/services/shopping_list_transaction_synchronizer.dart';
 import 'package:app/features/receipt_scanner/application/receipt_transaction_item_mapper.dart';
 import 'package:app/features/receipt_scanner/domain/models/receipt_scan_item.dart';
 import 'package:app/features/receipt_scanner/domain/models/receipt_transaction_draft.dart';
@@ -38,6 +39,41 @@ class _DelayedTransactionRepository extends TransactionRepository {
   }) async {
     writes++;
     await release.future;
+  }
+}
+
+class _FailingTransactionRepository extends TransactionRepository {
+  _FailingTransactionRepository({
+    required FakeFirebaseFirestore firestore,
+    required MockFirebaseAuth auth,
+  }) : super(firestore: firestore, auth: auth);
+
+  @override
+  Future<void> addTransactions(
+    List<TransactionModel> transactionModels, {
+    WalletModel? wallet,
+  }) =>
+      throw StateError('financial save failed');
+}
+
+class _RecordingShoppingListSynchronizer
+    implements ShoppingListPurchaseSynchronizer {
+  int calls = 0;
+
+  @override
+  Future<ShoppingListSyncReport> synchronize({
+    required String scopeId,
+    required String transactionId,
+    required DateTime purchasedAt,
+    required String? purchasedBy,
+    required List<PurchasedTransactionItem> items,
+  }) async {
+    calls++;
+    return ShoppingListSyncReport(
+      receivedItems: items.length,
+      matchedItems: 0,
+      ambiguousItems: 0,
+    );
   }
 }
 
@@ -363,6 +399,82 @@ void main() {
 
       repository.release.complete();
       await firstSave;
+    });
+
+    test('falha ao salvar transação não inicia sincronização de lista', () async {
+      final firestore = FakeFirebaseFirestore();
+      final signedInAuth = auth();
+      final financialWallet = individualWallet(id: 'inter');
+      await firestore
+          .collection('wallets')
+          .doc(financialWallet.id)
+          .set(financialWallet.toMap());
+      final repository = _FailingTransactionRepository(
+        firestore: firestore,
+        auth: signedInAuth,
+      );
+      final synchronizer = _RecordingShoppingListSynchronizer();
+      final create = CreateTransactionUseCase(
+        transactionRepository: repository,
+        walletRepository: WalletRepository(
+          firestore: firestore,
+          auth: signedInAuth,
+        ),
+        creditCardRepository: CreditCardRepository(
+          firestore: firestore,
+          auth: signedInAuth,
+        ),
+        financialSplitService: const FinancialSplitService(),
+        settlementSynchronizer: BalanceSettlementSynchronizer(
+          transactionRepository: repository,
+          settlementRepository: BalanceSettlementRepository(
+            firestore: firestore,
+            auth: signedInAuth,
+          ),
+        ),
+      );
+      final controller = TransactionController(
+        createTransactionUseCase: create,
+        shoppingListSynchronizer: synchronizer,
+      )..addItem(
+          TransactionItemModel(
+            id: 'milk-item',
+            transactionId: 'failed-transaction',
+            name: 'Leite',
+            brand: '',
+            quantity: 1,
+            unit: 'un',
+            unitPrice: 10,
+            totalPrice: 10,
+            taxonomyId: '',
+            category: 'Alimentação',
+            subcategory: 'Mercado',
+            productCategoryId: '',
+            productCategoryName: '',
+            createdAt: DateTime.utc(2026, 9, 5),
+          ),
+        );
+
+      await expectLater(
+        controller.saveTransaction(
+          transactionId: 'failed-transaction',
+          description: 'Mercado',
+          value: 10,
+          type: 'expense',
+          walletId: 'compras',
+          wallet: individualWallet(id: 'compras'),
+          category: 'Alimentação',
+          subcategory: 'Mercado',
+          paidByMemberId: userId,
+          purchaseFor: 'self',
+          financialWalletId: financialWallet.id,
+          paymentMethod: PaymentMethod.pix,
+          paymentSourceId: financialWallet.id,
+          householdListScopeId: 'user:aline',
+        ),
+        throwsStateError,
+      );
+      expect(synchronizer.calls, 0);
     });
   });
 }

@@ -9,6 +9,7 @@ class SavingsGoalModel {
       'name': goal.name,
       'targetAmount': goal.targetAmount,
       'savedAmount': goal.savedAmount,
+      'category': goal.category.name,
       'deadline': goal.deadline?.toIso8601String(),
       'walletId': goal.walletId,
       'createdByUserId': goal.createdByUserId,
@@ -19,18 +20,13 @@ class SavingsGoalModel {
     };
   }
 
-  static SavingsGoal fromMap(
-    Map<String, dynamic> map, {
-    String? documentId,
-  }) {
+  static SavingsGoal fromMap(Map<String, dynamic> map, {String? documentId}) {
     final id = map['id']?.toString().trim();
 
-    final createdByUserId =
-        map['createdByUserId']?.toString().trim() ?? '';
+    final createdByUserId = map['createdByUserId']?.toString().trim() ?? '';
     final memberIds = _parseMemberIds(map['memberIds']).toList();
 
-    if (createdByUserId.isNotEmpty &&
-        !memberIds.contains(createdByUserId)) {
+    if (createdByUserId.isNotEmpty && !memberIds.contains(createdByUserId)) {
       memberIds.insert(0, createdByUserId);
     }
 
@@ -39,6 +35,7 @@ class SavingsGoalModel {
       name: map['name']?.toString() ?? '',
       targetAmount: _parseDouble(map['targetAmount']),
       savedAmount: _parseDouble(map['savedAmount']),
+      category: SavingsGoalCategory.fromValue(map['category']?.toString()),
       deadline: _parseDate(map['deadline']),
       walletId: map['walletId']?.toString() ?? '',
       createdByUserId: createdByUserId,

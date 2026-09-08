@@ -1,7 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/context/wallet_context.dart';
-import '../../../../core/design_system/duo_card.dart';
 import '../../../../core/design_system/duo_colors.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../budgets/presentation/pages/budgets_page.dart';
@@ -10,22 +12,20 @@ import '../../../financial_intelligence/presentation/pages/insights_page.dart';
 import '../../../goals/presentation/pages/savings_goals_page.dart';
 import '../../../household_routines/presentation/controllers/household_routines_controller.dart';
 import '../../../household_routines/presentation/pages/household_routines_hub_page.dart';
+import '../../../receipt_scanner/domain/models/receipt_transaction_draft.dart';
+import '../../../receipt_scanner/presentation/pages/receipt_scanner_page.dart';
 import '../../../reports/presentation/pages/monthly_report_page.dart';
 import '../../../shopping/presentation/controllers/shopping_controller.dart';
-import '../../../transactions/domain/purchase/services/balance_summary.dart';
 import '../../../transactions/presentation/controllers/purchase_controller.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
 import '../../../transactions/presentation/pages/financial_calendar_page.dart';
 import '../../../transactions/presentation/pages/history_page.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../../../wallet/presentation/pages/credit_cards_page.dart';
+import '../../domain/models/orbit_dashboard_summary.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/orbit_dashboard_controller.dart';
-import '../widgets/balance_card.dart';
 import '../widgets/orbit_insight_card.dart';
-import '../widgets/orbit_month_summary.dart';
-import '../widgets/transactions_preview.dart';
-import '../widgets/wallet_card.dart';
 
 class HomePage extends StatefulWidget {
   final WalletContext walletContext;
@@ -77,32 +77,11 @@ class _HomePageState extends State<HomePage> {
     return '🌙';
   }
 
-  String get _formattedDate {
-    const weekDays = [
-      'segunda-feira',
-      'terça-feira',
-      'quarta-feira',
-      'quinta-feira',
-      'sexta-feira',
-      'sábado',
-      'domingo',
-    ];
-    const months = [
-      'janeiro',
-      'fevereiro',
-      'março',
-      'abril',
-      'maio',
-      'junho',
-      'julho',
-      'agosto',
-      'setembro',
-      'outubro',
-      'novembro',
-      'dezembro',
-    ];
-    final now = DateTime.now();
-    return '${weekDays[now.weekday - 1]}, ${now.day} de ${months[now.month - 1]}';
+  String get _questionCopy {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Que tal começar o dia mais leve e com as finanças no controle?';
+    if (hour < 18) return 'Como estão suas finanças hoje?';
+    return 'Que tal fechar o dia com as finanças no controle?';
   }
 
   Future<void> _loadHome() async {
@@ -128,8 +107,9 @@ class _HomePageState extends State<HomePage> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            CreditCardsPage(individualWallets: controller.individualWallets),
+        builder: (_) => CreditCardsPage(
+          individualWallets: controller.individualWallets,
+        ),
       ),
     );
     await _loadHome();
@@ -137,13 +117,15 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openWalletSelector() async {
     if (!controller.hasWallets) {
-      await _showCreateIndividualWalletDialog();
+      _showMessage('Crie uma carteira para começar.');
       return;
     }
+
     String? selectedId;
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      backgroundColor: DuoColors.surface,
       builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
@@ -188,21 +170,9 @@ class _HomePageState extends State<HomePage> {
               ListTile(
                 leading: const Icon(Icons.credit_card_rounded),
                 title: const Text('Cartões e faturas'),
-                subtitle: const Text('Gerencie cartões, limites e pagamentos.'),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _openCreditCardsPage();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.add_rounded),
-                title: const Text('Nova carteira'),
-                subtitle: const Text(
-                  'Adicione outra conta ou carteira individual.',
-                ),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _showCreateIndividualWalletDialog();
                 },
               ),
             ],
@@ -210,82 +180,8 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
-    if (selectedId != null) await _selectWallet(selectedId!);
-  }
 
-  Future<void> _showCreateIndividualWalletDialog() async {
-    final nameController = TextEditingController();
-    final balanceController = TextEditingController(text: '0,00');
-    final shouldCreate = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Nova carteira'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              autofocus: true,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Nome',
-                hintText: 'Ex.: Banco Inter',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: balanceController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-                signed: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Saldo atual',
-                prefixText: 'R\$ ',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Criar'),
-          ),
-        ],
-      ),
-    );
-    if (shouldCreate != true || !mounted) {
-      nameController.dispose();
-      balanceController.dispose();
-      return;
-    }
-    final name = nameController.text.trim();
-    final balance = double.tryParse(
-      balanceController.text.trim().replaceAll('.', '').replaceAll(',', '.'),
-    );
-    nameController.dispose();
-    balanceController.dispose();
-    if (name.isEmpty || balance == null) {
-      _showMessage('Informe um nome e um saldo válido.');
-      return;
-    }
-    final createdWallet = await controller.createIndividualWallet(
-      name: name,
-      initialBalance: balance,
-    );
-    if (!mounted) return;
-    if (createdWallet == null) {
-      _showMessage(
-        controller.errorMessage ?? 'Não foi possível criar a carteira.',
-      );
-      return;
-    }
-    await _loadOrbitSummary();
-    _showMessage('Carteira criada.');
+    if (selectedId != null) await _selectWallet(selectedId!);
   }
 
   void _showMessage(String message) {
@@ -297,9 +193,10 @@ class _HomePageState extends State<HomePage> {
       );
   }
 
-  Future<void> _openNewTransactionPage() async {
+  Future<void> _openNewTransactionPage({ReceiptTransactionDraft? draft}) async {
     final wallet = controller.wallet;
     if (wallet == null) return;
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -309,16 +206,27 @@ class _HomePageState extends State<HomePage> {
           consumerController: widget.consumerController,
           purchaseController: widget.purchaseController,
           productRepository: widget.productRepository,
+          receiptDraft: draft,
         ),
       ),
     );
     await _loadHome();
   }
 
+  Future<void> _openReceiptScanner() async {
+    final draft = await Navigator.push<ReceiptTransactionDraft>(
+      context,
+      MaterialPageRoute(builder: (_) => const ReceiptScannerPage()),
+    );
+    if (!mounted || draft == null) return;
+    await _openNewTransactionPage(draft: draft);
+  }
+
   Future<void> _openSavingsGoalsPage() async {
     final wallet = controller.wallet;
     final userId = controller.user?.uid;
     if (wallet == null || userId == null || userId.isEmpty) return;
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -336,6 +244,7 @@ class _HomePageState extends State<HomePage> {
     final wallet = controller.wallet;
     final userId = controller.user?.uid;
     if (wallet == null || userId == null || userId.isEmpty) return;
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -352,6 +261,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _openMonthlyReportPage() async {
     final wallet = controller.wallet;
     if (wallet == null) return;
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -393,6 +303,7 @@ class _HomePageState extends State<HomePage> {
     final wallet = controller.wallet;
     final userId = controller.user?.uid;
     if (wallet == null || userId == null || userId.isEmpty) return;
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -425,45 +336,188 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _toggleWalletContext() async {
-    if (!controller.hasConnectedPartner) return;
-    if (controller.isSharedWalletSelected) {
-      if (controller.individualWallets.isNotEmpty)
-        await _selectWallet(controller.individualWallets.first.id);
-      return;
+  Future<void> _openFinanceHub() async {
+    final shortcutScrollController = ScrollController();
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: DuoColors.surface,
+        showDragHandle: true,
+        builder: (sheetContext) => LayoutBuilder(
+          builder: (context, constraints) => SizedBox(
+            height: constraints.maxHeight,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  children: [
+                    const ListTile(
+                      title: Text(
+                        'Finanças',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text('Acesse os principais recursos financeiros.'),
+                    ),
+                    Expanded(
+                      child: Scrollbar(
+                        controller: shortcutScrollController,
+                        thumbVisibility: true,
+                        thickness: 3,
+                        radius: const Radius.circular(99),
+                        child: ListView(
+                          controller: shortcutScrollController,
+                          padding: EdgeInsets.zero,
+                          children: [
+                    _FinanceShortcut(
+                      icon: Icons.pie_chart_rounded,
+                      label: 'Orçamentos',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openBudgetsPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.savings_rounded,
+                      label: 'Metas',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openSavingsGoalsPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.credit_card_rounded,
+                      label: 'Cartões',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openCreditCardsPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.insights_rounded,
+                      label: 'Relatórios',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openMonthlyReportPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.calendar_month_rounded,
+                      label: 'Calendário',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openFinancialCalendarPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.history_rounded,
+                      label: 'Histórico',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openHistoryPage();
+                      },
+                    ),
+                    _FinanceShortcut(
+                      icon: Icons.account_balance_wallet_rounded,
+                      label: 'Carteiras',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openWalletSelector();
+                      },
+                    ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } finally {
+      shortcutScrollController.dispose();
     }
-    final sharedWallet = controller.connectedSharedWallet;
-    if (sharedWallet != null) await _selectWallet(sharedWallet.id);
   }
 
-  Widget _buildSharedBalanceRow(BalanceSummary summary) {
-    if (summary.hasCredit) {
-      return _QuickAccessRow(
-        icon: Icons.call_received_rounded,
-        iconColor: DuoColors.success,
-        title: 'Saldo entre vocês',
-        subtitle:
-            'Você tem R\$ ${summary.amountToReceive.toStringAsFixed(2).replaceAll('.', ',')} para receber',
-        onTap: _openHistoryPage,
-      );
-    }
-    if (summary.hasDebt) {
-      return _QuickAccessRow(
-        icon: Icons.call_made_rounded,
-        iconColor: DuoColors.error,
-        title: 'Saldo entre vocês',
-        subtitle:
-            'Você deve R\$ ${summary.amountToPay.toStringAsFixed(2).replaceAll('.', ',')} ao parceiro',
-        onTap: _openHistoryPage,
-      );
-    }
-    return _QuickAccessRow(
-      icon: Icons.check_circle_rounded,
-      iconColor: DuoColors.primaryLight,
-      title: 'Saldo entre vocês',
-      subtitle: 'Nenhum acerto pendente',
-      onTap: _openHistoryPage,
+  Future<void> _showQuickCreateMenu() async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    final bottomGap = MediaQuery.paddingOf(context).bottom + 72;
+
+    final result = await showMenu<String>(
+      context: context,
+      color: DuoColors.orbitSurface,
+      elevation: 18,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: DuoColors.orbitBorder),
+      ),
+      position: RelativeRect.fromLTRB(
+        16,
+        overlay.size.height - bottomGap - 290,
+        16,
+        bottomGap,
+      ),
+      items: const [
+        PopupMenuItem(
+          value: 'transaction',
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: _QuickCreateMenuItem(
+            icon: Icons.receipt_long_rounded,
+            label: 'Nova transação',
+            color: DuoColors.success,
+          ),
+        ),
+        PopupMenuItem(
+          value: 'income',
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: _QuickCreateMenuItem(
+            icon: Icons.trending_up_rounded,
+            label: 'Receita',
+            color: Color(0xFFFFD34D),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'scan',
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: _QuickCreateMenuItem(
+            icon: Icons.document_scanner_outlined,
+            label: 'Escanear compra',
+            color: Color(0xFF38BDF8),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'goal',
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: _QuickCreateMenuItem(
+            icon: Icons.savings_outlined,
+            label: 'Nova meta',
+            color: Color(0xFFFF6B6B),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'task',
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: _QuickCreateMenuItem(
+            icon: Icons.task_alt_rounded,
+            label: 'Nova tarefa',
+            color: Color(0xFFFFD34D),
+          ),
+        ),
+      ],
     );
+
+    if (!mounted || result == null) return;
+    if (result == 'transaction' || result == 'income') {
+      await _openNewTransactionPage();
+    } else if (result == 'scan') {
+      await _openReceiptScanner();
+    } else if (result == 'goal') {
+      await _openSavingsGoalsPage();
+    } else if (result == 'task') {
+      await _openHouseholdRoutinesPage();
+    }
   }
 
   @override
@@ -480,594 +534,1129 @@ class _HomePageState extends State<HomePage> {
       listenable: Listenable.merge([controller, orbitController]),
       builder: (context, _) {
         final wallet = controller.wallet;
-        final hasPartner = controller.hasConnectedPartner;
-        final sharedRows = <Widget>[
-          if (hasPartner && controller.hasPendingSharedConfirmations)
-            _QuickAccessRow(
-              icon: Icons.pending_actions_rounded,
-              iconColor: DuoColors.warning,
-              title: 'Pendências',
-              subtitle: controller.pendingSharedConfirmationCount == 1
-                  ? '1 confirmação aguardando'
-                  : '${controller.pendingSharedConfirmationCount} confirmações aguardando',
-              onTap: _openHistoryPage,
-            ),
-          if (hasPartner && controller.balanceSummary != null)
-            _buildSharedBalanceRow(controller.balanceSummary!),
-        ];
+        final summary = orbitController.summary;
+        final size = MediaQuery.sizeOf(context);
+        final isTablet = size.width >= 600;
+        final horizontalPadding = isTablet ? 24.0 : 20.0;
 
         return Scaffold(
-          backgroundColor: DuoColors.background,
-          floatingActionButtonLocation:
-              FloatingActionButtonLocation.centerFloat,
-          floatingActionButton: wallet == null
-              ? null
-              : _NewTransactionButton(onPressed: _openNewTransactionPage),
-          body: controller.isLoading
-              ? const _PremiumLoadingState()
-              : SafeArea(
-                  child: RefreshIndicator(
-                    color: DuoColors.primary,
-                    backgroundColor: DuoColors.surface,
-                    onRefresh: _loadHome,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 112),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _HomeTopBar(
-                            isSharedSelected: controller.isSharedWalletSelected,
-                            hasConnectedPartner: hasPartner,
-                            onToggleWallet: _toggleWalletContext,
+          backgroundColor: DuoColors.orbitBackground,
+          extendBody: true,
+          body: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusScope.of(context).unfocus(),
+            child: Stack(
+              children: [
+                const Positioned.fill(
+                  child: ColoredBox(color: DuoColors.orbitBackground),
+                ),
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: _OrbitBackdrop(),
+                ),
+                RefreshIndicator(
+                  color: DuoColors.success,
+                  backgroundColor: DuoColors.orbitSurface,
+                  onRefresh: _loadHome,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            horizontalPadding,
+                            48,
+                            horizontalPadding,
+                            16,
                           ),
-                          const SizedBox(height: 24),
-                          _GreetingBlock(
-                            greeting: _greeting,
-                            userName: controller.userName,
-                            emoji: _greetingEmoji,
-                            date: _formattedDate,
+                          child: _OrbitHeader(
+                            photoUrl: controller.userPhotoUrl,
+                            onNotifications: () => _showMessage(
+                              'Você não tem novas notificações.',
+                            ),
                           ),
-                          const SizedBox(height: 22),
-                          if (controller.isSharedWalletSelected) ...[
-                            _SharedContextBanner(
-                              walletName:
-                                  wallet?.name ?? 'Carteira compartilhada',
+                        ),
+                        if (controller.isLoading)
+                          const SizedBox(
+                            height: 360,
+                            child: _PremiumLoadingState(),
+                          )
+                        else ...[
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              horizontalPadding,
+                              24,
+                              horizontalPadding,
+                              0,
                             ),
-                            const SizedBox(height: 14),
-                          ],
-                          BalanceCard(
-                            balance: wallet?.balance ?? 0,
-                            income: controller.totalIncome,
-                            expense: controller.totalExpense,
+                            child: _GreetingBlock(
+                              greeting: _greeting,
+                              userName: controller.userName,
+                              emoji: _greetingEmoji,
+                              subtitle: _questionCopy,
+                            ),
                           ),
-                          if (wallet != null) ...[
-                            const SizedBox(height: 18),
-                            OrbitInsightCard(
-                              wallet: wallet,
-                              onTap: _openInsightsPage,
+                          const SizedBox(height: 20),
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: horizontalPadding,
                             ),
-                            const SizedBox(height: 26),
-                            _SectionTitle(
-                              title: controller.isSharedWalletSelected
-                                  ? 'Nosso mês'
-                                  : 'Seu mês',
+                            child: _BalanceCard(
+                              balance: wallet?.balance ?? 0,
+                              income: controller.totalIncome,
+                              expense: controller.totalExpense,
                             ),
-                            const SizedBox(height: 12),
-                            OrbitMonthSummary(
-                              summary: orbitController.summary,
+                          ),
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: horizontalPadding,
+                            ),
+                            child: _BudgetCard(
+                              budget: summary.budget,
                               isLoading: orbitController.isLoading,
-                              onBudgetTap: _openBudgetsPage,
-                              onGoalTap: _openSavingsGoalsPage,
-                              onInvoiceTap: _openCreditCardsPage,
+                              onTap: _openBudgetsPage,
                             ),
-                            if (sharedRows.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              _QuickAccessCard(rows: sharedRows),
-                            ],
-                            const SizedBox(height: 26),
-                            _SectionTitle(
-                              title: controller.isSharedWalletSelected
-                                  ? 'Acompanhar juntos'
-                                  : 'Explorar',
-                              actionLabel: 'Insights',
-                              onAction: _openInsightsPage,
-                            ),
-                            const SizedBox(height: 12),
-                            _ExploreGrid(
-                              onReport: _openMonthlyReportPage,
-                              onCalendar: _openFinancialCalendarPage,
-                              onWallet: _openWalletSelector,
-                              onCards: _openCreditCardsPage,
-                              onRoutines: _openHouseholdRoutinesPage,
-                            ),
-                          ],
-                          const SizedBox(height: 28),
-                          _SectionTitle(
-                            title: 'Últimas movimentações',
-                            actionLabel: 'Ver todas',
-                            onAction: wallet == null ? null : _openHistoryPage,
                           ),
-                          const SizedBox(height: 14),
-                          TransactionsPreview(
-                            transactions: controller.transactions,
-                            onViewAll: wallet == null ? null : _openHistoryPage,
-                          ),
-                          if (wallet == null) ...[
-                            const SizedBox(height: 28),
-                            const _SectionTitle(title: 'Carteira'),
-                            const SizedBox(height: 14),
-                            WalletCard(
-                              walletName: 'Nenhuma carteira',
-                              balance: 0,
-                              isShared: false,
-                              onTap: _openWalletSelector,
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: horizontalPadding,
                             ),
-                          ],
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _InvoiceCard(
+                                    invoice: summary.invoice,
+                                    onTap: _openFinancialCalendarPage,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _GoalCard(
+                                    goal: summary.goal,
+                                    onTap: _openSavingsGoalsPage,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: horizontalPadding,
+                            ),
+                            child: _SectionTitle(
+                              title: 'Insights da IA',
+                              actionLabel: wallet == null ? null : 'Ver tudo',
+                              onAction:
+                                  wallet == null ? null : _openInsightsPage,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: horizontalPadding,
+                            ),
+                            child: wallet != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: OrbitInsightCard(
+                                      wallet: wallet,
+                                      onTap: _openInsightsPage,
+                                    ),
+                                  )
+                                : const _EmptyInsightCard(),
+                          ),
+                          const SizedBox(height: 120),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _OrbitBottomNavigation(
+                    onHome: () {},
+                    onFinance: _openFinanceHub,
+                    onRoutines: _openHouseholdRoutinesPage,
+                    onAi: _openInsightsPage,
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: MediaQuery.paddingOf(context).bottom + 32,
+                  child: Center(
+                    child: _CreateButton(
+                      onTap: wallet == null ? null : _showQuickCreateMenu,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 }
 
-class _HomeTopBar extends StatelessWidget {
-  final bool isSharedSelected;
-  final bool hasConnectedPartner;
-  final VoidCallback onToggleWallet;
-  const _HomeTopBar({
-    required this.isSharedSelected,
-    required this.hasConnectedPartner,
-    required this.onToggleWallet,
-  });
+String _money(double value) => NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: 'R\$',
+    ).format(value);
+
+class _OrbitHeader extends StatelessWidget {
+  final String? photoUrl;
+  final VoidCallback onNotifications;
+
+  const _OrbitHeader({required this.photoUrl, required this.onNotifications});
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      const Expanded(
-        child: Text.rich(
-          TextSpan(
+  Widget build(BuildContext context) {
+    final hasPhoto = photoUrl != null && photoUrl!.trim().isNotEmpty;
+    return SizedBox(
+      height: 44,
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(
+              color: DuoColors.orbitBorder,
+              shape: BoxShape.circle,
+            ),
+            child: CircleAvatar(
+              backgroundColor: DuoColors.orbitSurface,
+              backgroundImage: hasPhoto ? NetworkImage(photoUrl!) : null,
+              child: hasPhoto
+                  ? null
+                  : const Icon(
+                      Icons.person_rounded,
+                      size: 19,
+                      color: DuoColors.orbitTextSecondary,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _OrbitMark(),
+                    SizedBox(width: 6),
+                    Text(
+                      'Orbit',
+                      style: TextStyle(
+                        color: DuoColors.orbitTextPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .5,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Organize. Planeje. Conquiste.',
+                  style: TextStyle(
+                    color: DuoColors.orbitTextSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: .3,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              TextSpan(
-                text: 'Duo',
-                style: TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                  color: DuoColors.textPrimary,
-                  letterSpacing: -.6,
+              IconButton(
+                onPressed: onNotifications,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                icon: const Icon(
+                  Icons.notifications_none_rounded,
+                  color: DuoColors.orbitTextPrimary,
+                  size: 22,
                 ),
               ),
-              TextSpan(
-                text: 'Spend',
-                style: TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                  color: DuoColors.primaryLight,
-                  letterSpacing: -.6,
+              const Positioned(
+                right: 3,
+                top: 2,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: DuoColors.success,
+                    shape: BoxShape.circle,
+                  ),
+                  child: SizedBox(width: 8, height: 8),
                 ),
               ),
             ],
+            ),
           ),
-        ),
+        ],
       ),
-      if (hasConnectedPartner)
-        _WalletContextChip(
-          label: isSharedSelected ? 'Eu' : 'Nós',
-          icon: isSharedSelected ? Icons.person_rounded : Icons.group_rounded,
-          onTap: onToggleWallet,
-        ),
-    ],
-  );
+    );
+  }
 }
 
-class _WalletContextChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  const _WalletContextChip({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
+class _OrbitMark extends StatelessWidget {
+  const _OrbitMark();
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    child: InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-        decoration: BoxDecoration(
-          color: DuoColors.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: DuoColors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: DuoColors.primaryLight),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: DuoColors.textPrimary,
-              ),
-            ),
-          ],
+  Widget build(BuildContext context) {
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFA782FF), Color(0xFF72B9FF), DuoColors.success],
         ),
       ),
-    ),
-  );
+      alignment: Alignment.center,
+      child: Container(
+        width: 12,
+        height: 12,
+        decoration: const BoxDecoration(
+          color: DuoColors.orbitBackground,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
 }
 
 class _GreetingBlock extends StatelessWidget {
   final String greeting;
   final String userName;
   final String emoji;
-  final String date;
+  final String subtitle;
+
   const _GreetingBlock({
     required this.greeting,
     required this.userName,
     required this.emoji,
-    required this.date,
+    required this.subtitle,
   });
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        '$greeting, $userName $emoji',
-        style: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-          color: DuoColors.textPrimary,
-          letterSpacing: -.35,
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$greeting, $userName! $emoji',
+          style: const TextStyle(
+            color: DuoColors.orbitTextPrimary,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -.35,
+          ),
         ),
-      ),
-      const SizedBox(height: 5),
-      Text(
-        date,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: DuoColors.textSecondary,
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            color: DuoColors.orbitTextSecondary,
+            fontSize: 14,
+            height: 1.5,
+          ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
-class _SharedContextBanner extends StatelessWidget {
-  final String walletName;
-  const _SharedContextBanner({required this.walletName});
+class _OrbitCard extends StatelessWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final EdgeInsetsGeometry padding;
+  final double borderRadius;
+
+  const _OrbitCard({
+    required this.child,
+    this.onTap,
+    this.padding = const EdgeInsets.all(16),
+    this.borderRadius = 24,
+  });
 
   @override
-  Widget build(BuildContext context) => DuoCard(
-    borderRadius: 18,
-    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-    gradient: DuoColors.heroGradient,
-    child: Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Ink(
           decoration: BoxDecoration(
-            color: DuoColors.primary.withValues(alpha: .18),
-            borderRadius: BorderRadius.circular(12),
+            color: const Color(0xE8111622),
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(color: DuoColors.orbitBorder),
           ),
-          child: const Icon(
-            Icons.groups_rounded,
-            color: DuoColors.primaryLight,
-            size: 19,
-          ),
+          child: Padding(padding: padding, child: child),
         ),
-        const SizedBox(width: 11),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      ),
+    );
+  }
+}
+
+class _BalanceCard extends StatelessWidget {
+  final double balance;
+  final double income;
+  final double expense;
+
+  const _BalanceCard({
+    required this.balance,
+    required this.income,
+    required this.expense,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final monthResult = income - expense;
+    return _OrbitCard(
+      borderRadius: 28,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text(
-                'Visão de vocês',
-                style: TextStyle(
-                  color: DuoColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
+              Expanded(
+                flex: 56,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Saldo disponível',
+                      style: TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            _money(balance),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: DuoColors.orbitTextPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -.6,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.visibility_outlined,
+                          color: DuoColors.orbitTextSecondary,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                walletName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: DuoColors.textSecondary,
-                  fontSize: 11,
+              const SizedBox(width: 12),
+              Container(width: 1, height: 40, color: DuoColors.orbitBorder),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 44,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Saldo previsto',
+                      style: TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _money(balance),
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _QuickAccessCard extends StatelessWidget {
-  final List<Widget> rows;
-  const _QuickAccessCard({required this.rows});
-
-  @override
-  Widget build(BuildContext context) => DuoCard(
-    borderRadius: 20,
-    padding: EdgeInsets.zero,
-    child: Column(
-      children: [
-        for (var i = 0; i < rows.length; i++) ...[
-          rows[i],
-          if (i != rows.length - 1)
-            Container(
-              height: 1,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              color: DuoColors.divider,
-            ),
+          const SizedBox(height: 7),
+          Row(
+            children: [
+              Icon(
+                monthResult >= 0
+                    ? Icons.arrow_upward_rounded
+                    : Icons.arrow_downward_rounded,
+                color: monthResult >= 0
+                    ? DuoColors.success
+                    : const Color(0xFFFF8A8A),
+                size: 12,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Resultado do mês ${_money(monthResult.abs())}',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: monthResult >= 0
+                        ? DuoColors.success
+                        : const Color(0xFFFF8A8A),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const _ProgressBar(progress: .72, color: DuoColors.success),
         ],
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
-class _QuickAccessRow extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final VoidCallback? onTap;
-  const _QuickAccessRow({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    child: InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: .14),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: iconColor, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: DuoColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: DuoColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: DuoColors.textHint,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-class _ExploreGrid extends StatelessWidget {
-  final VoidCallback onReport;
-  final VoidCallback onCalendar;
-  final VoidCallback onWallet;
-  final VoidCallback onCards;
-  final VoidCallback onRoutines;
-  const _ExploreGrid({
-    required this.onReport,
-    required this.onCalendar,
-    required this.onWallet,
-    required this.onCards,
-    required this.onRoutines,
-  });
-
-  @override
-  Widget build(BuildContext context) => GridView.count(
-    crossAxisCount: 2,
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    crossAxisSpacing: 10,
-    mainAxisSpacing: 10,
-    childAspectRatio: 1.65,
-    children: [
-      _ExploreTile(
-        icon: Icons.insights_rounded,
-        label: 'Relatório',
-        onTap: onReport,
-      ),
-      _ExploreTile(
-        icon: Icons.calendar_month_rounded,
-        label: 'Calendário',
-        onTap: onCalendar,
-      ),
-      _ExploreTile(
-        icon: Icons.home_work_rounded,
-        label: 'Rotinas da Casa',
-        onTap: onRoutines,
-      ),
-      _ExploreTile(
-        icon: Icons.account_balance_wallet_rounded,
-        label: 'Carteiras',
-        onTap: onWallet,
-      ),
-      _ExploreTile(
-        icon: Icons.credit_card_rounded,
-        label: 'Cartões',
-        onTap: onCards,
-      ),
-    ],
-  );
-}
-
-class _ExploreTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
+class _BudgetCard extends StatelessWidget {
+  final OrbitBudgetSummary? budget;
+  final bool isLoading;
   final VoidCallback onTap;
-  const _ExploreTile({
-    required this.icon,
-    required this.label,
+
+  const _BudgetCard({
+    required this.budget,
+    required this.isLoading,
     required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) => DuoCard(
-    borderRadius: 18,
-    padding: EdgeInsets.zero,
-    child: Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              Icon(icon, color: DuoColors.primaryLight, size: 20),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: DuoColors.textPrimary,
+  Widget build(BuildContext context) {
+    final current = budget;
+    final progress = current?.progress ?? 0;
+    final percentage = (progress * 100).round();
+    final month = DateFormat('MMMM', 'pt_BR').format(DateTime.now());
+
+    return _OrbitCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(16),
+      borderRadius: 24,
+      child: Row(
+        children: [
+          _IconTile(
+            icon: Icons.pie_chart_rounded,
+            color: DuoColors.orbitAccent,
+            size: 36,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'Orçamento de $month',
+                    style: const TextStyle(
+                      color: DuoColors.orbitTextSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        isLoading
+                            ? 'Carregando...'
+                            : current == null
+                                ? 'Nenhum orçamento ativo'
+                                : '${_money(current.spentAmount)} de ${_money(current.limitAmount)}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: DuoColors.orbitTextPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$percentage%',
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                _ProgressBar(
+                  progress: progress,
+                  color: DuoColors.orbitAccent,
+                  height: 5,
+                ),
+              ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvoiceCard extends StatelessWidget {
+  final OrbitInvoiceSummary? invoice;
+  final VoidCallback onTap;
+
+  const _InvoiceCard({required this.invoice, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final current = invoice;
+    final today = DateTime.now();
+    final days = current == null
+        ? null
+        : DateUtils.dateOnly(current.dueDate)
+            .difference(DateUtils.dateOnly(today))
+            .inDays;
+    final countLabel = current?.invoiceCount.toString() ?? '—';
+    final title = current == null
+        ? 'Nenhuma conta próxima'
+        : current.invoiceCount == 1
+            ? 'conta a vencer'
+            : 'contas a vencer';
+    final detail = current == null
+        ? 'Calendário em dia'
+        : days == 0
+            ? 'Hoje: ${_money(current.total)}'
+            : days == 1
+                ? 'Amanhã: ${_money(current.total)}'
+                : 'Em ${days ?? 0} dias: ${_money(current.total)}';
+
+    return _OrbitCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(14),
+      borderRadius: 24,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _IconTile(
+            icon: Icons.calendar_month_rounded,
+            color: const Color(0xFF38BDF8),
+            size: 32,
+            borderRadius: 8,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            countLabel,
+            style: const TextStyle(
+              color: DuoColors.orbitTextPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            title,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 13,
+              height: 1.3,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            detail,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoalCard extends StatelessWidget {
+  final OrbitGoalSummary? goal;
+  final VoidCallback onTap;
+
+  const _GoalCard({required this.goal, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final current = goal;
+    final progress = current?.progress ?? 0;
+    return _OrbitCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(14),
+      borderRadius: 24,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _IconTile(
+            icon: Icons.track_changes_rounded,
+            color: DuoColors.success,
+            size: 32,
+            borderRadius: 8,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            current == null ? 'Sem meta ativa' : 'Meta em andamento',
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            current?.name ?? 'Nenhuma meta ativa',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: DuoColors.orbitTextPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            current == null ? '—' : '${(progress * 100).round()}% concluído',
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _ProgressBar(progress: progress, color: DuoColors.success, height: 5),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final double size;
+  final double borderRadius;
+  final double? iconSize;
+
+  const _IconTile({
+    required this.icon,
+    required this.color,
+    this.size = 34,
+    this.borderRadius = 10,
+    this.iconSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .13),
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+      child: Icon(icon, color: color, size: iconSize ?? (size == 32 ? 18 : 20)),
+    );
+  }
+}
+
+class _ProgressBar extends StatelessWidget {
+  final double progress;
+  final Color color;
+
+  final double height;
+
+  const _ProgressBar({
+    required this.progress,
+    required this.color,
+    this.height = 4,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(99),
+      child: SizedBox(
+        height: height,
+        child: LinearProgressIndicator(
+          value: progress.clamp(0.0, 1.0),
+          backgroundColor: DuoColors.orbitBorder,
+          valueColor: AlwaysStoppedAnimation(color),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
   final String title;
   final String? actionLabel;
   final VoidCallback? onAction;
+
   const _SectionTitle({required this.title, this.actionLabel, this.onAction});
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: DuoColors.textPrimary,
-            letterSpacing: -.35,
-          ),
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const _IconTile(
+          icon: Icons.bolt_rounded,
+          color: DuoColors.orbitAccent,
+          size: 28,
+          borderRadius: 8,
+          iconSize: 16,
         ),
-      ),
-      if (actionLabel != null)
-        TextButton(
-          onPressed: onAction,
+        const SizedBox(width: 8),
+        Expanded(
           child: Text(
-            actionLabel!,
+            title,
             style: const TextStyle(
-              color: DuoColors.primaryLight,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
+              color: DuoColors.orbitTextPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),
-    ],
-  );
+        if (actionLabel != null)
+          TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+            ),
+            child: Text(
+              actionLabel!,
+              style: const TextStyle(
+                color: DuoColors.orbitAccent,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
-class _NewTransactionButton extends StatelessWidget {
-  final VoidCallback onPressed;
-  const _NewTransactionButton({required this.onPressed});
+class _EmptyInsightCard extends StatelessWidget {
+  const _EmptyInsightCard();
 
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      gradient: DuoColors.primaryGradient,
-      borderRadius: BorderRadius.circular(18),
-      boxShadow: DuoColors.primaryGlow,
-    ),
-    child: Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onPressed,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.add_rounded, size: 21, color: DuoColors.textPrimary),
-              SizedBox(width: 8),
-              Text(
-                'Nova transação',
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 76,
+      child: _OrbitCard(
+        borderRadius: 24,
+        child: Row(
+          children: [
+            Icon(Icons.lightbulb_outline_rounded, color: Color(0xFFFFCC66)),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Conecte uma carteira para receber insights financeiros.',
                 style: TextStyle(
-                  color: DuoColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
+                  color: Color(0xFF98A2B3),
+                  fontSize: 11,
+                  height: 1.35,
                 ),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrbitBackdrop extends StatelessWidget {
+  const _OrbitBackdrop();
+
+  static const _heroImageUrl =
+      'https://dimg.dreamflow.cloud/v1/image/dark%20landscape%20with%20distant%20mountains%20and%20sunset%20glow';
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: SizedBox(
+        height: 320,
+        width: double.infinity,
+        child: Opacity(
+          opacity: .4,
+          child: Image.network(
+            _heroImageUrl,
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
+}
+
+class _OrbitBottomNavigation extends StatelessWidget {
+  final VoidCallback onHome;
+  final VoidCallback onFinance;
+  final VoidCallback onRoutines;
+  final VoidCallback onAi;
+
+  const _OrbitBottomNavigation({
+    required this.onHome,
+    required this.onFinance,
+    required this.onRoutines,
+    required this.onAi,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: DuoColors.orbitSurface.withValues(alpha: .92),
+              border: const Border(top: BorderSide(color: DuoColors.orbitBorder)),
+            ),
+            child: Row(
+              children: [
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.home_rounded,
+                        label: 'Início',
+                        active: true,
+                        onTap: onHome,
+                      ),
+                    ),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.account_balance_wallet_rounded,
+                        label: 'Finanças',
+                        onTap: onFinance,
+                      ),
+                    ),
+                    const Expanded(child: SizedBox()),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.task_alt_rounded,
+                        label: 'Rotinas',
+                        onTap: onRoutines,
+                      ),
+                    ),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.auto_awesome_rounded,
+                        label: 'IA',
+                        onTap: onAi,
+                      ),
+                    ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    this.active = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? DuoColors.success : DuoColors.orbitTextSecondary;
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: active
+                ? const EdgeInsets.symmetric(horizontal: 12, vertical: 4)
+                : EdgeInsets.zero,
+            decoration: BoxDecoration(
+              color: active ? DuoColors.success.withValues(alpha: .14) : null,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreateButton extends StatelessWidget {
+  final VoidCallback? onTap;
+
+  const _CreateButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        color: onTap == null ? const Color(0xFF566070) : DuoColors.success,
+        shape: BoxShape.circle,
+        boxShadow: onTap == null
+            ? null
+            : const [
+                BoxShadow(
+                  color: Color(0x553DDC97),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                ),
+              ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: const Icon(Icons.add_rounded, color: Color(0xFF071109), size: 28),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickCreateMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _QuickCreateMenuItem({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 128,
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(
+              color: DuoColors.orbitTextPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FinanceShortcut extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _FinanceShortcut({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, color: DuoColors.primaryLight),
+      title: Text(label),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: onTap,
+    );
+  }
 }
 
 class _PremiumLoadingState extends StatelessWidget {
   const _PremiumLoadingState();
+
   @override
-  Widget build(BuildContext context) =>
-      const Center(child: CircularProgressIndicator(color: DuoColors.primary));
+  Widget build(BuildContext context) {
+    return const Center(
+      child: CircularProgressIndicator(color: Color(0xFF9EEA8A)),
+    );
+  }
 }

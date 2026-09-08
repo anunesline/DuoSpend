@@ -3,6 +3,23 @@ class HouseholdScopeId {
 
   static String personal(String userId) => 'user:${userId.trim()}';
 
+  static String forContext({
+    required String currentUserId,
+    required bool isShared,
+    required Iterable<String> memberIds,
+  }) {
+    final members = memberIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    if (isShared &&
+        members.length >= 2 &&
+        members.contains(currentUserId.trim())) {
+      return shared(members);
+    }
+    return personal(currentUserId);
+  }
+
   static String shared(Iterable<String> memberIds) {
     final members = memberIds
         .map((id) => id.trim())
@@ -14,5 +31,23 @@ class HouseholdScopeId {
       throw ArgumentError('Uma casa compartilhada precisa de ao menos 2 membros.');
     }
     return 'household:${members.join('|')}';
+  }
+
+  static List<String> members(String scopeId) {
+    final normalized = scopeId.trim();
+    if (normalized.startsWith('user:')) {
+      final userId = normalized.substring('user:'.length).trim();
+      return userId.isEmpty ? const [] : [userId];
+    }
+    if (!normalized.startsWith('household:')) return const [];
+    final members = normalized
+        .substring('household:'.length)
+        .split('|')
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return List.unmodifiable(members);
   }
 }

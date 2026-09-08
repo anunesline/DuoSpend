@@ -3,6 +3,23 @@ import 'package:flutter/material.dart';
 class DuoColors {
   DuoColors._();
 
+  // Orbit V3.2
+  static const orbitBackground = Color(0xFF080B12);
+  static const orbitSurface = Color(0xFF111622);
+  static const orbitCardSurface = Color(0xE8111622);
+  static const orbitBorder = Color(0xFF20283A);
+  static const orbitTextPrimary = Color(0xFFF6F8FB);
+  static const orbitTextSecondary = Color(0xFF98A2B3);
+  static const orbitAccent = Color(0xFFA782FF);
+
+  static const orbitCardShadow = [
+    BoxShadow(
+      color: Color(0x33000000),
+      blurRadius: 16,
+      offset: Offset(0, 8),
+    ),
+  ];
+
   // Backgrounds
   static const background = Color(0xFF0D0F14);
   static const surface = Color(0xFF171A22);

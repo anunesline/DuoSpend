@@ -44,12 +44,15 @@ class HouseholdRoutineService {
   Future<HouseholdTask?> completeTask({
     required String taskId,
     required DateTime completedAt,
+    String? completedByUserId,
   }) async {
     final task = await taskRepository.getTaskById(taskId);
     if (task == null) throw StateError('Household task not found: $taskId');
     if (!task.isPending) return null;
 
-    await taskRepository.saveTask(task.complete(completedAt));
+    await taskRepository.saveTask(
+      task.complete(completedAt, completedByUserId: completedByUserId),
+    );
 
     if (!task.belongsToRoutine) {
       if (!task.isRecurring) return null;
@@ -64,6 +67,9 @@ class HouseholdRoutineService {
         status: HouseholdTaskStatus.pending,
         dueAt: nextDueAt,
         repeatEveryDays: task.repeatEveryDays,
+        listId: task.listId,
+        taskCategory: task.taskCategory,
+        reminderMinutesBefore: task.reminderMinutesBefore,
         createdAt: completedAt,
         updatedAt: completedAt,
         previousTaskId: task.id,

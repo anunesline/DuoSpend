@@ -1,13 +1,6 @@
-enum HouseholdTaskStatus {
-  pending,
-  completed,
-  cancelled,
-}
+enum HouseholdTaskStatus { pending, completed, cancelled }
 
-enum HouseholdTaskScope {
-  personal,
-  shared,
-}
+enum HouseholdTaskScope { personal, shared }
 
 class HouseholdTask {
   final String id;
@@ -22,6 +15,13 @@ class HouseholdTask {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? completedAt;
+  final String? completedByUserId;
+  final String? listId;
+  final String? taskCategory;
+  final int? reminderMinutesBefore;
+  final DateTime? lastRemindedAt;
+  final String? lastRemindedByUserId;
+  final DateTime? markedOverdueAt;
   final String? routineId;
   final int? routineStepIndex;
   final String? previousTaskId;
@@ -39,6 +39,13 @@ class HouseholdTask {
     this.dueAt,
     this.repeatEveryDays,
     this.completedAt,
+    this.completedByUserId,
+    this.listId,
+    this.taskCategory,
+    this.reminderMinutesBefore,
+    this.lastRemindedAt,
+    this.lastRemindedByUserId,
+    this.markedOverdueAt,
     this.routineId,
     this.routineStepIndex,
     this.previousTaskId,
@@ -49,12 +56,14 @@ class HouseholdTask {
   bool get isCancelled => status == HouseholdTaskStatus.cancelled;
   bool get belongsToRoutine => routineId != null && routineStepIndex != null;
   bool get isRecurring => repeatEveryDays != null && repeatEveryDays! > 0;
+  bool get isManuallyMarkedOverdue => isPending && markedOverdueAt != null;
 
-  HouseholdTask complete(DateTime completedAt) {
+  HouseholdTask complete(DateTime completedAt, {String? completedByUserId}) {
     if (!isPending) return this;
     return copyWith(
       status: HouseholdTaskStatus.completed,
       completedAt: completedAt,
+      completedByUserId: completedByUserId,
       updatedAt: completedAt,
     );
   }
@@ -80,6 +89,13 @@ class HouseholdTask {
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? completedAt,
+    String? completedByUserId,
+    String? listId,
+    String? taskCategory,
+    int? reminderMinutesBefore,
+    DateTime? lastRemindedAt,
+    String? lastRemindedByUserId,
+    DateTime? markedOverdueAt,
     String? routineId,
     int? routineStepIndex,
     String? previousTaskId,
@@ -97,6 +113,14 @@ class HouseholdTask {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       completedAt: completedAt ?? this.completedAt,
+      completedByUserId: completedByUserId ?? this.completedByUserId,
+      listId: listId ?? this.listId,
+      taskCategory: taskCategory ?? this.taskCategory,
+      reminderMinutesBefore:
+          reminderMinutesBefore ?? this.reminderMinutesBefore,
+      lastRemindedAt: lastRemindedAt ?? this.lastRemindedAt,
+      lastRemindedByUserId: lastRemindedByUserId ?? this.lastRemindedByUserId,
+      markedOverdueAt: markedOverdueAt ?? this.markedOverdueAt,
       routineId: routineId ?? this.routineId,
       routineStepIndex: routineStepIndex ?? this.routineStepIndex,
       previousTaskId: previousTaskId ?? this.previousTaskId,
@@ -104,22 +128,29 @@ class HouseholdTask {
   }
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'scopeId': scopeId,
-        'scope': scope.name,
-        'title': title,
-        'notes': notes,
-        'assigneeId': assigneeId,
-        'status': status.name,
-        'dueAt': dueAt?.toIso8601String(),
-        'repeatEveryDays': repeatEveryDays,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'completedAt': completedAt?.toIso8601String(),
-        'routineId': routineId,
-        'routineStepIndex': routineStepIndex,
-        'previousTaskId': previousTaskId,
-      };
+    'id': id,
+    'scopeId': scopeId,
+    'scope': scope.name,
+    'title': title,
+    'notes': notes,
+    'assigneeId': assigneeId,
+    'status': status.name,
+    'dueAt': dueAt?.toIso8601String(),
+    'repeatEveryDays': repeatEveryDays,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'completedAt': completedAt?.toIso8601String(),
+    'completedByUserId': completedByUserId,
+    'listId': listId,
+    'taskCategory': taskCategory,
+    'reminderMinutesBefore': reminderMinutesBefore,
+    'lastRemindedAt': lastRemindedAt?.toIso8601String(),
+    'lastRemindedByUserId': lastRemindedByUserId,
+    'markedOverdueAt': markedOverdueAt?.toIso8601String(),
+    'routineId': routineId,
+    'routineStepIndex': routineStepIndex,
+    'previousTaskId': previousTaskId,
+  };
 
   factory HouseholdTask.fromMap(Map<String, dynamic> map) {
     return HouseholdTask(
@@ -135,6 +166,13 @@ class HouseholdTask {
       createdAt: _dateFromValue(map['createdAt']) ?? DateTime.now(),
       updatedAt: _dateFromValue(map['updatedAt']) ?? DateTime.now(),
       completedAt: _dateFromValue(map['completedAt']),
+      completedByUserId: map['completedByUserId']?.toString(),
+      listId: map['listId']?.toString(),
+      taskCategory: map['taskCategory']?.toString(),
+      reminderMinutesBefore: _intFromValue(map['reminderMinutesBefore']),
+      lastRemindedAt: _dateFromValue(map['lastRemindedAt']),
+      lastRemindedByUserId: map['lastRemindedByUserId']?.toString(),
+      markedOverdueAt: _dateFromValue(map['markedOverdueAt']),
       routineId: map['routineId']?.toString(),
       routineStepIndex: _intFromValue(map['routineStepIndex']),
       previousTaskId: map['previousTaskId']?.toString(),
