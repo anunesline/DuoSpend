@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -441,41 +443,62 @@ class _HomePageState extends State<HomePage> {
   Future<void> _showQuickCreateMenu() async {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
+    final bottomGap = MediaQuery.paddingOf(context).bottom + 72;
 
     final result = await showMenu<String>(
       context: context,
-      color: const Color(0xFF111622),
+      color: DuoColors.orbitSurface,
       elevation: 18,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: Color(0xFF20283A)),
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: DuoColors.orbitBorder),
       ),
       position: RelativeRect.fromLTRB(
-        42,
-        overlay.size.height - 360,
-        overlay.size.width - 226,
-        88,
+        16,
+        overlay.size.height - bottomGap - 290,
+        16,
+        bottomGap,
       ),
       items: const [
         PopupMenuItem(
           value: 'transaction',
-          child: _QuickCreateMenuItem(emoji: '💸', label: 'Nova transação'),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: _QuickCreateMenuItem(
+            icon: Icons.receipt_long_rounded,
+            label: 'Nova transação',
+          ),
         ),
         PopupMenuItem(
           value: 'income',
-          child: _QuickCreateMenuItem(emoji: '💰', label: 'Receita'),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: _QuickCreateMenuItem(
+            icon: Icons.trending_up_rounded,
+            label: 'Receita',
+          ),
         ),
         PopupMenuItem(
           value: 'scan',
-          child: _QuickCreateMenuItem(emoji: '🧾', label: 'Escanear compra'),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: _QuickCreateMenuItem(
+            icon: Icons.document_scanner_outlined,
+            label: 'Escanear compra',
+          ),
         ),
         PopupMenuItem(
           value: 'goal',
-          child: _QuickCreateMenuItem(emoji: '🎯', label: 'Nova meta'),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: _QuickCreateMenuItem(
+            icon: Icons.savings_outlined,
+            label: 'Nova meta',
+          ),
         ),
         PopupMenuItem(
           value: 'task',
-          child: _QuickCreateMenuItem(emoji: '✅', label: 'Nova tarefa'),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: _QuickCreateMenuItem(
+            icon: Icons.task_alt_rounded,
+            label: 'Nova tarefa',
+          ),
         ),
       ],
     );
@@ -509,7 +532,7 @@ class _HomePageState extends State<HomePage> {
         final summary = orbitController.summary;
 
         return Scaffold(
-          backgroundColor: const Color(0xFF080B12),
+          backgroundColor: DuoColors.orbitBackground,
           extendBody: true,
           bottomNavigationBar: _OrbitBottomNavigation(
             onHome: () {},
@@ -531,7 +554,7 @@ class _HomePageState extends State<HomePage> {
                         onRefresh: _loadHome,
                         child: SingleChildScrollView(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(18, 13, 18, 112),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -541,14 +564,16 @@ class _HomePageState extends State<HomePage> {
                                   'Você não tem novas notificações.',
                                 ),
                               ),
-                              const SizedBox(height: 22),
-                              _GreetingBlock(
-                                greeting: _greeting,
-                                userName: controller.userName,
-                                emoji: _greetingEmoji,
-                                subtitle: _questionCopy,
+                              Padding(
+                                padding: const EdgeInsets.only(top: 16),
+                                child: _GreetingBlock(
+                                  greeting: _greeting,
+                                  userName: controller.userName,
+                                  emoji: _greetingEmoji,
+                                  subtitle: _questionCopy,
+                                ),
                               ),
-                              const SizedBox(height: 18),
+                              const SizedBox(height: 20),
                               _BalanceCard(
                                 balance: wallet?.balance ?? 0,
                                 income: controller.totalIncome,
@@ -569,7 +594,7 @@ class _HomePageState extends State<HomePage> {
                                       onTap: _openFinancialCalendarPage,
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
+                                  const SizedBox(width: 12),
                                   Expanded(
                                     child: _GoalCard(
                                       goal: summary.goal,
@@ -584,7 +609,7 @@ class _HomePageState extends State<HomePage> {
                                 actionLabel: wallet == null ? null : 'Ver tudo',
                                 onAction: wallet == null ? null : _openInsightsPage,
                               ),
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 12),
                               if (wallet != null)
                                 OrbitInsightCard(
                                   wallet: wallet,
@@ -620,22 +645,30 @@ class _OrbitHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasPhoto = photoUrl != null && photoUrl!.trim().isNotEmpty;
     return SizedBox(
-      height: 48,
+      height: 44,
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 19,
-            backgroundColor: const Color(0xFF161C29),
-            backgroundImage: hasPhoto ? NetworkImage(photoUrl!) : null,
-            child: hasPhoto
-                ? null
-                : const Icon(
-                    Icons.person_rounded,
-                    size: 19,
-                    color: Color(0xFF98A2B3),
-                  ),
+          Container(
+            width: 40,
+            height: 40,
+            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(
+              color: DuoColors.orbitBorder,
+              shape: BoxShape.circle,
+            ),
+            child: CircleAvatar(
+              backgroundColor: DuoColors.orbitSurface,
+              backgroundImage: hasPhoto ? NetworkImage(photoUrl!) : null,
+              child: hasPhoto
+                  ? null
+                  : const Icon(
+                      Icons.person_rounded,
+                      size: 19,
+                      color: DuoColors.orbitTextSecondary,
+                    ),
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           const Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -649,10 +682,10 @@ class _OrbitHeader extends StatelessWidget {
                     Text(
                       'Orbit',
                       style: TextStyle(
-                        color: Color(0xFFF6F8FB),
-                        fontSize: 19,
+                        color: DuoColors.orbitTextPrimary,
+                        fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -.35,
+                        letterSpacing: .5,
                         height: 1,
                       ),
                     ),
@@ -662,40 +695,46 @@ class _OrbitHeader extends StatelessWidget {
                 Text(
                   'Organize. Planeje. Conquiste.',
                   style: TextStyle(
-                    color: Color(0xFF98A2B3),
-                    fontSize: 9,
+                    color: DuoColors.orbitTextSecondary,
+                    fontSize: 10,
                     fontWeight: FontWeight.w500,
-                    letterSpacing: .15,
+                    letterSpacing: .3,
                     height: 1,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Stack(
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: Stack(
             clipBehavior: Clip.none,
             children: [
               IconButton(
                 onPressed: onNotifications,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(width: 40, height: 40),
                 icon: const Icon(
                   Icons.notifications_none_rounded,
-                  color: Color(0xFFF6F8FB),
-                  size: 24,
+                  color: DuoColors.orbitTextPrimary,
+                  size: 22,
                 ),
               ),
               const Positioned(
-                right: 9,
-                top: 7,
+                right: 3,
+                top: 2,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: Color(0xFF9EEA8A),
+                    color: DuoColors.success,
                     shape: BoxShape.circle,
                   ),
-                  child: SizedBox(width: 7, height: 7),
+                  child: SizedBox(width: 8, height: 8),
                 ),
               ),
             ],
+            ),
           ),
         ],
       ),
@@ -709,22 +748,22 @@ class _OrbitMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 20,
-      height: 20,
+      width: 28,
+      height: 28,
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFA782FF), Color(0xFF72B9FF), Color(0xFF9EEA8A)],
+          colors: [Color(0xFFA782FF), Color(0xFF72B9FF), DuoColors.success],
         ),
       ),
       alignment: Alignment.center,
       child: Container(
-        width: 10,
-        height: 10,
+        width: 12,
+        height: 12,
         decoration: const BoxDecoration(
-          color: Color(0xFF080B12),
+          color: DuoColors.orbitBackground,
           shape: BoxShape.circle,
         ),
       ),
@@ -753,19 +792,19 @@ class _GreetingBlock extends StatelessWidget {
         Text(
           '$greeting, $userName! $emoji',
           style: const TextStyle(
-            color: Color(0xFFF6F8FB),
-            fontSize: 21,
-            fontWeight: FontWeight.w800,
+            color: DuoColors.orbitTextPrimary,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
             letterSpacing: -.35,
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 4),
         Text(
           subtitle,
           style: const TextStyle(
-            color: Color(0xFF98A2B3),
-            fontSize: 12.5,
-            height: 1.35,
+            color: DuoColors.orbitTextSecondary,
+            fontSize: 14,
+            height: 1.5,
           ),
         ),
       ],
@@ -790,19 +829,13 @@ class _OrbitCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(19),
+        borderRadius: BorderRadius.circular(16),
         child: Ink(
           decoration: BoxDecoration(
             color: const Color(0xE8111622),
-            borderRadius: BorderRadius.circular(19),
-            border: Border.all(color: const Color(0xFF20283A)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 16,
-                offset: Offset(0, 8),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: DuoColors.orbitBorder),
+            boxShadow: DuoColors.orbitCardShadow,
           ),
           child: Padding(padding: padding, child: child),
         ),
@@ -825,101 +858,119 @@ class _BalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final monthResult = income - expense;
-    return SizedBox(
-      height: 116,
-      child: _OrbitCard(
+    return _OrbitCard(
+      padding: EdgeInsets.zero,
+      child: IntrinsicHeight(
         child: Row(
           children: [
             Expanded(
               flex: 56,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Saldo disponível',
-                    style: TextStyle(color: Color(0xFF98A2B3), fontSize: 11.5),
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          _money(balance),
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFFF6F8FB),
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -.6,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Saldo disponível',
+                      style: TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            _money(balance),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: DuoColors.orbitTextPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -.6,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(
-                        Icons.visibility_outlined,
-                        color: Color(0xFF98A2B3),
-                        size: 17,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        monthResult >= 0
-                            ? Icons.arrow_upward_rounded
-                            : Icons.arrow_downward_rounded,
-                        color: monthResult >= 0
-                            ? const Color(0xFF9EEA8A)
-                            : const Color(0xFFFF8A8A),
-                        size: 14,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'Resultado do mês ${_money(monthResult.abs())}',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: monthResult >= 0
-                                ? const Color(0xFF9EEA8A)
-                                : const Color(0xFFFF8A8A),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.visibility_outlined,
+                          color: DuoColors.orbitTextSecondary,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          monthResult >= 0
+                              ? Icons.arrow_upward_rounded
+                              : Icons.arrow_downward_rounded,
+                          color: monthResult >= 0
+                              ? DuoColors.success
+                              : const Color(0xFFFF8A8A),
+                          size: 12,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Resultado do mês ${_money(monthResult.abs())}',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: monthResult >= 0
+                                  ? DuoColors.success
+                                  : const Color(0xFFFF8A8A),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(width: 12),
-            Container(width: 1, height: 70, color: const Color(0xFF20283A)),
-            const SizedBox(width: 14),
+            Container(
+              width: 1,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              color: DuoColors.orbitBorder,
+            ),
             Expanded(
               flex: 44,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Saldo previsto',
-                    style: TextStyle(color: Color(0xFF98A2B3), fontSize: 10.5),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _money(balance),
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFFF6F8FB),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Saldo previsto',
+                      style: TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 12,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  const _ProgressBar(progress: .72, color: Color(0xFF9EEA8A)),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      _money(balance),
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const _ProgressBar(
+                      progress: .72,
+                      color: DuoColors.success,
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -947,63 +998,63 @@ class _BudgetCard extends StatelessWidget {
     final percentage = (progress * 100).round();
     final month = DateFormat('MMMM', 'pt_BR').format(DateTime.now());
 
-    return SizedBox(
-      height: 78,
-      child: _OrbitCard(
-        onTap: onTap,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            _IconTile(
-              icon: Icons.pie_chart_rounded,
-              color: const Color(0xFFA782FF),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Orçamento de $month',
-                    style: const TextStyle(
-                      color: Color(0xFFF6F8FB),
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                    ),
+    return _OrbitCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          _IconTile(
+            icon: Icons.pie_chart_rounded,
+            color: DuoColors.orbitAccent,
+            size: 36,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Orçamento de $month',
+                  style: const TextStyle(
+                    color: DuoColors.orbitTextPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isLoading
-                        ? 'Carregando...'
-                        : current == null
-                            ? 'Nenhum orçamento ativo'
-                            : '${_money(current.spentAmount)} de ${_money(current.limitAmount)}',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF98A2B3),
-                      fontSize: 10.5,
-                    ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isLoading
+                      ? 'Carregando...'
+                      : current == null
+                          ? 'Nenhum orçamento ativo'
+                          : '${_money(current.spentAmount)} de ${_money(current.limitAmount)}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: DuoColors.orbitTextSecondary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(height: 7),
-                  _ProgressBar(
-                    progress: progress,
-                    color: const Color(0xFFA782FF),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 12),
+                _ProgressBar(
+                  progress: progress,
+                  color: DuoColors.orbitAccent,
+                  height: 8,
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Text(
-              '$percentage%',
-              style: const TextStyle(
-                color: Color(0xFF9EEA8A),
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '$percentage%',
+            style: const TextStyle(
+              color: DuoColors.success,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1024,12 +1075,13 @@ class _InvoiceCard extends StatelessWidget {
         : DateUtils.dateOnly(current.dueDate)
             .difference(DateUtils.dateOnly(today))
             .inDays;
+    final countLabel = current?.invoiceCount.toString() ?? '—';
     final title = current == null
         ? 'Nenhuma conta próxima'
         : current.invoiceCount == 1
-            ? '1 conta a vencer'
-            : '${current.invoiceCount} contas a vencer';
-    final subtitle = current == null
+            ? 'conta a vencer'
+            : 'contas a vencer';
+    final detail = current == null
         ? 'Calendário em dia'
         : days == 0
             ? 'Hoje: ${_money(current.total)}'
@@ -1037,33 +1089,48 @@ class _InvoiceCard extends StatelessWidget {
                 ? 'Amanhã: ${_money(current.total)}'
                 : 'Em ${days ?? 0} dias: ${_money(current.total)}';
 
-    return SizedBox(
-      height: 96,
-      child: _OrbitCard(
-        onTap: onTap,
-        padding: const EdgeInsets.all(13),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _IconTile(icon: Icons.calendar_month_rounded, color: Color(0xFF72B9FF), size: 30),
-            const Spacer(),
-            Text(
-              title,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFFF6F8FB),
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-              ),
+    return _OrbitCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _IconTile(
+            icon: Icons.calendar_month_rounded,
+            color: const Color(0xFF38BDF8),
+            size: 32,
+            borderRadius: 8,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            countLabel,
+            style: const TextStyle(
+              color: DuoColors.orbitTextPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
             ),
-            const SizedBox(height: 3),
-            Text(
-              subtitle,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFF98A2B3), fontSize: 9.5),
+          ),
+          Text(
+            title,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 13,
+              height: 1.3,
+              fontWeight: FontWeight.w500,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            detail,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1079,47 +1146,49 @@ class _GoalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = goal;
     final progress = current?.progress ?? 0;
-    return SizedBox(
-      height: 96,
-      child: _OrbitCard(
-        onTap: onTap,
-        padding: const EdgeInsets.all(13),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _IconTile(icon: Icons.track_changes_rounded, color: Color(0xFF9EEA8A), size: 30),
-            const Spacer(),
-            Text(
-              current?.name ?? 'Nenhuma meta ativa',
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFFF6F8FB),
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-              ),
+    return _OrbitCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _IconTile(
+            icon: Icons.track_changes_rounded,
+            color: DuoColors.success,
+            size: 32,
+            borderRadius: 8,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            current == null ? 'Sem meta ativa' : 'Meta em andamento',
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
             ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: _ProgressBar(
-                    progress: progress,
-                    color: const Color(0xFF9EEA8A),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Text(
-                  current == null ? '—' : '${(progress * 100).round()}%',
-                  style: const TextStyle(
-                    color: Color(0xFF98A2B3),
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            current?.name ?? 'Nenhuma meta ativa',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: DuoColors.orbitTextPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            current == null ? '—' : '${(progress * 100).round()}% concluído',
+            style: const TextStyle(
+              color: DuoColors.orbitTextSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _ProgressBar(progress: progress, color: DuoColors.success, height: 5),
+        ],
       ),
     );
   }
@@ -1129,8 +1198,16 @@ class _IconTile extends StatelessWidget {
   final IconData icon;
   final Color color;
   final double size;
+  final double borderRadius;
+  final double? iconSize;
 
-  const _IconTile({required this.icon, required this.color, this.size = 34});
+  const _IconTile({
+    required this.icon,
+    required this.color,
+    this.size = 34,
+    this.borderRadius = 10,
+    this.iconSize,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1139,9 +1216,9 @@ class _IconTile extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: color.withValues(alpha: .13),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(borderRadius),
       ),
-      child: Icon(icon, color: color, size: size * .53),
+      child: Icon(icon, color: color, size: iconSize ?? (size == 32 ? 18 : 20)),
     );
   }
 }
@@ -1150,17 +1227,23 @@ class _ProgressBar extends StatelessWidget {
   final double progress;
   final Color color;
 
-  const _ProgressBar({required this.progress, required this.color});
+  final double height;
+
+  const _ProgressBar({
+    required this.progress,
+    required this.color,
+    this.height = 4,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(99),
       child: SizedBox(
-        height: 4,
+        height: height,
         child: LinearProgressIndicator(
           value: progress.clamp(0.0, 1.0),
-          backgroundColor: const Color(0xFF20283A),
+          backgroundColor: DuoColors.orbitBorder,
           valueColor: AlwaysStoppedAnimation(color),
         ),
       ),
@@ -1179,14 +1262,20 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.bolt_rounded, color: Color(0xFFA782FF), size: 21),
-        const SizedBox(width: 7),
+        const _IconTile(
+          icon: Icons.bolt_rounded,
+          color: DuoColors.orbitAccent,
+          size: 28,
+          borderRadius: 8,
+          iconSize: 16,
+        ),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             title,
             style: const TextStyle(
-              color: Color(0xFFF6F8FB),
-              fontSize: 15.5,
+              color: DuoColors.orbitTextPrimary,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1201,8 +1290,8 @@ class _SectionTitle extends StatelessWidget {
             child: Text(
               actionLabel!,
               style: const TextStyle(
-                color: Color(0xFFA782FF),
-                fontSize: 11,
+                color: DuoColors.orbitAccent,
+                fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1246,15 +1335,16 @@ class _OrbitBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final heroHeight = MediaQuery.sizeOf(context).height * .35;
     return IgnorePointer(
       child: Stack(
         children: [
-          Container(color: const Color(0xFF080B12)),
+          Container(color: DuoColors.orbitBackground),
           Positioned(
-            top: 20,
+            top: 0,
             left: -40,
             right: -20,
-            height: 260,
+            height: heroHeight,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
@@ -1269,11 +1359,26 @@ class _OrbitBackdrop extends StatelessWidget {
               ),
             ),
           ),
-          const Positioned(
-            top: 118,
+          Positioned(
+            top: 0,
             left: 0,
             right: 0,
-            height: 150,
+            height: heroHeight,
+            child: const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, DuoColors.orbitBackground],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: heroHeight * .45,
+            left: 0,
+            right: 0,
+            height: heroHeight * .55,
             child: CustomPaint(painter: _OrbitHorizonPainter()),
           ),
         ],
@@ -1329,36 +1434,58 @@ class _OrbitBottomNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-      child: Container(
-        height: 72,
-        decoration: BoxDecoration(
-          color: const Color(0xF2111622),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFF20283A)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x4D000000),
-              blurRadius: 22,
-              offset: Offset(0, 10),
+      top: false,
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: DuoColors.orbitSurface.withValues(alpha: .92),
+              border: const Border(top: BorderSide(color: DuoColors.orbitBorder)),
             ),
-          ],
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            Row(
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
               children: [
-                Expanded(child: _NavItem(icon: Icons.home_rounded, label: 'Início', active: true, onTap: onHome)),
-                Expanded(child: _NavItem(icon: Icons.account_balance_wallet_rounded, label: 'Finanças', onTap: onFinance)),
-                const Expanded(child: SizedBox()),
-                Expanded(child: _NavItem(icon: Icons.task_alt_rounded, label: 'Rotinas', onTap: onRoutines)),
-                Expanded(child: _NavItem(icon: Icons.auto_awesome_rounded, label: 'IA', onTap: onAi)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.home_rounded,
+                        label: 'Início',
+                        active: true,
+                        onTap: onHome,
+                      ),
+                    ),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.account_balance_wallet_rounded,
+                        label: 'Finanças',
+                        onTap: onFinance,
+                      ),
+                    ),
+                    const Expanded(child: SizedBox()),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.task_alt_rounded,
+                        label: 'Rotinas',
+                        onTap: onRoutines,
+                      ),
+                    ),
+                    Expanded(
+                      child: _NavItem(
+                        icon: Icons.auto_awesome_rounded,
+                        label: 'IA',
+                        onTap: onAi,
+                      ),
+                    ),
+                  ],
+                ),
+                Positioned(top: -16, child: _CreateButton(onTap: onCreate)),
               ],
             ),
-            Positioned(top: -7, child: _CreateButton(onTap: onCreate)),
-          ],
+          ),
         ),
       ),
     );
@@ -1380,38 +1507,33 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? const Color(0xFF9EEA8A) : const Color(0xFF98A2B3);
+    final color = active ? DuoColors.success : DuoColors.orbitTextSecondary;
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 10, bottom: 7),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 9.5,
-                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-              ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: active
+                ? const EdgeInsets.symmetric(horizontal: 12, vertical: 4)
+                : EdgeInsets.zero,
+            decoration: BoxDecoration(
+              color: active ? DuoColors.success.withValues(alpha: .14) : null,
+              borderRadius: BorderRadius.circular(20),
             ),
-            if (active) ...[
-              const SizedBox(height: 3),
-              Container(
-                width: 22,
-                height: 2,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF9EEA8A),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-            ],
-          ],
-        ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1425,16 +1547,16 @@ class _CreateButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 48,
-      height: 48,
+      width: 52,
+      height: 52,
       decoration: BoxDecoration(
-        color: onTap == null ? const Color(0xFF566070) : const Color(0xFF9EEA8A),
+        color: onTap == null ? const Color(0xFF566070) : DuoColors.success,
         shape: BoxShape.circle,
         boxShadow: onTap == null
             ? null
             : const [
                 BoxShadow(
-                  color: Color(0x559EEA8A),
+                  color: Color(0x553DDC97),
                   blurRadius: 18,
                   spreadRadius: 1,
                 ),
@@ -1446,7 +1568,7 @@ class _CreateButton extends StatelessWidget {
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
-          child: const Icon(Icons.add_rounded, color: Color(0xFF071109), size: 30),
+          child: const Icon(Icons.add_rounded, color: Color(0xFF071109), size: 28),
         ),
       ),
     );
@@ -1454,23 +1576,31 @@ class _CreateButton extends StatelessWidget {
 }
 
 class _QuickCreateMenuItem extends StatelessWidget {
-  final String emoji;
+  final IconData icon;
   final String label;
 
-  const _QuickCreateMenuItem({required this.emoji, required this.label});
+  const _QuickCreateMenuItem({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 17)),
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: DuoColors.orbitAccent.withValues(alpha: .14),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: DuoColors.orbitAccent, size: 18),
+        ),
         const SizedBox(width: 10),
         Text(
           label,
           style: const TextStyle(
-            color: Color(0xFFF6F8FB),
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
+            color: DuoColors.orbitTextPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
