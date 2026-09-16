@@ -334,6 +334,17 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     purchaseController.updateTransactionItem(originalItemId: item.id, updatedItem: updated); transactionController.updateItem(originalItemId: item.id, updatedItem: updated); _refreshPurchaseState(); _showMessage('${updated.name} atualizado.');
   }
 
+  Future<void> _createInlineItem(String name, double unitPrice) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || name.trim().isEmpty) return;
+    final now = DateTime.now();
+    final taxonomyId = selectedSubcategory?.id ?? selectedCategory.id;
+    final product = ProductModel(id: now.microsecondsSinceEpoch.toString(), name: name.trim(), normalizedName: widget.productRepository.normalize(name), brand: '', barcode: '', defaultUnit: 'un', productCategoryId: taxonomyId, productCategoryName: selectedSubcategory?.name ?? selectedCategory.name, taxonomyId: taxonomyId, averagePrice: unitPrice, lastPrice: unitPrice, lastMerchantId: '', favorite: false, createdAt: now, updatedAt: now);
+    await widget.productRepository.saveLearnedProduct(userId: user.uid, product: product);
+    final item = TransactionItemModel(id: now.microsecondsSinceEpoch.toString(), transactionId: '', productId: product.id, name: product.name, brand: '', quantity: 1, unit: 'un', unitPrice: unitPrice, totalPrice: unitPrice, taxonomyId: taxonomyId, category: selectedCategory.name, subcategory: selectedSubcategory?.name ?? 'Sem subcategoria', productCategoryId: product.productCategoryId, productCategoryName: product.productCategoryName, createdAt: now);
+    purchaseController.addTransactionItem(item); transactionController.addItem(item); _refreshPurchaseState();
+  }
+
   void _removeItem(PurchaseItemModel item) { final transactionItem = purchaseController.toTransactionItem(item: item, transactionId: item.purchaseId); purchaseController.removeItem(item.id); transactionController.removeItem(transactionItem); _refreshPurchaseState(); _showMessage('${item.name} removido.'); }
   void _refreshPurchaseState() { _syncCategoryFromPurchaseItems(); _syncValueWithPurchaseTotal(); }
   void _syncValueWithPurchaseTotal() => valueController.text = purchaseController.total.toStringAsFixed(2).replaceAll('.', ',');
@@ -562,6 +573,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         controller: purchaseController,
         productRepository: widget.productRepository,
         onAdd: (product) => _openAddItemPage(product: product),
+        onCreateInline: _createInlineItem,
         onEdit: _openEditItemPage,
         onRemove: _removeItem,
         onRestore: _restoreItem,
@@ -865,9 +877,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
         : null;
     final resolvedPayer = config?.resolvePayerMemberId(selectedPayerMemberId);
     final showWallet =
-        currentUser != null &&
-        resolvedPayer == currentUser.uid &&
-        selectedPaymentMethod.affectsBalanceImmediately;
+        currentUser != null && selectedPaymentMethod.affectsBalanceImmediately;
     final theme = Theme.of(context);
     return Theme(
       data: theme.copyWith(
@@ -1104,15 +1114,17 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                                   TransactionField(
                                     icon: Icons.account_balance_wallet_outlined,
                                     value:
-                                        _financialWallet?.name ??
+                                        _resolveOriginWallet()?.name ??
                                         'Selecionar conta',
-                                    detail: _financialWallet == null
+                                    detail: _resolveOriginWallet() == null
                                         ? 'Nenhuma conta disponível'
-                                        : 'Conta individual',
-                                    trailing: _financialWallet == null
+                                        : _resolveOriginWallet()!.isShared
+                                            ? 'Carteira compartilhada'
+                                            : 'Conta individual',
+                                    trailing: _resolveOriginWallet() == null
                                         ? null
                                         : Text(
-                                            _money(_financialWallet!.balance),
+                                            _money(_resolveOriginWallet()!.balance),
                                             style: const TextStyle(
                                               fontSize: 12,
                                             ),

@@ -293,6 +293,7 @@ class NewTransactionItemsSheet extends StatefulWidget {
   final PurchaseController controller;
   final ProductRepository productRepository;
   final Future<void> Function(ProductModel?) onAdd;
+  final Future<void> Function(String name, double unitPrice) onCreateInline;
   final Future<void> Function(PurchaseItemModel) onEdit;
   final ValueChanged<PurchaseItemModel> onRemove;
   final ValueChanged<PurchaseItemModel> onRestore;
@@ -303,6 +304,7 @@ class NewTransactionItemsSheet extends StatefulWidget {
     required this.controller,
     required this.productRepository,
     required this.onAdd,
+    required this.onCreateInline,
     required this.onEdit,
     required this.onRemove,
     required this.onRestore,
@@ -317,6 +319,7 @@ class NewTransactionItemsSheet extends StatefulWidget {
 
 class _NewTransactionItemsSheetState extends State<NewTransactionItemsSheet> {
   final _search = TextEditingController();
+  final _inlinePrice = TextEditingController();
   // Only deselected rows are retained for re-selection during this sheet session.
   // Selected items and totals always come directly from the existing controller.
   final Map<String, PurchaseItemModel> _deselected = {};
@@ -327,6 +330,7 @@ class _NewTransactionItemsSheetState extends State<NewTransactionItemsSheet> {
   @override
   void dispose() {
     _search.dispose();
+    _inlinePrice.dispose();
     super.dispose();
   }
 
@@ -463,13 +467,22 @@ class _NewTransactionItemsSheetState extends State<NewTransactionItemsSheet> {
                       if (rows.isEmpty && products.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: Text(
-                            query.isEmpty
-                                ? 'Nenhum item adicionado. Adicione o primeiro item da compra.'
-                                : 'Nenhum item encontrado.',
-                            style: const TextStyle(color: transactionMuted),
-                            textAlign: TextAlign.center,
-                          ),
+                          child: query.isEmpty
+                              ? const Text('Nenhum item adicionado. Adicione o primeiro item da compra.', style: TextStyle(color: transactionMuted), textAlign: TextAlign.center)
+                              : TransactionPanel(outlined: true, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  const Text('Novo item', style: TextStyle(color: transactionAccent, fontSize: 14)),
+                                  const SizedBox(height: 5),
+                                  Text('Cadastrar “${_search.text.trim()}” na compra', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                                  const SizedBox(height: 10),
+                                  TextField(controller: _inlinePrice, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Preço unitário', prefixText: r'R$ ', isDense: true)),
+                                  const SizedBox(height: 10),
+                                  SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: enabled ? () async {
+                                    final price = double.tryParse(_inlinePrice.text.trim().replaceAll(',', '.'));
+                                    if (price == null || price <= 0) return;
+                                    await _edit(() => widget.onCreateInline(_search.text.trim(), price));
+                                    if (mounted) _inlinePrice.clear();
+                                  } : null, icon: const Icon(Icons.add), label: const Text('Cadastrar e adicionar'))),
+                                ])),
                         ),
                       for (final item in rows)
                         _itemRow(item, selected.containsKey(item.id), enabled),
