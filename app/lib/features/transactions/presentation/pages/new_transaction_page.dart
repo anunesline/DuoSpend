@@ -1,10 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/context/wallet_context.dart';
 import '../../../../core/design_system/duo_card.dart';
 import '../../../../core/design_system/duo_dropdown.dart';
-import '../../../../core/design_system/duo_page_scaffold.dart';
 import '../../../../core/design_system/duo_text_field.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
@@ -20,6 +21,8 @@ import '../../../home/data/repositories/credit_card_repository.dart';
 import '../../../household_routines/domain/services/household_scope_id.dart';
 import '../../../auth/data/repositories/user_repository.dart';
 import '../../data/models/transaction_item_model.dart';
+import '../../data/models/product_model.dart';
+import '../widgets/new_transaction_surface.dart';
 import '../../domain/financial_split/financial_split_configuration.dart';
 import '../../domain/financial_split/financial_split_configuration_resolver.dart';
 import '../../domain/financial_split/financial_split_rules.dart';
@@ -30,10 +33,7 @@ import '../controllers/purchase_controller.dart';
 import '../controllers/transaction_controller.dart';
 import '../widgets/financial_split_section.dart';
 import '../widgets/installment_transaction_section.dart';
-import '../widgets/purchase_items_section.dart';
 import '../widgets/recurring_transaction_section.dart';
-import '../widgets/transaction_basic_fields_section.dart';
-import '../widgets/transaction_save_button.dart';
 import 'add_transaction_item_page.dart';
 
 class NewTransactionPage extends StatefulWidget {
@@ -72,6 +72,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   String? _loadedPartnerMemberId;
   PurchaseController get purchaseController => widget.purchaseController;
 
+  bool _moreOptions = false;
+  bool _marketDetailsVisible = false;
   String type = 'expense';
   String? selectedPayerMemberId;
   String? selectedPurchaseDestination;
@@ -300,10 +302,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     return (currentId: user.uid, partnerId: _resolvePartnerMemberId(wallet: wallet, currentUserId: user.uid), partnerLabel: _partnerDisplayName ?? 'Parceiro');
   }
 
-  Future<void> _openAddItemPage() async {
+  Future<void> _openAddItemPage({ProductModel? product}) async {
     final members = _itemMemberContext();
-    final result = await Navigator.push<TransactionItemModel>(context, MaterialPageRoute(builder: (_) => AddTransactionItemPage(productRepository: widget.productRepository, currentMemberId: members.currentId, partnerMemberId: members.partnerId, currentMemberLabel: 'Eu', partnerMemberLabel: members.partnerLabel)));
-    if (result == null) return;
+    final result = await Navigator.push<TransactionItemModel>(context, MaterialPageRoute(builder: (_) => AddTransactionItemPage(initialProduct: product, productRepository: widget.productRepository, currentMemberId: members.currentId, partnerMemberId: members.partnerId, currentMemberLabel: 'Eu', partnerMemberLabel: members.partnerLabel)));
+    if (!mounted || result == null) return;
     purchaseController.addTransactionItem(result); transactionController.addItem(result); _refreshPurchaseState(); _showMessage('${result.name} adicionado.');
   }
 
@@ -311,7 +313,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     final initial = purchaseController.toTransactionItem(item: item, transactionId: item.purchaseId);
     final members = _itemMemberContext();
     final updated = await Navigator.push<TransactionItemModel>(context, MaterialPageRoute(builder: (_) => AddTransactionItemPage(initialItem: initial, productRepository: widget.productRepository, currentMemberId: members.currentId, partnerMemberId: members.partnerId, currentMemberLabel: 'Eu', partnerMemberLabel: members.partnerLabel)));
-    if (updated == null) return;
+    if (!mounted || updated == null) return;
     purchaseController.updateTransactionItem(originalItemId: item.id, updatedItem: updated); transactionController.updateItem(originalItemId: item.id, updatedItem: updated); _refreshPurchaseState(); _showMessage('${updated.name} atualizado.');
   }
 
@@ -392,103 +394,1062 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     await Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => NewTransactionPage(walletContext: widget.walletContext, walletId: widget.walletId, consumerController: widget.consumerController, purchaseController: widget.purchaseController, productRepository: widget.productRepository, receiptDraft: draft)));
   }
 
-  Widget _buildPaymentSection({required bool enabled}) => DuoCard(
-        borderRadius: 20,
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(children: [
-          DuoDropdown<PaymentMethod>(label: 'Forma de pagamento', value: selectedPaymentMethod, icon: Icons.payments_outlined, items: PaymentMethod.values.map((method) => DropdownMenuItem(value: method, child: Text(method.label))).toList(growable: false), onChanged: !enabled ? null : (method) { if (method != null) _changePaymentMethod(method); }),
-          if (selectedPaymentMethod.isCreditCard) ...[
-            const SizedBox(height: AppSpacing.lg),
-            DuoDropdown<String>(key: ValueKey('credit-card-${selectedCreditCardId ?? 'none'}'), label: 'Cartão', value: _selectedCreditCard()?.id, icon: Icons.credit_card_rounded, helperText: 'A compra entrará na fatura e não debitará a conta agora.', items: _creditCards.map((card) => DropdownMenuItem(value: card.id, child: Text(card.lastFourDigits == null ? card.name : '${card.name} •••• ${card.lastFourDigits}', overflow: TextOverflow.ellipsis))).toList(growable: false), onChanged: !enabled || _creditCards.isEmpty ? null : (id) => setState(() => selectedCreditCardId = id)),
-            if (_creditCards.isEmpty) const Padding(padding: EdgeInsets.only(top: 10), child: Text('Nenhum cartão cadastrado. Adicione um pela Home.')),
-          ],
-        ]),
-      );
+  Widget _buildPaymentSection({
+    required bool enabled,
+    VoidCallback? onSelectionChanged,
+  }) => DuoCard(
+    borderRadius: 20,
+    padding: const EdgeInsets.all(AppSpacing.lg),
+    child: Column(
+      children: [
+        DuoDropdown<PaymentMethod>(
+          label: 'Forma de pagamento',
+          value: selectedPaymentMethod,
+          icon: Icons.payments_outlined,
+          items: PaymentMethod.values
+              .map(
+                (method) =>
+                    DropdownMenuItem(value: method, child: Text(method.label)),
+              )
+              .toList(growable: false),
+          onChanged: !enabled
+              ? null
+              : (method) {
+                  if (method != null) {
+                    _changePaymentMethod(method);
+                    onSelectionChanged?.call();
+                  }
+                },
+        ),
+        if (selectedPaymentMethod.isCreditCard) ...[
+          const SizedBox(height: AppSpacing.lg),
+          DuoDropdown<String>(
+            key: ValueKey('credit-card-${selectedCreditCardId ?? 'none'}'),
+            label: 'Cartão',
+            value: _selectedCreditCard()?.id,
+            icon: Icons.credit_card_rounded,
+            helperText:
+                'A compra entrará na fatura e não debitará a conta agora.',
+            items: _creditCards
+                .map(
+                  (card) => DropdownMenuItem(
+                    value: card.id,
+                    child: Text(
+                      card.lastFourDigits == null
+                          ? card.name
+                          : '${card.name} •••• ${card.lastFourDigits}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: !enabled || _creditCards.isEmpty
+                ? null
+                : (id) {
+                    setState(() => selectedCreditCardId = id);
+                    onSelectionChanged?.call();
+                  },
+          ),
+          if (_creditCards.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text('Nenhum cartão cadastrado. Adicione um pela Home.'),
+            ),
+        ],
+      ],
+    ),
+  );
 
-  Widget _buildFinancialWalletSection({required List<WalletModel> wallets, required bool enabled}) {
+  bool get _isMarket =>
+      type == 'expense' && selectedSubcategory?.id == 'market';
+  bool get _isSaving =>
+      purchaseController.isSaving || transactionController.isSaving;
+  String _money(double value) =>
+      NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(value);
+  double get _value =>
+      double.tryParse(valueController.text.replaceAll(',', '.')) ?? 0;
+  String get _paymentLabel => selectedPaymentMethod == PaymentMethod.debitCard
+      ? 'Débito à vista'
+      : selectedPaymentMethod.label;
+
+  WalletModel? get _financialWallet {
     final id = _resolveSelectedFinancialWalletId();
-    return DuoCard(borderRadius: 20, padding: const EdgeInsets.all(AppSpacing.lg), child: DuoDropdown<String>(key: ValueKey('financial-wallet-${id ?? 'none'}'), label: type == 'expense' ? 'Saiu de' : 'Entrou em', value: id, icon: Icons.account_balance_wallet_outlined, helperText: 'Esta é a carteira cujo saldo será movimentado.', items: wallets.map((wallet) => DropdownMenuItem(value: wallet.id, child: Text(wallet.name, overflow: TextOverflow.ellipsis))).toList(growable: false), onChanged: !enabled || wallets.isEmpty ? null : (value) => setState(() => selectedFinancialWalletId = value)));
+    for (final wallet in _currentUserIndividualWallets()) {
+      if (wallet.id == id) return wallet;
+    }
+    return null;
   }
+
+  String get _summaryAccountName {
+    if (selectedPaymentMethod.isCreditCard) {
+      final walletId = _selectedCreditCard()?.walletId;
+      for (final wallet in widget.walletContext.wallets) {
+        if (wallet.id == walletId) return wallet.name;
+      }
+      return _selectedCreditCard()?.name ?? 'Não selecionada';
+    }
+    return _financialWallet?.name ?? 'Não selecionada';
+  }
+
+  void _changeItemQuantity(PurchaseItemModel item, double quantity) {
+    if (_isSaving || !quantity.isFinite || quantity < 1) return;
+    // Keep both existing controller representations in sync, just as item editing does.
+    final updated = item.copyWith(
+      quantity: quantity,
+      totalPrice: quantity * item.unitPrice,
+    );
+    final transactionItem = purchaseController.toTransactionItem(
+      item: updated,
+      transactionId: item.purchaseId,
+    );
+    purchaseController.updateTransactionItem(
+      originalItemId: item.id,
+      updatedItem: transactionItem,
+    );
+    transactionController.updateItem(
+      originalItemId: item.id,
+      updatedItem: transactionItem,
+    );
+    _syncValueWithPurchaseTotal();
+  }
+
+  void _restoreItem(PurchaseItemModel item) {
+    if (_isSaving ||
+        purchaseController.items.any((current) => current.id == item.id)) {
+      return;
+    }
+    final restored = purchaseController.toTransactionItem(
+      item: item,
+      transactionId: item.purchaseId,
+    );
+    purchaseController.addTransactionItem(restored);
+    transactionController.addItem(restored);
+    _refreshPurchaseState();
+  }
+
+  Future<void> _openItemsSheet() async {
+    if (_isSaving) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: const Color(0xFF0E141E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => NewTransactionItemsSheet(
+        controller: purchaseController,
+        productRepository: widget.productRepository,
+        onAdd: (product) => _openAddItemPage(product: product),
+        onEdit: _openEditItemPage,
+        onRemove: _removeItem,
+        onRestore: _restoreItem,
+        onQuantityChanged: _changeItemQuantity,
+        onScan: () {
+          Navigator.pop(context);
+          _openReceiptScanner();
+        },
+      ),
+    );
+  }
+
+  Future<void> _chooseCategory() async {
+    if (_isSaving) return;
+    if (purchaseController.hasItems) {
+      _showMessage(
+        'A categoria é definida pelos itens da compra. Edite os itens para alterá-la.',
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: const Color(0xFF0E141E),
+      showDragHandle: true,
+      builder: (sheetContext) => SizedBox(
+        height: MediaQuery.sizeOf(context).height * .65,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          children: [
+            const Text(
+              'Categoria',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            for (final category in DuoTaxonomy.items)
+              ExpansionTile(
+                key: ValueKey(category.id),
+                initiallyExpanded: category.id == selectedCategory.id,
+                leading: Text(category.icon),
+                title: Text(category.name),
+                children: [
+                  if (category.children.isEmpty)
+                    ListTile(
+                      title: Text('Selecionar ${category.name}'),
+                      onTap: () {
+                        _changeCategory(category);
+                        setState(() => _marketDetailsVisible = false);
+                        Navigator.pop(sheetContext);
+                      },
+                    ),
+                  for (final subcategory in category.children)
+                    ListTile(
+                      leading: Text(subcategory.icon),
+                      title: Text(subcategory.name),
+                      trailing: subcategory.id == selectedSubcategory?.id
+                          ? const Icon(Icons.check, color: transactionAccent)
+                          : null,
+                      onTap: () {
+                        _changeCategory(category);
+                        _changeSubcategory(subcategory);
+                        setState(
+                          () => _marketDetailsVisible =
+                              subcategory.id == 'market',
+                        );
+                        Navigator.pop(sheetContext);
+                      },
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _chooseWallet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFF0E141E),
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('De qual conta?')),
+            if (_currentUserIndividualWallets().isEmpty)
+              const ListTile(
+                title: Text('Nenhuma conta individual disponível.'),
+              ),
+            for (final wallet in _currentUserIndividualWallets())
+              ListTile(
+                leading: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  color: transactionAccent,
+                ),
+                title: Text(wallet.name),
+                subtitle: Text(_money(wallet.balance)),
+                trailing: wallet.id == _resolveSelectedFinancialWalletId()
+                    ? const Icon(Icons.check, color: transactionAccent)
+                    : null,
+                onTap: () {
+                  setState(() => selectedFinancialWalletId = wallet.id);
+                  Navigator.pop(sheetContext);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _choosePayment() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFF0E141E),
+      builder: (_) => StatefulBuilder(
+        builder: (context, updateSheet) => SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPaymentSection(
+                enabled: !_isSaving,
+                onSelectionChanged: () => updateSheet(() {}),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Concluir'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _chooseDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: transactionDate,
+      firstDate: DateTime(
+        transactionDate.year < 2000 ? transactionDate.year : 2000,
+      ),
+      lastDate: DateTime(
+        transactionDate.year > 2100 ? transactionDate.year : 2100,
+        12,
+        31,
+      ),
+    );
+    if (!mounted || date == null) return;
+    setState(() => transactionDate = date);
+  }
+
+  Future<void> _submitFromHeader() async {
+    if (_isSaving) return;
+    // Description remains required by the existing save flow, without inserting mock data.
+    if (descriptionController.text.trim().isEmpty) {
+      final accepted = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        backgroundColor: const Color(0xFF0E141E),
+        builder: (sheetContext) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            0,
+            20,
+            20 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Como quer identificar esta transação?',
+                style: TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: descriptionController,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Descrição'),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => Navigator.pop(sheetContext, true),
+                child: const Text('Salvar transação'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (!mounted || accepted != true) return;
+    }
+    await _saveTransaction();
+  }
+
+  Widget _summaryLine(String label, String value, {Color? color}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(label, style: const TextStyle(color: transactionMuted)),
+        ),
+        const SizedBox(width: 16),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(color: color ?? Colors.white),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildCategoryCard() => TransactionPanel(
+    child: Column(
+      children: [
+        TransactionField(
+          icon: Icons.shopping_cart_outlined,
+          filledIcon: true,
+          label: 'Categoria',
+          value: selectedCategory.name,
+          detail: selectedSubcategory?.name,
+          detailColor: const Color(0xFF72D6FC),
+          onTap: _chooseCategory,
+        ),
+        if (_isMarket && _marketDetailsVisible && !purchaseController.hasItems)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: TransactionPanel(
+              outlined: true,
+              child: InkWell(
+                onTap: _openItemsSheet,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.shopping_basket_outlined,
+                      color: transactionAccent,
+                      size: 23,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Mercado', style: TextStyle(fontSize: 14)),
+                          const SizedBox(height: 5),
+                          Text(
+                            selectedSplitType ==
+                                    FinancialSplitRules.splitTypeNone
+                                ? 'Esta transação não será dividida financeiramente com seu parceiro.'
+                                : 'A divisão desta despesa segue a configuração em Mais opções.',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: transactionMuted,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.info_outline,
+                      size: 17,
+                      color: transactionAccent,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
     final activeWallet = _resolveActiveWallet();
     final currentUser = FirebaseAuth.instance.currentUser;
-    final config = activeWallet != null && currentUser != null ? _resolveFinancialSplitConfiguration(wallet: activeWallet, currentUserMemberId: currentUser.uid) : null;
+    final config = activeWallet != null && currentUser != null
+        ? _resolveFinancialSplitConfiguration(
+            wallet: activeWallet,
+            currentUserMemberId: currentUser.uid,
+          )
+        : null;
     final resolvedPayer = config?.resolvePayerMemberId(selectedPayerMemberId);
-    final individualWallets = _currentUserIndividualWallets();
-    final showWallet = currentUser != null && resolvedPayer == currentUser.uid && selectedPaymentMethod.affectsBalanceImmediately;
-
-    return DuoPageScaffold(
-      title: 'Nova transação',
-      eyebrow: 'Registre uma movimentação',
-      scrollable: false,
-      padding: EdgeInsets.zero,
-      actions: [IconButton(tooltip: 'Scanner fiscal', onPressed: _openReceiptScanner, icon: const Icon(Icons.document_scanner_outlined))],
-      body: AnimatedBuilder(
-        animation: Listenable.merge([transactionController, purchaseController]),
-        builder: (context, _) {
-          final isSaving = purchaseController.isSaving || transactionController.isSaving;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              TransactionBasicFieldsSection(
-                descriptionController: descriptionController, valueController: valueController, type: type,
-                hasPurchaseItems: purchaseController.hasItems, selectedCategory: selectedCategory, selectedSubcategory: selectedSubcategory,
-                onTypeChanged: _changeType, onCategoryChanged: _changeCategory, onSubcategoryChanged: _changeSubcategory,
-              ),
-              const SizedBox(height: 18),
-              PurchaseItemsSection(
-                items: purchaseController.items, total: purchaseController.total,
-                onAddItem: _openAddItemPage, onEditItem: _openEditItemPage, onRemoveItem: _removeItem,
-              ),
-              const SizedBox(height: 24),
-              const _OrbitSectionLabel(icon: Icons.payments_outlined, title: 'Pagamento', subtitle: 'Como esta movimentação será paga?'),
-              const SizedBox(height: 12),
-              _buildPaymentSection(enabled: !isSaving),
-              if (showWallet) ...[
-                const SizedBox(height: 12),
-                _buildFinancialWalletSection(wallets: individualWallets, enabled: !isSaving),
-              ],
-              if (config != null) ...[
-                const SizedBox(height: 24),
-                FinancialSplitSection(
-                  enabled: !isSaving, configuration: config,
-                  selectedPayerMemberId: config.resolvePayerMemberId(selectedPayerMemberId),
-                  selectedPurchaseDestination: config.resolvePurchaseDestination(selectedPurchaseDestination),
-                  selectedSplitType: selectedSplitType, currentUserPercent: currentUserSplitPercent,
-                  partnerDisplayName: _partnerDisplayName, onPayerChanged: _changePayer,
-                  onPurchaseDestinationChanged: _changePurchaseDestination, onSplitTypeChanged: _changeSplitType,
-                  onCurrentUserPercentChanged: _changeCurrentUserSplitPercent,
+    final showWallet =
+        currentUser != null &&
+        resolvedPayer == currentUser.uid &&
+        selectedPaymentMethod.affectsBalanceImmediately;
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        scaffoldBackgroundColor: const Color(0xFF03070C),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: transactionAccent,
+          brightness: Brightness.dark,
+        ),
+        textTheme: theme.textTheme.apply(
+          bodyColor: Colors.white,
+          displayColor: Colors.white,
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF03070C),
+        body: SafeArea(
+          child: AnimatedBuilder(
+            animation: Listenable.merge([
+              transactionController,
+              purchaseController,
+              valueController,
+            ]),
+            builder: (context, _) => Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Row(
+                    children: [
+                      TransactionCircleButton(
+                        icon: Icons.close,
+                        tooltip: 'Fechar',
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.pop(context),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Nova transação',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'Registre uma receita ou despesa',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: transactionMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: _isSaving ? null : _submitFromHeader,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF512984),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 17),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: Color(0xFF7442A7)),
+                          ),
+                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Salvar'),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: AbsorbPointer(
+                    absorbing: _isSaving,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TransactionTypeTabs(
+                            type: type,
+                            onChanged: _changeType,
+                          ),
+                          const SizedBox(height: 10),
+                          TransactionPanel(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Valor',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: transactionMuted,
+                                  ),
+                                ),
+                                TextField(
+                                  controller: valueController,
+                                  readOnly: purchaseController.hasItems,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  inputFormatters: [
+                                    TextInputFormatter.withFunction(
+                                      (oldValue, newValue) =>
+                                          RegExp(r'^\d*([,.]\d{0,2})?$')
+                                              .hasMatch(newValue.text)
+                                          ? newValue
+                                          : oldValue,
+                                    ),
+                                  ],
+                                  style: const TextStyle(
+                                    fontSize: 30,
+                                    height: 1.25,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  decoration: InputDecoration(
+                                    prefixText: r'R$ ',
+                                    prefixStyle: const TextStyle(fontSize: 30, color: Colors.white),
+                                    hintText: '0,00',
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.only(
+                                      bottom: 8,
+                                      top: 4,
+                                    ),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    suffixIcon: IconButton(
+                                      tooltip: 'Limpar valor',
+                                      onPressed: purchaseController.hasItems
+                                          ? null
+                                          : valueController.clear,
+                                      icon: const Icon(
+                                        Icons.cancel,
+                                        size: 17,
+                                        color: Color(0xFF757985),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const Divider(
+                                  height: 1,
+                                  color: Color(0xFF343044),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    for (final amount in [10, 50, 100, 200])
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                          ),
+                                          child: OutlinedButton(
+                                            onPressed:
+                                                purchaseController.hasItems
+                                                ? null
+                                                : () => valueController.text =
+                                                      (_value + amount)
+                                                          .toStringAsFixed(2)
+                                                          .replaceAll('.', ','),
+                                            style: OutlinedButton.styleFrom(
+                                              minimumSize: const Size(0, 28),
+                                              padding: EdgeInsets.zero,
+                                              foregroundColor: transactionMuted,
+                                              side: const BorderSide(
+                                                color: Color(0xFF39274E),
+                                              ),
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                              textStyle: const TextStyle(
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                            child: Text('+ R\$ $amount'),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (showWallet) ...[
+                            const SizedBox(height: 8),
+                            TransactionPanel(
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          type == 'expense'
+                                              ? 'De qual conta?'
+                                              : 'Em qual conta?',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: transactionMuted,
+                                          ),
+                                        ),
+                                      ),
+                                      InkWell(
+                                        onTap: _chooseWallet,
+                                        child: const Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: 4,
+                                          ),
+                                          child: Text(
+                                            'Ver saldos',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: transactionAccent,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 5),
+                                  TransactionField(
+                                    icon: Icons.account_balance_wallet_outlined,
+                                    value:
+                                        _financialWallet?.name ??
+                                        'Selecionar conta',
+                                    detail: _financialWallet == null
+                                        ? 'Nenhuma conta disponível'
+                                        : 'Conta individual',
+                                    trailing: _financialWallet == null
+                                        ? null
+                                        : Text(
+                                            _money(_financialWallet!.balance),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                    onTap: _chooseWallet,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          _buildCategoryCard(),
+                          if (purchaseController.hasItems) ...[
+                            const SizedBox(height: 8),
+                            TransactionPanel(
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Itens adicionados (${purchaseController.itemCount})',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: transactionMuted,
+                                          ),
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: _openItemsSheet,
+                                        child: const Text(
+                                          'Editar',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  for (final item in purchaseController.items)
+                                    InkWell(
+                                      onTap: () => _openEditItemPage(item),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 7,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.shopping_bag_outlined,
+                                              color: transactionAccent,
+                                              size: 23,
+                                            ),
+                                            const SizedBox(width: 9),
+                                            Expanded(
+                                              child: Text(
+                                                item.name,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              _money(item.totalPrice),
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              'Qtd. ${formatTransactionQuantity(item.quantity)}',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: transactionMuted,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(height: 6),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _openItemsSheet,
+                                      icon: const Icon(Icons.add, size: 18),
+                                      label: const Text('Adicionar item'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: transactionAccent,
+                                        side: const BorderSide(
+                                          color: Color(0xFF39274E),
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          TransactionPanel(
+                            child: TransactionField(
+                              icon: Icons.calendar_month_outlined,
+                              label: 'Data',
+                              value: DateFormat(
+                                "d 'de' MMMM 'de' y",
+                                'pt_BR',
+                              ).format(transactionDate),
+                              onTap: _chooseDate,
+                              showChevron: false,
+                              trailing: OutlinedButton(
+                                onPressed: () => setState(
+                                  () => transactionDate = DateTime.now(),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: transactionAccent,
+                                  side: const BorderSide(
+                                    color: Color(0xFF39274E),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  minimumSize: const Size(0, 30),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(9),
+                                  ),
+                                ),
+                                child: const Text('Hoje'),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TransactionPanel(
+                            child: TransactionField(
+                              icon: Icons.payment_outlined,
+                              label: 'Como foi o pagamento?',
+                              value: _paymentLabel,
+                              detail:
+                                  selectedPaymentMethod
+                                      .affectsBalanceImmediately
+                                  ? (type == 'expense'
+                                        ? 'Valor será debitado agora'
+                                        : 'Valor será creditado agora')
+                                  : selectedPaymentMethod.isCreditCard
+                                  ? _selectedCreditCard()?.name ??
+                                        'Selecione um cartão'
+                                  : 'Pagamento sem débito imediato',
+                              onTap: _choosePayment,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            child: Row(
+                              children: [
+                                const Expanded(
+                                  child: Divider(color: Color(0xFF343044)),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () => setState(
+                                    () => _moreOptions = !_moreOptions,
+                                  ),
+                                  icon: Icon(
+                                    _moreOptions
+                                        ? Icons.arrow_upward
+                                        : Icons.arrow_downward,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    _moreOptions
+                                        ? 'Menos opções'
+                                        : 'Mais opções',
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: transactionAccent,
+                                  ),
+                                ),
+                                const Expanded(
+                                  child: Divider(color: Color(0xFF343044)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_moreOptions) ...[
+                            TransactionPanel(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextField(
+                                    controller: descriptionController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Descrição',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: _openItemsSheet,
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Adicionar itens'),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: _openReceiptScanner,
+                                    icon: const Icon(
+                                      Icons.document_scanner_outlined,
+                                    ),
+                                    label: const Text('Scanner fiscal'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            if (config != null)
+                              FinancialSplitSection(
+                                enabled: !_isSaving,
+                                configuration: config,
+                                selectedPayerMemberId: config
+                                    .resolvePayerMemberId(
+                                      selectedPayerMemberId,
+                                    ),
+                                selectedPurchaseDestination: config
+                                    .resolvePurchaseDestination(
+                                      selectedPurchaseDestination,
+                                    ),
+                                selectedSplitType: selectedSplitType,
+                                currentUserPercent: currentUserSplitPercent,
+                                partnerDisplayName: _partnerDisplayName,
+                                onPayerChanged: _changePayer,
+                                onPurchaseDestinationChanged:
+                                    _changePurchaseDestination,
+                                onSplitTypeChanged: _changeSplitType,
+                                onCurrentUserPercentChanged:
+                                    _changeCurrentUserSplitPercent,
+                              ),
+                            const SizedBox(height: 10),
+                            InstallmentTransactionSection(
+                              enabled: !_isSaving,
+                              isInstallment: isInstallment,
+                              installmentCount: installmentCount,
+                              firstInstallmentDate: firstInstallmentDate,
+                              onInstallmentChanged: _changeInstallment,
+                              onInstallmentCountChanged:
+                                  _changeInstallmentCount,
+                              onFirstInstallmentDateChanged:
+                                  _changeFirstInstallmentDate,
+                            ),
+                            const SizedBox(height: 10),
+                            RecurringTransactionSection(
+                              enabled: !_isSaving,
+                              isRecurring: isRecurring,
+                              recurringFrequency: recurringFrequency,
+                              recurringStartDate: recurringStartDate,
+                              recurringEndDate: recurringEndDate,
+                              recurringNeverEnds: recurringNeverEnds,
+                              onRecurringChanged: _changeRecurring,
+                              onFrequencyChanged: _changeRecurringFrequency,
+                              onStartDateChanged: _changeRecurringStartDate,
+                              onEndDateChanged: _changeRecurringEndDate,
+                              onNeverEndsChanged: _changeRecurringNeverEnds,
+                            ),
+                            const SizedBox(height: 10),
+                            DuoTextField(
+                              controller: notesController,
+                              label: 'Observações',
+                              enabled: !_isSaving,
+                              maxLines: 3,
+                              hintText: 'Adicione uma observação (opcional)',
+                              icon: Icons.notes_outlined,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          TransactionPanel(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const Text(
+                                  'Resumo',
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                                const SizedBox(height: 9),
+                                _summaryLine(
+                                  'Tipo',
+                                  type == 'expense' ? 'Despesa' : 'Receita',
+                                  color: type == 'expense'
+                                      ? Colors.orange
+                                      : const Color(0xFF4FD66C),
+                                ),
+                                _summaryLine('Valor', _money(_value)),
+                                _summaryLine(
+                                  'Conta',
+                                  resolvedPayer != currentUser?.uid
+                                      ? _partnerDisplayName ?? 'Parceiro'
+                                      : _summaryAccountName,
+                                ),
+                                _summaryLine(
+                                  'Categoria',
+                                  selectedCategory.name,
+                                ),
+                                _summaryLine('Pagamento', _paymentLabel),
+                                _summaryLine(
+                                  'Data',
+                                  DateFormat('dd/MM/yyyy')
+                                      .format(transactionDate),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TransactionPanel(
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.lightbulb_outline,
+                                  color: transactionAccent,
+                                  size: 28,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Dica Orbit ✨',
+                                        style: TextStyle(
+                                          color: transactionAccent,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        selectedPaymentMethod.isCreditCard
+                                            ? 'Esta movimentação entrará na fatura do cartão selecionado e aparecerá nos seus relatórios.'
+                                            : selectedPaymentMethod
+                                                  .affectsBalanceImmediately
+                                            ? 'Esta ${type == 'expense' ? 'despesa será debitada' : 'receita será creditada'} agora na conta selecionada e aparecerá nos seus relatórios.'
+                                            : 'Esta movimentação aparecerá nos seus relatórios, sem alterar o saldo disponível agora.',
+                                        style: const TextStyle(
+                                          color: transactionMuted,
+                                          fontSize: 12,
+                                          height: 1.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ],
-              const SizedBox(height: 24),
-              InstallmentTransactionSection(enabled: !isSaving, isInstallment: isInstallment, installmentCount: installmentCount, firstInstallmentDate: firstInstallmentDate, onInstallmentChanged: _changeInstallment, onInstallmentCountChanged: _changeInstallmentCount, onFirstInstallmentDateChanged: _changeFirstInstallmentDate),
-              const SizedBox(height: 12),
-              RecurringTransactionSection(enabled: !isSaving, isRecurring: isRecurring, recurringFrequency: recurringFrequency, recurringStartDate: recurringStartDate, recurringEndDate: recurringEndDate, recurringNeverEnds: recurringNeverEnds, onRecurringChanged: _changeRecurring, onFrequencyChanged: _changeRecurringFrequency, onStartDateChanged: _changeRecurringStartDate, onEndDateChanged: _changeRecurringEndDate, onNeverEndsChanged: _changeRecurringNeverEnds),
-              const SizedBox(height: 24),
-              const _OrbitSectionLabel(icon: Icons.notes_outlined, title: 'Observações', subtitle: 'Informações adicionais, se precisar.'),
-              const SizedBox(height: 10),
-              DuoTextField(controller: notesController, label: 'Observações', enabled: !isSaving, maxLines: 4, hintText: 'Adicione uma observação (opcional)', icon: Icons.notes_outlined),
-              const SizedBox(height: 26),
-              TransactionSaveButton(isSaving: isSaving, onPressed: _saveTransaction),
-            ]),
-          );
-        },
+            ),
+          ),
+        ),
       ),
     );
   }
-}
-
-class _OrbitSectionLabel extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  const _OrbitSectionLabel({required this.icon, required this.title, required this.subtitle});
-  @override
-  Widget build(BuildContext context) => Row(children: [
-        Container(width: 38, height: 38, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary)),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)), const SizedBox(height: 2), Text(subtitle, style: Theme.of(context).textTheme.bodySmall)])),
-      ]);
 }

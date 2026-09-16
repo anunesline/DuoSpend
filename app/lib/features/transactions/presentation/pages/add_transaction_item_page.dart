@@ -13,6 +13,7 @@ import '../../domain/purchase/models/item_consumption.dart';
 
 class AddTransactionItemPage extends StatefulWidget {
   final TransactionItemModel? initialItem;
+  final ProductModel? initialProduct;
   final ProductRepository productRepository;
   final String? currentMemberId;
   final String? partnerMemberId;
@@ -22,6 +23,7 @@ class AddTransactionItemPage extends StatefulWidget {
   const AddTransactionItemPage({
     super.key,
     this.initialItem,
+    this.initialProduct,
     required this.productRepository,
     this.currentMemberId,
     this.partnerMemberId,
@@ -181,6 +183,11 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
     _setDefaultProductCategory();
     _populateInitialItem();
     _initializeConsumerSelection();
+    if (widget.initialItem == null && widget.initialProduct != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _selectProduct(widget.initialProduct!);
+      });
+    }
 
     nameController.addListener(_handleProductDataChanged);
     brandController.addListener(_handleProductDataChanged);
