@@ -22,6 +22,7 @@ import '../../../transactions/presentation/pages/financial_calendar_page.dart';
 import '../../../transactions/presentation/pages/history_page.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../../../wallet/presentation/pages/credit_cards_page.dart';
+import '../../../wallet/presentation/pages/wallet_details_page.dart';
 import '../../domain/models/orbit_dashboard_summary.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/orbit_dashboard_controller.dart';
@@ -181,7 +182,25 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    if (selectedId != null) await _selectWallet(selectedId!);
+    if (selectedId != null) {
+      await _selectWallet(selectedId!);
+      if (!mounted) return;
+      final wallet = controller.wallet;
+      if (wallet == null) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => WalletDetailsPage(
+            wallet: wallet,
+            individualWallets: controller.individualWallets,
+            currentUserId: controller.user?.uid,
+            onAdd: () => _openNewTransactionPage(),
+            onRoutines: _openHouseholdRoutinesPage,
+          ),
+        ),
+      );
+      if (mounted) await _loadHome();
+    }
   }
 
   void _showMessage(String message) {

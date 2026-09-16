@@ -1,17 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/design_system/duo_colors.dart';
-import '../../../home/data/models/credit_card_model.dart';
+import '../../../financial_intelligence/presentation/pages/insights_page.dart';
+import '../../../goals/presentation/pages/savings_goals_page.dart';
 import '../../../home/data/models/wallet_model.dart';
-import '../../../home/data/repositories/credit_card_repository.dart';
+import '../../../reports/presentation/pages/category_report_page.dart';
 import '../../../transactions/data/models/transaction_model.dart';
-import '../../../transactions/data/repositories/transaction_repository.dart';
+import '../../../transactions/domain/calendar/financial_calendar_entry.dart';
+import '../../../transactions/presentation/pages/financial_calendar_page.dart';
+import '../../../transactions/presentation/pages/transaction_detail_page.dart';
+import '../controllers/wallet_details_controller.dart';
+import 'credit_cards_page.dart';
+
+// Palette and geometry are local to this reference, not inherited from the Home.
+const _background = Color(0xFF07080F);
+const _surface = Color(0xFF0E101A);
+const _border = Color(0xFF242333);
+const _purple = Color(0xFFAC76F6);
+const _muted = Color(0xFFAAA8B3);
+const _green = Color(0xFF42C94B);
+const _orange = Color(0xFFFF591E);
+const _white = Color(0xFFF6F5F8);
+const _title = TextStyle(
+  fontSize: 12,
+  color: _white,
+  fontWeight: FontWeight.w500,
+);
 
 class WalletDetailsPage extends StatefulWidget {
   final WalletModel wallet;
+  final List<WalletModel> individualWallets;
+  final String? currentUserId;
+  final Future<void> Function()? onAdd;
+  final Future<void> Function()? onRoutines;
+  final WalletDetailsController? controller;
 
-  const WalletDetailsPage({super.key, required this.wallet});
+  const WalletDetailsPage({
+    super.key,
+    required this.wallet,
+    this.individualWallets = const [],
+    this.currentUserId,
+    this.onAdd,
+    this.onRoutines,
+    this.controller,
+  });
 
   @override
   State<WalletDetailsPage> createState() => _WalletDetailsPageState();
@@ -19,548 +51,892 @@ class WalletDetailsPage extends StatefulWidget {
 
 class _WalletDetailsPageState extends State<WalletDetailsPage>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-  final _transactionRepository = TransactionRepository();
-  final _cardRepository = CreditCardRepository();
+  late final WalletDetailsController _controller;
+  late final TabController _tabs;
+  final _formatter = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
-  List<TransactionModel> _transactions = const [];
-  List<CreditCardModel> _cards = const [];
-  bool _loading = true;
-  bool _valuesVisible = true;
-
-  WalletModel get wallet => widget.wallet;
-  final _money = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: 'R\$',
-    decimalDigits: 2,
-  );
+  WalletModel get wallet => _controller.data.wallet;
+  String _money(double value) =>
+      _controller.valuesVisible ? _formatter.format(value) : 'R\$ ••••';
+  String _signed(double value) => _controller.valuesVisible
+      ? '${value < 0 ? '−' : '+'} ${_money(value.abs())}'
+      : 'R\$ ••••';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _load();
+    _tabs = TabController(length: 3, vsync: this);
+    _controller =
+        widget.controller ?? WalletDetailsController(wallet: widget.wallet);
+    _controller.load();
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabs.dispose();
+    if (widget.controller == null) _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    try {
-      final results = await Future.wait<dynamic>([
-        _transactionRepository.getTransactionsByWallet(
-          wallet.id,
-          wallet: wallet,
+  Future<void> _open(Widget page) async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => page));
+    if (mounted) await _controller.load();
+  }
+
+  Future<void> _run(Future<void> Function()? action, String name) async {
+    if (action == null) {
+      _unavailable(name);
+      return;
+    }
+    await action();
+    if (mounted) await _controller.load();
+  }
+
+  void _unavailable(String name) =>
+      _message('$name ainda não está disponível nesta carteira.');
+
+  void _message(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  void _calendar() => _open(
+    FinancialCalendarPage(
+      wallet: wallet,
+      transactions: _controller.data.transactions,
+    ),
+  );
+
+  void _cards() =>
+      _open(CreditCardsPage(individualWallets: widget.individualWallets));
+
+  void _goals() {
+    final userId = widget.currentUserId;
+    if (userId == null || userId.isEmpty) {
+      _message('Entre na sua conta para acessar as metas.');
+      return;
+    }
+    _open(
+      SavingsGoalsPage(
+        contextWallet: wallet,
+        individualWallets: widget.individualWallets,
+        currentUserId: userId,
+      ),
+    );
+  }
+
+  void _details(TransactionModel transaction) =>
+      _open(TransactionDetailPage(transaction: transaction));
+
+  Future<void> _choosePeriod() async {
+    final choice = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: _surface,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final option in [
+              (0, 'Este mês'),
+              (1, 'Mês passado'),
+              (2, 'Escolher período'),
+            ])
+              ListTile(
+                title: Text(option.$2),
+                onTap: () => Navigator.pop(context, option.$1),
+              ),
+          ],
         ),
-        _cardRepository.getCards(),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _transactions = (results[0] as List<TransactionModel>)
-            .toList()
-          ..sort((a, b) => b.date.compareTo(a.date));
-        _cards = (results[1] as List<CreditCardModel>)
-            .where((card) => card.walletId == wallet.id)
-            .toList();
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice < 2) {
+      final now = _controller.today;
+      final month = DateTime(now.year, now.month - choice);
+      _controller.selectPeriod(month, DateTime(month.year, month.month + 1, 0));
+      return;
     }
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2200, 12, 31),
+      initialDateRange: DateTimeRange(
+        start: _controller.periodStart,
+        end: _controller.periodEnd,
+      ),
+      helpText: 'Escolher período',
+      saveText: 'Aplicar',
+    );
+    if (mounted && range != null)
+      _controller.selectPeriod(range.start, range.end);
   }
 
-  List<TransactionModel> get _currentMonthTransactions {
-    final now = DateTime.now();
-    return _transactions
-        .where((t) => t.date.year == now.year && t.date.month == now.month)
-        .toList();
+  String get _periodButton {
+    final now = _controller.today;
+    final start = _controller.periodStart;
+    final end = _controller.periodEnd;
+    final isMonth =
+        start.day == 1 && end == DateTime(start.year, start.month + 1, 0);
+    if (isMonth && start == DateTime(now.year, now.month)) return 'Este mês';
+    if (isMonth && start == DateTime(now.year, now.month - 1))
+      return 'Mês passado';
+    return 'Período';
   }
 
-  List<TransactionModel> get _upcomingTransactions {
-    final now = DateTime.now();
-    return _transactions.where((t) => t.date.isAfter(now)).take(3).toList();
-  }
-
-  double get _monthIncome => _currentMonthTransactions
-      .where((t) => t.type == 'income')
-      .fold(0, (sum, t) => sum + t.value);
-
-  double get _monthExpense => _currentMonthTransactions
-      .where((t) => t.type == 'expense')
-      .fold(0, (sum, t) => sum + t.value);
-
-  double get _forecastBalance {
-    final now = DateTime.now();
-    var forecast = wallet.balance;
-    for (final transaction in _transactions.where((t) => t.date.isAfter(now))) {
-      forecast += transaction.type == 'income'
-          ? transaction.value
-          : -transaction.value;
+  String get _periodLabel {
+    final start = _controller.periodStart;
+    final end = _controller.periodEnd;
+    if (start.day == 1 && end == DateTime(start.year, start.month + 1, 0)) {
+      return toBeginningOfSentenceCase(
+        DateFormat("MMMM 'de' yyyy", 'pt_BR').format(start),
+      );
     }
-    return forecast;
+    return '${DateFormat('dd/MM/yy').format(start)} – ${DateFormat('dd/MM/yy').format(end)}';
   }
 
-  String _visibleMoney(double value) =>
-      _valuesVisible ? _money.format(value) : 'R\$ ••••••';
+  Future<void> _settings() => showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: _surface,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Informações da carteira', style: _title),
+            const SizedBox(height: 16),
+            Text(wallet.name),
+            const SizedBox(height: 8),
+            Text(
+              wallet.isShared
+                  ? 'Carteira compartilhada'
+                  : 'Carteira individual',
+              style: const TextStyle(color: _muted),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${wallet.memberCount} participante(s)',
+              style: const TextStyle(color: _muted),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _more() => showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: _surface,
+    showDragHandle: true,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final item in <(IconData, String, VoidCallback)>[
+            (Icons.description_outlined, 'Extrato', () => _tabs.animateTo(1)),
+            (Icons.calendar_month_outlined, 'Calendário', _calendar),
+            (Icons.credit_card_outlined, 'Cartões', _cards),
+            (Icons.track_changes, 'Metas', _goals),
+          ])
+            ListTile(
+              leading: Icon(item.$1, color: _purple),
+              title: Text(item.$2),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                item.$3();
+              },
+            ),
+        ],
+      ),
+    ),
+  );
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: DuoColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _WalletHeader(
-              wallet: wallet,
-              onBack: () => Navigator.pop(context),
+  Widget build(BuildContext context) => Theme(
+    data: ThemeData.dark(useMaterial3: true).copyWith(
+      scaffoldBackgroundColor: _background,
+      textTheme: ThemeData.dark().textTheme.copyWith(
+        bodyMedium: const TextStyle(
+          fontFamily: 'Roboto',
+          fontSize: 14,
+          height: 1.2,
+          letterSpacing: 0,
+          color: _white,
+        ),
+      ),
+      colorScheme: const ColorScheme.dark(primary: _purple, surface: _surface),
+      dividerColor: _border,
+    ),
+    child: AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => Scaffold(
+        backgroundColor: _background,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _header(),
+              _tabBar(),
+              Expanded(
+                child: _controller.loading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: _purple),
+                      )
+                    : _controller.error != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _controller.error!,
+                                textAlign: TextAlign.center,
+                              ),
+                              TextButton(
+                                onPressed: _controller.load,
+                                child: const Text('Tentar novamente'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : TabBarView(
+                        controller: _tabs,
+                        children: [_overview(), _transactions(), _statistics()],
+                      ),
+              ),
+            ],
+          ),
+        ),
+        bottomNavigationBar: _bottomBar(),
+      ),
+    ),
+  );
+
+  Widget _header() => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+    child: Row(
+      children: [
+        _IconButton(
+          icon: Icons.arrow_back_rounded,
+          label: 'Voltar',
+          onTap: () => Navigator.pop(context),
+          round: true,
+        ),
+        const SizedBox(width: 10),
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: const Color(0xFF231735),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            wallet.name.trim().isEmpty
+                ? 'C'
+                : wallet.name.trim().characters.first.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 17,
+              color: _purple,
+              fontWeight: FontWeight.w600,
             ),
-            _WalletTabs(controller: _tabController),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _OverviewTab(
-                    wallet: wallet,
-                    loading: _loading,
-                    valuesVisible: _valuesVisible,
-                    balance: _visibleMoney(wallet.balance),
-                    forecastBalance: _visibleMoney(_forecastBalance),
-                    monthIncome: _monthIncome,
-                    monthExpense: _monthExpense,
-                    upcoming: _upcomingTransactions,
-                    cards: _cards,
-                    money: _money,
-                    onToggleVisibility: () =>
-                        setState(() => _valuesVisible = !_valuesVisible),
-                    onStatement: () => _tabController.animateTo(1),
-                    onManageCards: () => _showMessage(
-                      'Gerencie seus cartões pela área de Cartões.',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Carteira',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: _white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                wallet.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: _white),
+              ),
+            ],
+          ),
+        ),
+        _IconButton(
+          icon: Icons.bar_chart_rounded,
+          label: 'Estatísticas',
+          onTap: () => _tabs.animateTo(2),
+        ),
+        const SizedBox(width: 8),
+        _IconButton(
+          icon: Icons.settings_outlined,
+          label: 'Informações da carteira',
+          onTap: _settings,
+        ),
+      ],
+    ),
+  );
+
+  Widget _tabBar() => Container(
+    height: 36,
+    margin: const EdgeInsets.fromLTRB(16, 0, 16, 11),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: _border),
+    ),
+    child: TabBar(
+      controller: _tabs,
+      dividerColor: Colors.transparent,
+      indicatorSize: TabBarIndicatorSize.tab,
+      labelPadding: EdgeInsets.zero,
+      indicator: BoxDecoration(
+        color: const Color(0xFF201C30),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFF39304F)),
+      ),
+      labelColor: const Color(0xFFD0ADFF),
+      unselectedLabelColor: _muted,
+      labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+      tabs: const [
+        Tab(text: 'Visão geral'),
+        Tab(text: 'Transações'),
+        Tab(text: 'Estatísticas'),
+      ],
+    ),
+  );
+
+  Widget _overview() => RefreshIndicator(
+    onRefresh: _controller.load,
+    child: ListView(
+      key: const PageStorageKey('wallet-overview'),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      children: [
+        _balanceCard(),
+        const SizedBox(height: 11),
+        _summary(),
+        const SizedBox(height: 11),
+        _upcoming(),
+        const SizedBox(height: 11),
+        _linkedCards(),
+        const SizedBox(height: 11),
+        _shortcuts(),
+      ],
+    ),
+  );
+
+  Widget _balanceCard() => _Surface(
+    padding: EdgeInsets.zero,
+    glow: true,
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(15, 14, 15, 14),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Flexible(
+                            child: Text(
+                              'Saldo disponível',
+                              style: TextStyle(fontSize: 11, color: _white),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 28,
+                            height: 26,
+                            child: IconButton(
+                              tooltip: _controller.valuesVisible
+                                  ? 'Ocultar valores'
+                                  : 'Mostrar valores',
+                              padding: EdgeInsets.zero,
+                              onPressed: _controller.toggleVisibility,
+                              icon: Icon(
+                                _controller.valuesVisible
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                size: 17,
+                                color: _white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      _Amount(_money(wallet.balance), size: 27),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 3,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            _signed(_controller.currentMonthChange),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _controller.currentMonthChange < 0
+                                  ? _orange
+                                  : _green,
+                            ),
+                          ),
+                          const Text(
+                            'neste mês',
+                            style: TextStyle(fontSize: 10, color: _muted),
+                          ),
+                          Icon(
+                            _controller.currentMonthChange < 0
+                                ? Icons.south_east
+                                : Icons.north_east,
+                            size: 12,
+                            color: _controller.currentMonthChange < 0
+                                ? _orange
+                                : _green,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  margin: const EdgeInsets.symmetric(horizontal: 18),
+                  color: const Color(0xFF30293F),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Flexible(
+                            child: Text(
+                              'Saldo previsto',
+                              style: TextStyle(fontSize: 10, color: _white),
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Tooltip(
+                            message: 'Saldo atual mais movimentações pendentes e faturas até o fim do mês. Projeções seguem o calendário financeiro.',
+                            child: const Icon(
+                              Icons.info_outline,
+                              size: 11,
+                              color: Color(0xFFD9C0EF),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 11),
+                      _Amount(
+                        _money(_controller.forecast.projectedBalance),
+                        size: 21,
+                        color: _purple,
+                      ),
+                      const SizedBox(height: 7),
+                      InkWell(
+                        onTap: _calendar,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Até ${DateFormat("d 'de' MMMM", 'pt_BR').format(_controller.monthEnd)}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: _muted,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFF49325E),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.chevron_right,
+                                color: _purple,
+                                size: 17,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Divider(height: 1, color: _border),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 13, 10, 11),
+          child: Row(
+            children: [
+              for (final action in <(IconData, String, VoidCallback)>[
+                (
+                  Icons.sync_alt,
+                  'Transferir',
+                  () => _unavailable('Transferência bancária'),
+                ),
+                (Icons.qr_code, 'Pix', () => _unavailable('Pix bancário')),
+                (
+                  Icons.save_alt,
+                  'Depositar',
+                  () => _unavailable('Depósito bancário'),
+                ),
+                (
+                  Icons.description_outlined,
+                  'Extrato',
+                  () => _tabs.animateTo(1),
+                ),
+                (Icons.more_horiz, 'Mais', _more),
+              ])
+                Expanded(
+                  child: InkWell(
+                    onTap: action.$3,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF231C37),
+                            border: Border.all(color: const Color(0xFF3F2D58)),
+                          ),
+                          child: Icon(action.$1, size: 23, color: _purple),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          action.$2,
+                          style: const TextStyle(fontSize: 10, color: _white),
+                        ),
+                      ],
                     ),
-                    onAction: _handleAction,
                   ),
-                  _TransactionsTab(
-                    transactions: _transactions,
-                    money: _money,
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _periodControl() => InkWell(
+    onTap: _choosePeriod,
+    borderRadius: BorderRadius.circular(9),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0xFF342642)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _periodButton,
+            style: const TextStyle(fontSize: 10, color: _purple),
+          ),
+          const SizedBox(width: 7),
+          const Icon(Icons.keyboard_arrow_down, color: _purple, size: 15),
+        ],
+      ),
+    ),
+  );
+
+  Widget _summary() {
+    final income = _controller.income;
+    final expense = _controller.expense;
+    final showValues = _controller.valuesVisible;
+    final incomePercent = (_controller.incomeRatio * 100).round();
+    final expensePercent = income + expense == 0 ? 0 : 100 - incomePercent;
+    final start = _controller.periodStart;
+    final isMonth =
+        start.day == 1 &&
+        _controller.periodEnd == DateTime(start.year, start.month + 1, 0);
+    return _Surface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 5,
+                  runSpacing: 3,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      isMonth ? 'Resumo do mês' : 'Resumo do período',
+                      style: _title,
+                    ),
+                    Text(
+                      '• $_periodLabel',
+                      style: const TextStyle(fontSize: 10, color: _muted),
+                    ),
+                    const Tooltip(
+                      message: 'Entradas e saídas que já movimentaram o saldo no período.',
+                      child: Icon(Icons.info_outline, color: _muted, size: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 5),
+              _periodControl(),
+            ],
+          ),
+          const SizedBox(height: 14),
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(child: _metric('Entradas', _money(income), _green)),
+                const VerticalDivider(width: 26, color: _border),
+                Expanded(
+                  child: _metric(
+                    'Saídas',
+                    showValues ? '− ${_money(expense)}' : _money(expense),
+                    _orange,
                   ),
-                  _StatisticsTab(
-                    income: _monthIncome,
-                    expense: _monthExpense,
-                    money: _money,
+                ),
+                const VerticalDivider(width: 26, color: _border),
+                Expanded(
+                  child: _metric(
+                    isMonth ? 'Saldo do mês' : 'Saldo do período',
+                    _money(income - expense),
+                    _white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 9,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: const Color(0xFF201C2E),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: showValues && income + expense > 0
+                ? Row(
+                    children: [
+                      if (income > 0)
+                        Expanded(
+                          flex: (_controller.incomeRatio * 10000).round().clamp(
+                            1,
+                            10000,
+                          ),
+                          child: Container(color: _green),
+                        ),
+                      if (expense > 0)
+                        Expanded(
+                          flex: (_controller.expenseRatio * 10000)
+                              .round()
+                              .clamp(1, 10000),
+                          child: Container(color: _orange),
+                        ),
+                    ],
+                  )
+                : null,
+          ),
+          const SizedBox(height: 11),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${showValues ? '$incomePercent%' : '••'} entradas',
+                style: const TextStyle(fontSize: 10, color: _green),
+              ),
+              Text(
+                '${showValues ? '$expensePercent%' : '••'} saídas',
+                style: const TextStyle(fontSize: 10, color: _orange),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metric(String label, String value, Color color) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: TextStyle(fontSize: 10, color: color == _white ? _muted : color),
+      ),
+      const SizedBox(height: 6),
+      _Amount(value, size: 14, color: color),
+    ],
+  );
+
+  String _due(DateTime date, {bool income = false}) {
+    final days = DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).difference(_controller.today).inDays;
+    if (days < 0) return 'Venceu há ${-days} dia${days == -1 ? '' : 's'}';
+    final verb = income ? 'Recebe' : 'Vence';
+    if (days == 0) return '$verb hoje';
+    if (days == 1) return '$verb amanhã';
+    return '$verb em $days dias';
+  }
+
+  Widget _sectionHeader(
+    String title,
+    String action,
+    VoidCallback onTap, {
+    IconData? icon,
+  }) => Row(
+    children: [
+      if (icon != null) ...[
+        Icon(icon, color: _purple, size: 15),
+        const SizedBox(width: 7),
+      ],
+      Expanded(child: Text(title, style: _title)),
+      const SizedBox(width: 4),
+      InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            action,
+            style: const TextStyle(fontSize: 10, color: _purple),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _upcoming() {
+    final entries = _controller.upcoming;
+    return _Surface(
+      child: Column(
+        children: [
+          _sectionHeader(
+            'Próximas movimentações',
+            'Ver calendário',
+            _calendar,
+            icon: Icons.calendar_month_outlined,
+          ),
+          const SizedBox(height: 4),
+          if (entries.isEmpty)
+            _empty('Nenhuma movimentação prevista nos próximos 12 meses.'),
+          for (var i = 0; i < entries.length; i++) ...[
+            _movement(entries[i]),
+            if (i < entries.length - 1)
+              const Divider(height: 1, color: _border),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _movement(FinancialCalendarEntry entry) {
+    final invoice = entry.kind == FinancialCalendarEntryKind.creditCardInvoice;
+    final color = invoice
+        ? const Color(0xFFD58B17)
+        : entry.isIncome
+        ? _green
+        : const Color(0xFF70AFE9);
+    var name = entry.title;
+    if (invoice) {
+      for (final card in _controller.data.cards) {
+        if (card.id == entry.referenceId) name = card.name;
+      }
+    }
+    return InkWell(
+      onTap: invoice
+          ? _cards
+          : entry.transaction != null
+          ? () => _details(entry.transaction!)
+          : _calendar,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    color.withValues(alpha: .95),
+                    color.withValues(alpha: .6),
+                  ],
+                ),
+              ),
+              child: Icon(
+                invoice
+                    ? Icons.credit_card
+                    : entry.isIncome
+                    ? Icons.arrow_upward
+                    : Icons.arrow_downward,
+                size: 20,
+                color: Color.lerp(color, Colors.white, .5),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: _white),
+                  ),
+                  const SizedBox(height: 3),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: 'Valor: ${_money(entry.value)} • '),
+                        TextSpan(
+                          text: _due(entry.date, income: entry.isIncome),
+                          style: const TextStyle(color: Color(0xFFC49BF5)),
+                        ),
+                      ],
+                    ),
+                    style: const TextStyle(fontSize: 9, color: _muted),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _WalletBottomBar(
-        onFinance: () {},
-        onAdd: () => _showMessage('Use + na Home para adicionar.'),
-        onHome: () => Navigator.pop(context),
-      ),
-    );
-  }
-
-  void _handleAction(String action) {
-    if (action == 'Extrato') {
-      _tabController.animateTo(1);
-      return;
-    }
-    _showMessage('$action fica disponível pelo fluxo financeiro principal.');
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-      );
-  }
-}
-
-class _WalletHeader extends StatelessWidget {
-  final WalletModel wallet;
-  final VoidCallback onBack;
-
-  const _WalletHeader({required this.wallet, required this.onBack});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      child: Row(
-        children: [
-          _CircleIcon(icon: Icons.arrow_back_rounded, onTap: onBack),
-          const SizedBox(width: 12),
-          Container(
-            width: 42,
-            height: 42,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: DuoColors.primaryGradient,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              wallet.name.trim().isEmpty
-                  ? 'D'
-                  : wallet.name.trim().substring(0, 1).toUpperCase(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Carteira',
-                  style: TextStyle(
-                    color: DuoColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
+            const SizedBox(width: 8),
+            Flexible(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: _Amount(
+                  _signed(entry.signedValue),
+                  size: 12,
+                  color: entry.isIncome ? _green : _white,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  wallet.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: DuoColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const _CircleIcon(icon: Icons.bar_chart_rounded),
-          const SizedBox(width: 8),
-          const _CircleIcon(icon: Icons.settings_outlined),
-        ],
-      ),
-    );
-  }
-}
-
-class _WalletTabs extends StatelessWidget {
-  final TabController controller;
-  const _WalletTabs({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 40,
-      margin: const EdgeInsets.fromLTRB(0, 0, 0, 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF10121A),
-        border: Border.all(color: DuoColors.border),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: TabBar(
-        controller: controller,
-        dividerColor: Colors.transparent,
-        indicatorSize: TabBarIndicatorSize.tab,
-        indicator: BoxDecoration(
-          color: DuoColors.primary.withValues(alpha: .16),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: DuoColors.primary.withValues(alpha: .22)),
-        ),
-        labelColor: DuoColors.primaryLight,
-        unselectedLabelColor: DuoColors.textHint,
-        labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-        tabs: const [
-          Tab(text: 'Visão geral'),
-          Tab(text: 'Transações'),
-          Tab(text: 'Estatísticas'),
-        ],
-      ),
-    );
-  }
-}
-
-class _OverviewTab extends StatelessWidget {
-  final WalletModel wallet;
-  final bool loading;
-  final bool valuesVisible;
-  final String balance;
-  final String forecastBalance;
-  final double monthIncome;
-  final double monthExpense;
-  final List<TransactionModel> upcoming;
-  final List<CreditCardModel> cards;
-  final NumberFormat money;
-  final VoidCallback onToggleVisibility;
-  final VoidCallback onStatement;
-  final VoidCallback onManageCards;
-  final ValueChanged<String> onAction;
-
-  const _OverviewTab({
-    required this.wallet,
-    required this.loading,
-    required this.valuesVisible,
-    required this.balance,
-    required this.forecastBalance,
-    required this.monthIncome,
-    required this.monthExpense,
-    required this.upcoming,
-    required this.cards,
-    required this.money,
-    required this.onToggleVisibility,
-    required this.onStatement,
-    required this.onManageCards,
-    required this.onAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final total = monthIncome + monthExpense;
-    final incomeRatio = total == 0 ? .5 : monthIncome / total;
-    final now = DateTime.now();
-    final monthLabel = DateFormat('MMMM', 'pt_BR').format(now);
-
-    return RefreshIndicator(
-      color: DuoColors.primary,
-      onRefresh: () async {},
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(10, 0, 10, 18),
-        children: [
-          _HeroBalanceCard(
-            balance: balance,
-            forecast: forecastBalance,
-            valuesVisible: valuesVisible,
-            onToggleVisibility: onToggleVisibility,
-          ),
-          const SizedBox(height: 12),
-          _ActionsRow(onAction: onAction),
-          const SizedBox(height: 12),
-          _MonthSummaryCard(
-            monthLabel: monthLabel,
-            income: monthIncome,
-            expense: monthExpense,
-            ratio: incomeRatio,
-            money: money,
-          ),
-          const SizedBox(height: 12),
-          _UpcomingCard(transactions: upcoming, money: money),
-          const SizedBox(height: 12),
-          _LinkedCardsCard(
-            cards: cards,
-            money: money,
-            onManage: onManageCards,
-          ),
-          const SizedBox(height: 12),
-          _WalletShortcuts(onStatement: onStatement),
-          if (loading) ...[
-            const SizedBox(height: 18),
-            const Center(
-              child: CircularProgressIndicator(color: DuoColors.primary),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _HeroBalanceCard extends StatelessWidget {
-  final String balance;
-  final String forecast;
-  final bool valuesVisible;
-  final VoidCallback onToggleVisibility;
-
-  const _HeroBalanceCard({
-    required this.balance,
-    required this.forecast,
-    required this.valuesVisible,
-    required this.onToggleVisibility,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF201735), Color(0xFF11131D)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: DuoColors.primary.withValues(alpha: .18)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'Saldo disponível',
-                          style: TextStyle(
-                            color: DuoColors.textSecondary,
-                            fontSize: 11,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        InkWell(
-                          onTap: onToggleVisibility,
-                          child: Icon(
-                            valuesVisible
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            color: DuoColors.textHint,
-                            size: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      balance,
-                      style: const TextStyle(
-                        color: DuoColors.textPrimary,
-                        fontSize: 27,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -.7,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      '+ saldo realizado no período',
-                      style: TextStyle(
-                        color: DuoColors.success,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(width: 1, height: 84, color: DuoColors.divider),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Saldo previsto',
-                      style: TextStyle(
-                        color: DuoColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      forecast,
-                      style: const TextStyle(
-                        color: DuoColors.primaryLight,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Até ${DateFormat('dd/MM').format(DateTime(DateTime.now().year, DateTime.now().month + 1, 0))}',
-                      style: const TextStyle(
-                        color: DuoColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: DuoColors.primaryLight,
-                size: 20,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionsRow extends StatelessWidget {
-  final ValueChanged<String> onAction;
-  const _ActionsRow({required this.onAction});
-
-  @override
-  Widget build(BuildContext context) {
-    const actions = [
-      (Icons.swap_horiz_rounded, 'Transferir'),
-      (Icons.qr_code_2_rounded, 'Pix'),
-      (Icons.south_rounded, 'Depositar'),
-      (Icons.description_outlined, 'Extrato'),
-      (Icons.more_horiz_rounded, 'Mais'),
-    ];
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: actions
-          .map(
-            (action) => _ActionButton(
-              icon: action.$1,
-              label: action.$2,
-              onTap: () => onAction(action.$2),
-            ),
-          )
-          .toList(),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: SizedBox(
-        width: 64,
-        child: Column(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: DuoColors.primary.withValues(alpha: .12),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: DuoColors.primary.withValues(alpha: .18),
-                ),
-              ),
-              child: Icon(icon, color: DuoColors.primaryLight, size: 21),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              label,
-              style: const TextStyle(
-                color: DuoColors.textSecondary,
-                fontSize: 10,
               ),
             ),
           ],
@@ -568,497 +944,514 @@ class _ActionButton extends StatelessWidget {
       ),
     );
   }
-}
 
-class _MonthSummaryCard extends StatelessWidget {
-  final String monthLabel;
-  final double income;
-  final double expense;
-  final double ratio;
-  final NumberFormat money;
-
-  const _MonthSummaryCard({
-    required this.monthLabel,
-    required this.income,
-    required this.expense,
-    required this.ratio,
-    required this.money,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final balance = income - expense;
-    return _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text(
-                'Resumo do mês',
-                style: _Styles.sectionTitle,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '• ${toBeginningOfSentenceCase(monthLabel)}',
-                style: const TextStyle(
-                  color: DuoColors.textSecondary,
-                  fontSize: 11,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: DuoColors.border),
-                ),
-                child: const Text(
-                  'Este mês',
-                  style: TextStyle(
-                    color: DuoColors.primaryLight,
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(child: _SummaryMetric('Entradas', money.format(income), DuoColors.success)),
-              Expanded(child: _SummaryMetric('Saídas', '- ${money.format(expense)}', const Color(0xFFFF6333))),
-              Expanded(child: _SummaryMetric('Saldo do mês', money.format(balance), DuoColors.textPrimary)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: (ratio * 100).round().clamp(1, 99),
-                  child: Container(height: 7, color: DuoColors.success),
-                ),
-                Expanded(
-                  flex: ((1 - ratio) * 100).round().clamp(1, 99),
-                  child: Container(height: 7, color: const Color(0xFFFF6333)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Text(
-                '${(ratio * 100).round()}% entradas',
-                style: const TextStyle(color: DuoColors.success, fontSize: 10),
-              ),
-              const Spacer(),
-              Text(
-                '${((1 - ratio) * 100).round()}% saídas',
-                style: const TextStyle(color: Color(0xFFFF6333), fontSize: 10),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  const _SummaryMetric(this.label, this.value, this.color);
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(label, style: const TextStyle(color: DuoColors.textSecondary, fontSize: 10)),
-      const SizedBox(height: 5),
-      Text(value, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
-    ],
-  );
-}
-
-class _UpcomingCard extends StatelessWidget {
-  final List<TransactionModel> transactions;
-  final NumberFormat money;
-  const _UpcomingCard({required this.transactions, required this.money});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      child: Column(
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.calendar_month_rounded, size: 16, color: DuoColors.primaryLight),
-              SizedBox(width: 7),
-              Text('Próximas movimentações', style: _Styles.sectionTitle),
-              Spacer(),
-              Text('Ver calendário', style: TextStyle(color: DuoColors.primaryLight, fontSize: 10)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (transactions.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('Nenhuma movimentação futura.', style: TextStyle(color: DuoColors.textHint, fontSize: 11)),
-            )
-          else
-            for (var i = 0; i < transactions.length; i++) ...[
-              _MovementRow(transaction: transactions[i], money: money),
-              if (i != transactions.length - 1)
-                const Divider(height: 1, color: DuoColors.divider),
-            ],
-        ],
-      ),
-    );
-  }
-}
-
-class _MovementRow extends StatelessWidget {
-  final TransactionModel transaction;
-  final NumberFormat money;
-  const _MovementRow({required this.transaction, required this.money});
-
-  @override
-  Widget build(BuildContext context) {
-    final income = transaction.type == 'income';
-    final days = transaction.date.difference(DateTime.now()).inDays.abs();
-    final color = income ? DuoColors.success : const Color(0xFF7AB5FF);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(color: color.withValues(alpha: .18), shape: BoxShape.circle),
-            child: Icon(income ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, color: color, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(transaction.description, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: DuoColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text('${money.format(transaction.value)} • em $days dias', style: const TextStyle(color: DuoColors.textSecondary, fontSize: 9)),
-              ],
-            ),
-          ),
-          Text('${income ? '+' : '-'} ${money.format(transaction.value)}', style: TextStyle(color: income ? DuoColors.success : DuoColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}
-
-class _LinkedCardsCard extends StatelessWidget {
-  final List<CreditCardModel> cards;
-  final NumberFormat money;
-  final VoidCallback onManage;
-  const _LinkedCardsCard({required this.cards, required this.money, required this.onManage});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Text('Cartões vinculados', style: _Styles.sectionTitle),
-              const Spacer(),
-              InkWell(onTap: onManage, child: const Text('Gerenciar', style: TextStyle(color: DuoColors.primaryLight, fontSize: 10))),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (cards.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('Nenhum cartão vinculado.', style: TextStyle(color: DuoColors.textHint, fontSize: 11)),
-            )
-          else
-            for (final card in cards.take(2))
-              Container(
-                margin: const EdgeInsets.only(bottom: 7),
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF151725),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: DuoColors.border),
-                ),
+  Widget _linkedCards() => _Surface(
+    padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: _sectionHeader('Cartões vinculados', 'Gerenciar', _cards),
+        ),
+        const SizedBox(height: 8),
+        if (_controller.data.cards.isEmpty) _empty('Nenhum cartão vinculado.'),
+        for (final card in _controller.data.cards)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: InkWell(
+              onTap: _cards,
+              borderRadius: BorderRadius.circular(12),
+              child: _Surface(
+                padding: const EdgeInsets.all(10),
+                glow: true,
                 child: Row(
                   children: [
                     Container(
-                      width: 52,
-                      height: 34,
+                      width: 57,
+                      height: 38,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Color(0xFFFF6B35), Color(0xFFFF9D2E)]),
-                        borderRadius: BorderRadius.circular(7),
+                        borderRadius: BorderRadius.circular(5),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF3F2A5B), Color(0xFF201B35)],
+                        ),
                       ),
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.credit_card_rounded, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.credit_card,
+                        color: _purple,
+                        size: 25,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
+                      flex: 3,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(card.name, style: const TextStyle(color: DuoColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                          Text(card.lastFourDigits == null ? 'Final não informado' : 'Final ${card.lastFourDigits}', style: const TextStyle(color: DuoColors.textSecondary, fontSize: 9)),
+                          Text(
+                            card.name,
+                            style: const TextStyle(fontSize: 11, color: _white),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            card.lastFourDigits == null
+                                ? 'Final não informado'
+                                : 'Final ${card.lastFourDigits}',
+                            style: const TextStyle(fontSize: 9, color: _muted),
+                          ),
                         ],
                       ),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text('Fatura atual', style: TextStyle(color: DuoColors.textSecondary, fontSize: 9)),
-                        Text(money.format(card.usedLimit), style: const TextStyle(color: Color(0xFFFF6333), fontSize: 11, fontWeight: FontWeight.w700)),
-                        Text('Vence dia ${card.dueDay}', style: const TextStyle(color: DuoColors.primaryLight, fontSize: 8)),
-                      ],
-                    ),
                     const SizedBox(width: 6),
-                    const Icon(Icons.chevron_right_rounded, color: DuoColors.textHint, size: 18),
+                    Expanded(flex: 2, child: _invoiceInfo(card.id)),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.chevron_right, color: _muted, size: 18),
                   ],
                 ),
               ),
+            ),
+          ),
+      ],
+    ),
+  );
+
+  Widget _invoiceInfo(String cardId) {
+    final invoice = _controller.currentInvoice(cardId);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Fatura atual',
+          style: TextStyle(fontSize: 9, color: _muted),
+        ),
+        const SizedBox(height: 3),
+        if (invoice == null)
+          const Text(
+            'Sem fatura em aberto',
+            style: TextStyle(fontSize: 10, color: _muted),
+          )
+        else ...[
+          _Amount(_money(invoice.total), size: 12, color: _orange),
+          const SizedBox(height: 3),
+          Text(
+            _due(invoice.dueDate),
+            style: const TextStyle(fontSize: 9, color: Color(0xFFC49BF5)),
+          ),
         ],
-      ),
+      ],
     );
   }
-}
 
-class _WalletShortcuts extends StatelessWidget {
-  final VoidCallback onStatement;
-  const _WalletShortcuts({required this.onStatement});
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      (Icons.track_changes_rounded, 'Metas conectadas', 'Ver metas'),
-      (Icons.savings_outlined, 'Cofrinhos', 'Ver cofrinhos'),
-      (Icons.pie_chart_outline_rounded, 'Investimentos', 'Acompanhar'),
-      (Icons.category_outlined, 'Categorias', 'Ver gastos'),
+  Widget _shortcuts() {
+    final items = <(IconData, String, String, Color, VoidCallback)>[
+      (
+        Icons.track_changes,
+        'Metas\nconectadas',
+        '${_controller.activeGoalCount} metas',
+        _purple,
+        _goals,
+      ),
+      (
+        Icons.savings_outlined,
+        'Cofrinhos',
+        'Indisponível',
+        const Color(0xFF60A5F5),
+        () => _unavailable('Cofrinhos'),
+      ),
+      (
+        Icons.pie_chart_outline,
+        'Investimentos',
+        'Indisponível',
+        _green,
+        () => _unavailable('Investimentos'),
+      ),
+      (
+        Icons.donut_large,
+        'Categorias',
+        'Ver gastos',
+        const Color(0xFFE8AC35),
+        () => _tabs.animateTo(2),
+      ),
     ];
-    return _SectionCard(
+    return _Surface(
+      padding: const EdgeInsets.all(11),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Atalhos da carteira', style: _Styles.sectionTitle),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              for (var i = 0; i < items.length; i++)
-                Expanded(
-                  child: InkWell(
-                    onTap: i == 3 ? onStatement : null,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              color: DuoColors.primary.withValues(alpha: .12),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(items[i].$1, color: DuoColors.primaryLight, size: 18),
+          const Text('Atalhos da carteira', style: _title),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns =
+                  constraints.maxWidth < 310 ||
+                      MediaQuery.textScalerOf(context).scale(10) > 14
+                  ? 2
+                  : 4;
+              final width =
+                  (constraints.maxWidth - (columns - 1) * 5) / columns;
+              return Wrap(
+                spacing: 5,
+                runSpacing: 6,
+                children: [
+                  for (final item in items)
+                    SizedBox(
+                      width: width,
+                      child: InkWell(
+                        onTap: item.$5,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 53),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 8,
                           ),
-                          const SizedBox(height: 5),
-                          Text(items[i].$2, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(color: DuoColors.textPrimary, fontSize: 8)),
-                          Text(items[i].$3, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(color: DuoColors.textSecondary, fontSize: 7)),
-                        ],
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF191B26), Color(0xFF10121C)],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _border),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 25,
+                                height: 25,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: item.$4.withValues(alpha: .12),
+                                ),
+                                child: Icon(item.$1, color: item.$4, size: 21),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.$2,
+                                      style: const TextStyle(
+                                        fontSize: 8,
+                                        color: _white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      item.$3,
+                                      style: const TextStyle(
+                                        fontSize: 7.5,
+                                        color: _muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-            ],
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
-}
 
-class _TransactionsTab extends StatelessWidget {
-  final List<TransactionModel> transactions;
-  final NumberFormat money;
-  const _TransactionsTab({required this.transactions, required this.money});
-
-  @override
-  Widget build(BuildContext context) {
-    if (transactions.isEmpty) {
-      return const Center(child: Text('Nenhuma transação.', style: TextStyle(color: DuoColors.textSecondary)));
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-      itemCount: transactions.length,
-      separatorBuilder: (_, _) => const Divider(color: DuoColors.divider),
-      itemBuilder: (_, index) {
-        final transaction = transactions[index];
-        final income = transaction.type == 'income';
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: CircleAvatar(
-            backgroundColor: (income ? DuoColors.success : DuoColors.primary).withValues(alpha: .16),
-            child: Icon(income ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, color: income ? DuoColors.success : DuoColors.primaryLight),
+  Widget _transactions() {
+    final transactions = _controller.periodTransactions;
+    return RefreshIndicator(
+      onRefresh: _controller.load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(_periodLabel, style: _title)),
+              _periodControl(),
+            ],
           ),
-          title: Text(transaction.description, style: const TextStyle(color: DuoColors.textPrimary, fontSize: 13)),
-          subtitle: Text(DateFormat('dd/MM/yyyy').format(transaction.date), style: const TextStyle(color: DuoColors.textSecondary, fontSize: 10)),
-          trailing: Text('${income ? '+' : '-'} ${money.format(transaction.value)}', style: TextStyle(color: income ? DuoColors.success : DuoColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 12)),
-        );
-      },
+          const SizedBox(height: 12),
+          if (transactions.isEmpty) _empty('Nenhuma transação neste período.'),
+          for (final transaction in transactions)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              onTap: () => _details(transaction),
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFF231C37),
+                child: Icon(
+                  transaction.type == 'income'
+                      ? Icons.arrow_upward
+                      : Icons.arrow_downward,
+                  color: transaction.type == 'income' ? _green : _purple,
+                ),
+              ),
+              title: Text(
+                transaction.description,
+                style: const TextStyle(fontSize: 13, color: _white),
+              ),
+              subtitle: Text(
+                '${DateFormat('dd/MM/yyyy').format(transaction.date)} • ${transaction.isFinanciallyPending
+                    ? 'Pendente'
+                    : transaction.isSettledByInvoice
+                    ? 'Na fatura'
+                    : 'Concluída'}',
+                style: const TextStyle(fontSize: 10, color: _muted),
+              ),
+              trailing: Text(
+                _signed(
+                  transaction.type == 'income'
+                      ? transaction.value
+                      : -transaction.value,
+                ),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: transaction.type == 'income' ? _green : _white,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
-}
 
-class _StatisticsTab extends StatelessWidget {
-  final double income;
-  final double expense;
-  final NumberFormat money;
-  const _StatisticsTab({required this.income, required this.expense, required this.money});
-
-  @override
-  Widget build(BuildContext context) {
-    final total = income + expense;
-    final ratio = total == 0 ? 0.0 : income / total;
+  Widget _statistics() {
+    final report = _controller.categoryReport;
+    final categories = report.expenseByCategory;
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
       children: [
-        const Text('Estatísticas do mês', style: TextStyle(color: DuoColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 16),
-        _SectionCard(
+        _summary(),
+        const SizedBox(height: 12),
+        _Surface(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Entradas: ${money.format(income)}', style: const TextStyle(color: DuoColors.success)),
-              const SizedBox(height: 10),
-              Text('Saídas: ${money.format(expense)}', style: const TextStyle(color: Color(0xFFFF6333))),
-              const SizedBox(height: 16),
-              LinearProgressIndicator(value: ratio, minHeight: 8, backgroundColor: const Color(0xFFFF6333), valueColor: const AlwaysStoppedAnimation(DuoColors.success)),
+              const Text('Gastos por categoria', style: _title),
+              const SizedBox(height: 8),
+              if (categories.isEmpty) _empty('Nenhuma despesa neste período.'),
+              for (final category in categories)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    category.category,
+                    style: const TextStyle(fontSize: 12, color: _white),
+                  ),
+                  trailing: Text(
+                    _money(category.amount),
+                    style: const TextStyle(color: _purple),
+                  ),
+                  onTap: () => _open(
+                    CategoryReportPage(
+                      category: category.category,
+                      startDate: _controller.periodStart,
+                      endDate: _controller.periodEnd,
+                      transactions: report.transactions,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ],
     );
   }
+
+  Widget _empty(String text) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 18),
+    child: Text(
+      text,
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontSize: 11, color: _muted),
+    ),
+  );
+
+  Widget _bottomBar() => Container(
+    margin: const EdgeInsets.symmetric(horizontal: 8),
+    decoration: BoxDecoration(
+      color: _background,
+      border: Border.all(color: _border),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+    ),
+    child: SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 0, 4, 9),
+        child: Row(
+          children: [
+            _navItem(
+              Icons.home_outlined,
+              'Início',
+              () => Navigator.pop(context),
+            ),
+            _navItem(
+              Icons.account_balance_wallet,
+              'Finanças',
+              _more,
+              active: true,
+            ),
+            Expanded(
+              child: Transform.translate(
+                offset: const Offset(0, -6),
+                child: Center(
+                  child: InkWell(
+                    onTap: () => _run(widget.onAdd, 'Nova transação'),
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const RadialGradient(
+                          center: Alignment(-.4, -.5),
+                          radius: 1.3,
+                          colors: [Color(0xFFAC72EB), Color(0xFF622CAD)],
+                        ),
+                        border: Border.all(color: const Color(0xFFBC88F6)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _purple.withValues(alpha: .16),
+                            blurRadius: 14,
+                          ),
+                        ],
+                      ),
+                      child: const Tooltip(
+                        message: 'Nova transação',
+                        child: Icon(Icons.add, color: Colors.white, size: 34),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            _navItem(
+              Icons.check_box_outlined,
+              'Rotinas',
+              () => _run(widget.onRoutines, 'Rotinas'),
+            ),
+            _navItem(
+              Icons.auto_awesome_outlined,
+              'IA',
+              () => _open(InsightsPage(wallet: wallet)),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _navItem(
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    bool active = false,
+  }) => Expanded(
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 21, color: active ? _purple : _muted),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              style: TextStyle(fontSize: 10, color: active ? _purple : _muted),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
-class _SectionCard extends StatelessWidget {
+class _Amount extends StatelessWidget {
+  final String text;
+  final double size;
+  final Color color;
+  const _Amount(this.text, {required this.size, this.color = _white});
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    alignment: Alignment.centerLeft,
+    child: Text(
+      text,
+      maxLines: 1,
+      style: TextStyle(
+        fontSize: size,
+        color: color,
+        fontWeight: FontWeight.w400,
+      ),
+    ),
+  );
+}
+
+class _Surface extends StatelessWidget {
   final Widget child;
-  const _SectionCard({required this.child});
+  final EdgeInsets padding;
+  final bool glow;
+  const _Surface({
+    required this.child,
+    this.padding = const EdgeInsets.all(13),
+    this.glow = false,
+  });
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(12),
+    padding: padding,
     decoration: BoxDecoration(
-      color: const Color(0xFF11131C),
-      borderRadius: BorderRadius.circular(15),
-      border: Border.all(color: DuoColors.border),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: glow
+            ? const [Color(0xFF191629), Color(0xFF0F101C)]
+            : const [Color(0xFF10121C), Color(0xFF0D0F18)],
+      ),
+      border: Border.all(
+        color: glow ? const Color(0xFF322740) : _border,
+        width: .6,
+      ),
+      borderRadius: BorderRadius.circular(14),
     ),
     child: child,
   );
 }
 
-class _WalletBottomBar extends StatelessWidget {
-  final VoidCallback onHome;
-  final VoidCallback onFinance;
-  final VoidCallback onAdd;
-  const _WalletBottomBar({required this.onHome, required this.onFinance, required this.onAdd});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.paddingOf(context).bottom + 7),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0E1018),
-        border: Border(top: BorderSide(color: DuoColors.divider)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _BottomItem(icon: Icons.home_outlined, label: 'Início', onTap: onHome),
-          _BottomItem(icon: Icons.account_balance_wallet_rounded, label: 'Finanças', active: true, onTap: onFinance),
-          InkWell(
-            onTap: onAdd,
-            borderRadius: BorderRadius.circular(40),
-            child: Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                gradient: DuoColors.primaryGradient,
-                shape: BoxShape.circle,
-                boxShadow: DuoColors.primaryGlow,
-              ),
-              child: const Icon(Icons.add_rounded, color: Colors.white, size: 29),
-            ),
-          ),
-          const _BottomItem(icon: Icons.check_box_outlined, label: 'Rotinas'),
-          const _BottomItem(icon: Icons.auto_awesome_outlined, label: 'IA'),
-        ],
-      ),
-    );
-  }
-}
-
-class _BottomItem extends StatelessWidget {
+class _IconButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final bool active;
-  final VoidCallback? onTap;
-  const _BottomItem({required this.icon, required this.label, this.active = false, this.onTap});
+  final VoidCallback onTap;
+  final bool round;
+  const _IconButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.round = false,
+  });
 
   @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: SizedBox(
-      width: 58,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: active ? DuoColors.primaryLight : DuoColors.textHint, size: 20),
-          const SizedBox(height: 3),
-          Text(label, style: TextStyle(color: active ? DuoColors.primaryLight : DuoColors.textHint, fontSize: 9)),
-        ],
+  Widget build(BuildContext context) => Tooltip(
+    message: label,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(round ? 30 : 9),
+      child: Container(
+        width: round ? 32 : 28,
+        height: round ? 32 : 28,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0D0D16),
+          border: Border.all(color: _border),
+          borderRadius: BorderRadius.circular(round ? 30 : 9),
+        ),
+        child: Icon(icon, color: _purple, size: 19),
       ),
     ),
-  );
-}
-
-class _CircleIcon extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  const _CircleIcon({required this.icon, this.onTap});
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-    borderRadius: BorderRadius.circular(12),
-    onTap: onTap,
-    child: Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: const Color(0xFF11131C),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: DuoColors.border),
-      ),
-      child: Icon(icon, color: DuoColors.primaryLight, size: 18),
-    ),
-  );
-}
-
-class _Styles {
-  static const sectionTitle = TextStyle(
-    color: DuoColors.textPrimary,
-    fontSize: 12,
-    fontWeight: FontWeight.w700,
   );
 }
