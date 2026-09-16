@@ -1199,6 +1199,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                                             Expanded(
                                               child: Text(
                                                 item.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
                                                   fontSize: 12,
                                                 ),
@@ -1218,6 +1220,15 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                                                 fontSize: 11,
                                                 color: transactionMuted,
                                               ),
+                                            ),
+                                            IconButton(
+                                              tooltip: 'Editar ${item.name}',
+                                              onPressed: () => _openEditItemPage(item),
+                                              icon: const Icon(Icons.edit_outlined, size: 17),
+                                              color: transactionAccent,
+                                              padding: const EdgeInsets.all(6),
+                                              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                                              visualDensity: VisualDensity.compact,
                                             ),
                                           ],
                                         ),
