@@ -357,8 +357,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openFinanceHub() async {
     final shortcutScrollController = ScrollController();
+    var openWalletSelector = false;
     try {
-      await showModalBottomSheet<void>(
+      openWalletSelector = await showModalBottomSheet<bool>(
         context: context,
         backgroundColor: DuoColors.surface,
         showDragHandle: true,
@@ -439,8 +440,7 @@ class _HomePageState extends State<HomePage> {
                       icon: Icons.account_balance_wallet_rounded,
                       label: 'Carteiras',
                       onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openWalletSelector();
+                        Navigator.pop(sheetContext, true);
                       },
                     ),
                           ],
@@ -453,9 +453,14 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-      );
+      ) ??
+          false;
     } finally {
       shortcutScrollController.dispose();
+    }
+
+    if (openWalletSelector && mounted) {
+      await _openWalletSelector();
     }
   }
 
