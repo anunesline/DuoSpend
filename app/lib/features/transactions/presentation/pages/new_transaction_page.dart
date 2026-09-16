@@ -358,7 +358,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
 
   Future<void> _saveTransaction() async {
     if (purchaseController.isSaving || transactionController.isSaving) return;
-    final description = descriptionController.text.trim();
+    final description = descriptionController.text.trim().isEmpty &&
+            purchaseController.hasItems
+        ? 'Compra: ${purchaseController.items.map((item) => item.name).join(', ')}'
+        : descriptionController.text.trim();
     final value = double.tryParse(valueController.text.replaceAll(',', '.'));
     if (description.isEmpty || value == null) { _showMessage('Preencha todos os campos.'); return; }
     if (value <= 0) { _showMessage('Informe um valor maior que zero.'); return; }
@@ -740,7 +743,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   Future<void> _submitFromHeader() async {
     if (_isSaving) return;
     // Description remains required by the existing save flow, without inserting mock data.
-    if (descriptionController.text.trim().isEmpty) {
+    if (descriptionController.text.trim().isEmpty && !purchaseController.hasItems) {
       final accepted = await showModalBottomSheet<bool>(
         context: context,
         isScrollControlled: true,
@@ -1137,6 +1140,22 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                           ],
                           const SizedBox(height: 8),
                           _buildCategoryCard(),
+                          if (_isMarket && !purchaseController.hasItems)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: TransactionPanel(
+                                child: OutlinedButton.icon(
+                                  onPressed: _openItemsSheet,
+                                  icon: const Icon(Icons.add, size: 18),
+                                  label: const Text('Adicionar item'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: transactionAccent,
+                                    side: const BorderSide(color: Color(0xFF39274E)),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ),
+                            ),
                           if (purchaseController.hasItems) ...[
                             const SizedBox(height: 8),
                             TransactionPanel(
