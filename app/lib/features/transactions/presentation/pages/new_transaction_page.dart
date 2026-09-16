@@ -78,6 +78,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   String? selectedPayerMemberId;
   String? selectedPurchaseDestination;
   String? selectedFinancialWalletId;
+  String? selectedOriginWalletId;
   String selectedSplitType = FinancialSplitRules.splitTypeEqual;
   double currentUserSplitPercent = 50;
   PaymentMethod selectedPaymentMethod = PaymentMethod.pix;
@@ -99,6 +100,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   void initState() {
     super.initState();
     purchaseController.clearPurchase();
+    selectedOriginWalletId = widget.walletId;
     _syncFinancialCategory();
     _applyReceiptDraft();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -269,10 +271,25 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   void _changeSplitType(String value) => setState(() { selectedSplitType = value; if (value == FinancialSplitRules.splitTypeEqual) currentUserSplitPercent = 50; });
   void _changeCurrentUserSplitPercent(double value) => setState(() => currentUserSplitPercent = value);
 
+  List<WalletModel> _availableOriginWallets() {
+    final id = FirebaseAuth.instance.currentUser?.uid;
+    if (id == null || id.isEmpty) return const [];
+    return widget.walletContext.wallets.where((wallet) => wallet.hasMember(id)).toList(growable: false);
+  }
+
   List<WalletModel> _currentUserIndividualWallets() {
     final id = FirebaseAuth.instance.currentUser?.uid;
     if (id == null || id.isEmpty) return const [];
     return widget.walletContext.wallets.where((wallet) => wallet.isIndividual && wallet.ownerId == id).toList(growable: false);
+  }
+
+  WalletModel? _resolveOriginWallet() {
+    final wallets = _availableOriginWallets();
+    final id = selectedOriginWalletId ?? widget.walletId;
+    for (final wallet in wallets) {
+      if (wallet.id == id) return wallet;
+    }
+    return wallets.isEmpty ? _resolveActiveWallet() : wallets.first;
   }
 
   String? _resolveSelectedFinancialWalletId() {
@@ -339,7 +356,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     if (user == null) { _showMessage('Usuário não autenticado.'); return; }
     final activeWallet = _resolveActiveWallet();
     if (activeWallet == null) { _showMessage('Não foi possível identificar a carteira selecionada.'); return; }
-    final config = _resolveFinancialSplitConfiguration(wallet: activeWallet, currentUserMemberId: user.uid);
+    final originWallet = _resolveOriginWallet() ?? activeWallet;
+    final config = _resolveFinancialSplitConfiguration(wallet: originWallet, currentUserMemberId: user.uid);
     final payerMemberId = config.resolvePayerMemberId(selectedPayerMemberId);
     final purchaseDestination = config.resolvePurchaseDestination(selectedPurchaseDestination);
     final partnerMemberId = config.partnerMemberId;
@@ -352,8 +370,11 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       if (card == null) { _showMessage('Cadastre ou selecione um cartão de crédito.'); return; }
       financialWalletId = card.walletId; paymentSourceId = card.id;
     } else if (selectedPaymentMethod.requiresPaymentSource) { paymentSourceId = financialWalletId; }
-    if (payerMemberId == user.uid && financialWalletId == null) { _showMessage('Crie uma carteira individual para registrar esta movimentação.'); return; }
-    final transactionWallet = _resolveTransactionWallet(activeWallet: activeWallet, currentUserId: user.uid, purchaseDestination: purchaseDestination);
+    final transactionWallet = originWallet;
+    if (!selectedPaymentMethod.isCreditCard) {
+      financialWalletId = transactionWallet.id;
+    }
+    if (financialWalletId == null) { _showMessage('Selecione uma conta de origem para registrar esta movimentação.'); return; }
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     try {
       final consumerId = await _resolveConsumerId(transactionWallet.id);
@@ -382,7 +403,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
           memberIds: transactionWallet.memberIds,
         ),
       );
-      if (!mounted) return; Navigator.pop(context);
+      if (!mounted) return; Navigator.pop(context, true);
     } catch (_) { _showMessage(transactionController.errorMessage ?? 'Não foi possível salvar a transação.'); }
   }
 
@@ -629,11 +650,11 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
           shrinkWrap: true,
           children: [
             const ListTile(title: Text('De qual conta?')),
-            if (_currentUserIndividualWallets().isEmpty)
+            if (_availableOriginWallets().isEmpty)
               const ListTile(
-                title: Text('Nenhuma conta individual disponível.'),
+                title: Text('Nenhuma conta disponível.'),
               ),
-            for (final wallet in _currentUserIndividualWallets())
+            for (final wallet in _availableOriginWallets())
               ListTile(
                 leading: const Icon(
                   Icons.account_balance_wallet_outlined,
@@ -641,11 +662,14 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
                 ),
                 title: Text(wallet.name),
                 subtitle: Text(_money(wallet.balance)),
-                trailing: wallet.id == _resolveSelectedFinancialWalletId()
+                trailing: wallet.id == (selectedOriginWalletId ?? widget.walletId)
                     ? const Icon(Icons.check, color: transactionAccent)
                     : null,
                 onTap: () {
-                  setState(() => selectedFinancialWalletId = wallet.id);
+                  setState(() {
+                    selectedOriginWalletId = wallet.id;
+                    if (wallet.isIndividual) selectedFinancialWalletId = wallet.id;
+                  });
                   Navigator.pop(sheetContext);
                 },
               ),

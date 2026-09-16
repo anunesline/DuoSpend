@@ -441,17 +441,24 @@ class CreateTransactionUseCase {
       );
     }
 
-    if (!financialWallet.isIndividual) {
+    if (!financialWallet.isIndividual && !financialWallet.isShared) {
       throw Exception(
-        'A origem financeira da transação precisa ser uma carteira individual.',
+        'A origem financeira da transação precisa ser uma carteira válida.',
       );
     }
 
     if (hasSelectedWallet &&
-        financialWallet.ownerId.trim() !=
-            paidByMemberId.trim()) {
+        financialWallet.isIndividual &&
+        financialWallet.ownerId.trim() != paidByMemberId.trim()) {
       throw Exception(
         'A carteira financeira selecionada não pertence ao pagador.',
+      );
+    }
+
+    if (hasSelectedWallet && financialWallet.isShared &&
+        !financialWallet.hasMember(paidByMemberId)) {
+      throw Exception(
+        'O pagador não pertence à carteira compartilhada selecionada.',
       );
     }
 

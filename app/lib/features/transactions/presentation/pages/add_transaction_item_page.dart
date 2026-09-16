@@ -903,6 +903,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                   suggestions: productSuggestions,
                   onSearch: _searchProducts,
                   onSelected: _selectProduct,
+                  onCreateRequested: _saveItem,
                 ),
                 if (_showValidationErrors && !hasValidProductName) ...[
                   const SizedBox(height: AppSpacing.sm),

@@ -216,7 +216,7 @@ class _HomePageState extends State<HomePage> {
     final wallet = controller.wallet;
     if (wallet == null) return;
 
-    await Navigator.push(
+    final changed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => NewTransactionPage(
@@ -229,6 +229,9 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+    if (changed == true) {
+      await controller.refreshSelectedWallet();
+    }
     await _loadHome();
   }
 
@@ -334,6 +337,7 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+    await controller.refreshSelectedWallet();
     await _loadHome();
   }
 
