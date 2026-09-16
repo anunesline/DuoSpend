@@ -1298,7 +1298,7 @@ class _WalletDetailsPageState extends State<WalletDetailsPage>
             Expanded(
               child: Transform.translate(
                 offset: const Offset(0, -6),
-                child: Center(
+                child: Align(alignment: Alignment.topCenter, heightFactor: 1,
                   child: InkWell(
                     onTap: () => _run(widget.onAdd, 'Nova transação'),
                     customBorder: const CircleBorder(),
