@@ -267,17 +267,60 @@ class _HomePageState extends State<HomePage> {
     final userId = controller.user?.uid;
     if (wallet == null || userId == null || userId.isEmpty) return;
 
-    await Navigator.push(
+    final destination = await Navigator.push<BudgetDestination>(
       context,
       MaterialPageRoute(
         builder: (_) => BudgetsPage(
           wallet: wallet,
           transactions: controller.transactions,
           currentUserId: userId,
+          navigationBuilder: (navigate) => SizedBox(
+            height: 84 + MediaQuery.paddingOf(context).bottom,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _OrbitBottomNavigation(
+                    financeActive: true,
+                    onHome: () => navigate(BudgetDestination.home),
+                    onFinance: () => navigate(BudgetDestination.finance),
+                    onRoutines: () => navigate(BudgetDestination.routines),
+                    onAi: () => navigate(BudgetDestination.ai),
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: MediaQuery.paddingOf(context).bottom + 20,
+                  child: Center(
+                    child: _CreateButton(
+                      onTap: () => navigate(BudgetDestination.create),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
-    await _loadHome();
+    if (!mounted) return;
+    switch (destination) {
+      case BudgetDestination.finance:
+        await _openFinanceHub();
+      case BudgetDestination.create:
+        await _showQuickCreateMenu();
+      case BudgetDestination.routines:
+        await _openHouseholdRoutinesPage();
+      case BudgetDestination.ai:
+        await _openInsightsPage();
+      case BudgetDestination.home:
+      case null:
+        break;
+    }
+    if (mounted) await _loadHome();
   }
 
   Future<void> _openMonthlyReportPage() async {
@@ -1466,12 +1509,14 @@ class _OrbitBackdrop extends StatelessWidget {
 }
 
 class _OrbitBottomNavigation extends StatelessWidget {
+  final bool financeActive;
   final VoidCallback onHome;
   final VoidCallback onFinance;
   final VoidCallback onRoutines;
   final VoidCallback onAi;
 
   const _OrbitBottomNavigation({
+    this.financeActive = false,
     required this.onHome,
     required this.onFinance,
     required this.onRoutines,
@@ -1489,40 +1534,44 @@ class _OrbitBottomNavigation extends StatelessWidget {
             height: 64,
             decoration: BoxDecoration(
               color: DuoColors.orbitSurface.withValues(alpha: .92),
-              border: const Border(top: BorderSide(color: DuoColors.orbitBorder)),
+              border: const Border(
+                top: BorderSide(color: DuoColors.orbitBorder),
+              ),
             ),
             child: Row(
               children: [
-                    Expanded(
-                      child: _NavItem(
-                        icon: Icons.home_rounded,
-                        label: 'Início',
-                        active: true,
-                        onTap: onHome,
-                      ),
-                    ),
-                    Expanded(
-                      child: _NavItem(
-                        icon: Icons.account_balance_wallet_rounded,
-                        label: 'Finanças',
-                        onTap: onFinance,
-                      ),
-                    ),
-                    const Expanded(child: SizedBox()),
-                    Expanded(
-                      child: _NavItem(
-                        icon: Icons.task_alt_rounded,
-                        label: 'Rotinas',
-                        onTap: onRoutines,
-                      ),
-                    ),
-                    Expanded(
-                      child: _NavItem(
-                        icon: Icons.auto_awesome_rounded,
-                        label: 'IA',
-                        onTap: onAi,
-                      ),
-                    ),
+                Expanded(
+                  child: _NavItem(
+                    icon: Icons.home_rounded,
+                    label: 'Início',
+                    active: !financeActive,
+                    onTap: onHome,
+                  ),
+                ),
+                Expanded(
+                  child: _NavItem(
+                    icon: Icons.account_balance_wallet_rounded,
+                    label: 'Finanças',
+                    active: financeActive,
+                    activeColor: DuoColors.orbitAccent,
+                    onTap: onFinance,
+                  ),
+                ),
+                const Expanded(child: SizedBox()),
+                Expanded(
+                  child: _NavItem(
+                    icon: Icons.task_alt_rounded,
+                    label: 'Rotinas',
+                    onTap: onRoutines,
+                  ),
+                ),
+                Expanded(
+                  child: _NavItem(
+                    icon: Icons.auto_awesome_rounded,
+                    label: 'IA',
+                    onTap: onAi,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1536,18 +1585,20 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool active;
+  final Color activeColor;
   final VoidCallback onTap;
 
   const _NavItem({
     required this.icon,
     required this.label,
     this.active = false,
+    this.activeColor = DuoColors.success,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? DuoColors.success : DuoColors.orbitTextSecondary;
+    final color = active ? activeColor : DuoColors.orbitTextSecondary;
     return InkWell(
       borderRadius: BorderRadius.circular(20),
       onTap: onTap,
@@ -1559,7 +1610,7 @@ class _NavItem extends StatelessWidget {
                 ? const EdgeInsets.symmetric(horizontal: 12, vertical: 4)
                 : EdgeInsets.zero,
             decoration: BoxDecoration(
-              color: active ? DuoColors.success.withValues(alpha: .14) : null,
+              color: active ? activeColor.withValues(alpha: .14) : null,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(icon, color: color, size: 22),

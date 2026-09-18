@@ -1,6 +1,7 @@
 import '../../../home/data/models/wallet_model.dart';
 import '../../../home/data/repositories/credit_card_repository.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
+import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
@@ -101,7 +102,7 @@ class CreateTransactionUseCase {
     final normalizedTransactionId = transactionId.trim();
     final normalizedDescription = description.trim();
     final normalizedWalletId = walletId.trim();
-    final normalizedCategory = category.trim();
+    final normalizedCategory = DuoTaxonomy.canonicalCategory(category);
     final normalizedSubcategory = subcategory.trim();
     final normalizedPaidByMemberId = paidByMemberId.trim();
     final normalizedConsumerId = consumerId?.trim();

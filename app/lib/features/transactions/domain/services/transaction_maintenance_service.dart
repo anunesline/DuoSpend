@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../home/data/models/credit_card_invoice_model.dart';
 import '../../../home/data/models/wallet_model.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
+import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../data/models/transaction_model.dart';
 import '../purchase/services/balance_settlement_synchronizer.dart';
 
@@ -38,7 +39,7 @@ class TransactionMaintenanceService {
     _validateCanManage(original, wallet, userId);
 
     final normalizedDescription = description.trim();
-    final normalizedCategory = category.trim();
+    final normalizedCategory = DuoTaxonomy.canonicalCategory(category);
     final normalizedSubcategory = subcategory.trim();
     if (normalizedDescription.isEmpty) {
       throw ArgumentError('A descrição não pode ficar vazia.');
