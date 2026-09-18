@@ -107,6 +107,7 @@ class InsightsController extends ChangeNotifier {
           .map((budget) => _budgetConsumptionService.calculate(
                 budget: budget,
                 transactions: transactions,
+                walletIsShared: wallet.isShared,
               ))
           .toList();
       final currentInvoices = invoices

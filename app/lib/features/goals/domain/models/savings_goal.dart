@@ -11,11 +11,31 @@ enum SavingsGoalStatus {
   }
 }
 
+enum SavingsGoalCategory {
+  travel,
+  emergency,
+  vehicle,
+  housing,
+  education,
+  health,
+  shopping,
+  investment,
+  others;
+
+  static SavingsGoalCategory fromValue(String? value) {
+    return SavingsGoalCategory.values.firstWhere(
+      (category) => category.name == value,
+      orElse: () => SavingsGoalCategory.others,
+    );
+  }
+}
+
 class SavingsGoal {
   final String id;
   final String name;
   final double targetAmount;
   final double savedAmount;
+  final SavingsGoalCategory category;
   final DateTime? deadline;
   final String walletId;
   final String createdByUserId;
@@ -29,6 +49,7 @@ class SavingsGoal {
     required this.name,
     required this.targetAmount,
     this.savedAmount = 0,
+    this.category = SavingsGoalCategory.others,
     this.deadline,
     required this.walletId,
     required this.createdByUserId,
@@ -55,8 +76,7 @@ class SavingsGoal {
   double get progressPercentage => progress * 100;
 
   bool get isCompleted {
-    return status == SavingsGoalStatus.completed ||
-        savedAmount >= targetAmount;
+    return status == SavingsGoalStatus.completed || savedAmount >= targetAmount;
   }
 
   bool get isActive => status == SavingsGoalStatus.active && !isCompleted;
@@ -74,6 +94,7 @@ class SavingsGoal {
     String? name,
     double? targetAmount,
     double? savedAmount,
+    SavingsGoalCategory? category,
     DateTime? deadline,
     bool clearDeadline = false,
     String? walletId,
@@ -88,6 +109,7 @@ class SavingsGoal {
       name: name ?? this.name,
       targetAmount: targetAmount ?? this.targetAmount,
       savedAmount: savedAmount ?? this.savedAmount,
+      category: category ?? this.category,
       deadline: clearDeadline ? null : deadline ?? this.deadline,
       walletId: walletId ?? this.walletId,
       createdByUserId: createdByUserId ?? this.createdByUserId,

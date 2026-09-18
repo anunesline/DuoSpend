@@ -28,9 +28,9 @@ class SavingsGoalsController extends ChangeNotifier {
     required this.currentUserId,
     SavingsGoalRepository? repository,
     SavingsGoalService? service,
-  })  : financialWallets = List.from(financialWallets),
-        _repository = repository ?? SavingsGoalRepository(),
-        _service = service ?? const SavingsGoalService();
+  }) : financialWallets = List.from(financialWallets),
+       _repository = repository ?? SavingsGoalRepository(),
+       _service = service ?? const SavingsGoalService();
 
   double get totalSaved {
     return goals
@@ -70,9 +70,7 @@ class SavingsGoalsController extends ChangeNotifier {
     return _loadingHistoryGoalIds.contains(goalId);
   }
 
-  Future<List<SavingsGoalMovement>?> loadMovements(
-    SavingsGoal goal,
-  ) async {
+  Future<List<SavingsGoalMovement>?> loadMovements(SavingsGoal goal) async {
     if (_loadingHistoryGoalIds.contains(goal.id)) {
       return movementsByGoal[goal.id];
     }
@@ -82,9 +80,7 @@ class SavingsGoalsController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final movements = await _repository.getMovements(
-        goalId: goal.id,
-      );
+      final movements = await _repository.getMovements(goalId: goal.id);
       movementsByGoal = Map.unmodifiable({
         ...movementsByGoal,
         goal.id: movements,
@@ -109,6 +105,7 @@ class SavingsGoalsController extends ChangeNotifier {
   Future<SavingsGoal?> createGoal({
     required String name,
     required double targetAmount,
+    SavingsGoalCategory category = SavingsGoalCategory.others,
     DateTime? deadline,
   }) async {
     if (isProcessing) {
@@ -124,16 +121,14 @@ class SavingsGoalsController extends ChangeNotifier {
         id: _repository.createGoalId(),
         name: name,
         targetAmount: targetAmount,
+        category: category,
         walletId: contextWallet.id,
         createdByUserId: currentUserId,
         memberIds: contextWallet.memberIds,
         deadline: deadline,
       );
 
-      await _repository.createGoal(
-        goal: goal,
-        contextWallet: contextWallet,
-      );
+      await _repository.createGoal(goal: goal, contextWallet: contextWallet);
 
       goals = List.unmodifiable([goal, ...goals]);
 
@@ -183,6 +178,7 @@ class SavingsGoalsController extends ChangeNotifier {
     required SavingsGoal goal,
     required String name,
     required double targetAmount,
+    SavingsGoalCategory? category,
     DateTime? deadline,
   }) async {
     if (isProcessing) {
@@ -199,6 +195,7 @@ class SavingsGoalsController extends ChangeNotifier {
         goal: goal,
         name: name,
         targetAmount: targetAmount,
+        category: category,
         deadline: deadline,
       );
 
@@ -206,20 +203,24 @@ class SavingsGoalsController extends ChangeNotifier {
         goalId: goal.id,
         name: name,
         targetAmount: targetAmount,
+        category: category,
         deadline: deadline,
       );
-      final updatedGoals = goals.map(
-        (currentGoal) => currentGoal.id == updatedGoal.id
-            ? updatedGoal
-            : currentGoal,
-      ).toList()
-        ..sort((first, second) {
-          if (first.isArchived != second.isArchived) {
-            return first.isArchived ? 1 : -1;
-          }
+      final updatedGoals =
+          goals
+              .map(
+                (currentGoal) => currentGoal.id == updatedGoal.id
+                    ? updatedGoal
+                    : currentGoal,
+              )
+              .toList()
+            ..sort((first, second) {
+              if (first.isArchived != second.isArchived) {
+                return first.isArchived ? 1 : -1;
+              }
 
-          return second.updatedAt.compareTo(first.updatedAt);
-        });
+              return second.updatedAt.compareTo(first.updatedAt);
+            });
 
       goals = List.unmodifiable(updatedGoals);
 
@@ -251,21 +252,22 @@ class SavingsGoalsController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final archivedGoal = await _repository.archive(
-        goalId: goal.id,
-      );
-      final updatedGoals = goals.map(
-        (currentGoal) => currentGoal.id == archivedGoal.id
-            ? archivedGoal
-            : currentGoal,
-      ).toList()
-        ..sort((first, second) {
-          if (first.isArchived != second.isArchived) {
-            return first.isArchived ? 1 : -1;
-          }
+      final archivedGoal = await _repository.archive(goalId: goal.id);
+      final updatedGoals =
+          goals
+              .map(
+                (currentGoal) => currentGoal.id == archivedGoal.id
+                    ? archivedGoal
+                    : currentGoal,
+              )
+              .toList()
+            ..sort((first, second) {
+              if (first.isArchived != second.isArchived) {
+                return first.isArchived ? 1 : -1;
+              }
 
-          return second.updatedAt.compareTo(first.updatedAt);
-        });
+              return second.updatedAt.compareTo(first.updatedAt);
+            });
 
       goals = List.unmodifiable(updatedGoals);
 
@@ -320,9 +322,7 @@ class SavingsGoalsController extends ChangeNotifier {
       goals = List.unmodifiable(
         goals.map(
           (currentGoal) =>
-              currentGoal.id == updatedGoal.id
-                  ? updatedGoal
-                  : currentGoal,
+              currentGoal.id == updatedGoal.id ? updatedGoal : currentGoal,
         ),
       );
 
@@ -350,10 +350,7 @@ class SavingsGoalsController extends ChangeNotifier {
     }
   }
 
-  String _friendlyError(
-    Object error, {
-    required String fallback,
-  }) {
+  String _friendlyError(Object error, {required String fallback}) {
     final message = error.toString();
 
     if (message.contains('Saldo insuficiente')) {

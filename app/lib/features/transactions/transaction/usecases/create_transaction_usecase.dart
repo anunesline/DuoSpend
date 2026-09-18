@@ -1,6 +1,7 @@
 import '../../../home/data/models/wallet_model.dart';
 import '../../../home/data/repositories/credit_card_repository.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
+import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../data/models/transaction_item_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../../data/repositories/transaction_repository.dart';
@@ -101,7 +102,7 @@ class CreateTransactionUseCase {
     final normalizedTransactionId = transactionId.trim();
     final normalizedDescription = description.trim();
     final normalizedWalletId = walletId.trim();
-    final normalizedCategory = category.trim();
+    final normalizedCategory = DuoTaxonomy.canonicalCategory(category);
     final normalizedSubcategory = subcategory.trim();
     final normalizedPaidByMemberId = paidByMemberId.trim();
     final normalizedConsumerId = consumerId?.trim();
@@ -441,17 +442,24 @@ class CreateTransactionUseCase {
       );
     }
 
-    if (!financialWallet.isIndividual) {
+    if (!financialWallet.isIndividual && !financialWallet.isShared) {
       throw Exception(
-        'A origem financeira da transação precisa ser uma carteira individual.',
+        'A origem financeira da transação precisa ser uma carteira válida.',
       );
     }
 
     if (hasSelectedWallet &&
-        financialWallet.ownerId.trim() !=
-            paidByMemberId.trim()) {
+        financialWallet.isIndividual &&
+        financialWallet.ownerId.trim() != paidByMemberId.trim()) {
       throw Exception(
         'A carteira financeira selecionada não pertence ao pagador.',
+      );
+    }
+
+    if (hasSelectedWallet && financialWallet.isShared &&
+        !financialWallet.hasMember(paidByMemberId)) {
+      throw Exception(
+        'O pagador não pertence à carteira compartilhada selecionada.',
       );
     }
 

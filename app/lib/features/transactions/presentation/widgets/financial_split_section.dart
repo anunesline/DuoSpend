@@ -10,9 +10,13 @@ class FinancialSplitSection extends StatelessWidget {
   final FinancialSplitConfiguration configuration;
   final String selectedPayerMemberId;
   final String selectedPurchaseDestination;
+  final String selectedSplitType;
+  final double currentUserPercent;
   final String? partnerDisplayName;
   final ValueChanged<String> onPayerChanged;
   final ValueChanged<String> onPurchaseDestinationChanged;
+  final ValueChanged<String> onSplitTypeChanged;
+  final ValueChanged<double> onCurrentUserPercentChanged;
 
   const FinancialSplitSection({
     super.key,
@@ -20,9 +24,13 @@ class FinancialSplitSection extends StatelessWidget {
     required this.configuration,
     required this.selectedPayerMemberId,
     required this.selectedPurchaseDestination,
+    required this.selectedSplitType,
+    required this.currentUserPercent,
     this.partnerDisplayName,
     required this.onPayerChanged,
     required this.onPurchaseDestinationChanged,
+    required this.onSplitTypeChanged,
+    required this.onCurrentUserPercentChanged,
   });
 
   @override
@@ -32,7 +40,9 @@ class FinancialSplitSection extends StatelessWidget {
     }
 
     final payer = configuration.resolvePayerMemberId(selectedPayerMemberId);
-    final destination = configuration.resolvePurchaseDestination(selectedPurchaseDestination);
+    final destination =
+        configuration.resolvePurchaseDestination(selectedPurchaseDestination);
+    final partnerPercent = 100 - currentUserPercent;
 
     return DuoCard(
       borderRadius: 26,
@@ -42,79 +52,153 @@ class FinancialSplitSection extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.account_balance_wallet_rounded,color:DuoColors.primaryLight),
-              SizedBox(width:10),
+              Icon(
+                Icons.account_balance_wallet_rounded,
+                color: DuoColors.primaryLight,
+              ),
+              SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Divisão financeira',
                   style: TextStyle(
-                    color:DuoColors.textPrimary,
-                    fontSize:18,
-                    fontWeight:FontWeight.w800,
+                    color: DuoColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height:6),
+          const SizedBox(height: 6),
           const Text(
-            'Defina quem pagou e para quem a compra foi realizada.',
-            style: TextStyle(color:DuoColors.textSecondary,fontSize:12),
+            'Quem consumiu e quem assume o valor são escolhas separadas.',
+            style: TextStyle(
+              color: DuoColors.textSecondary,
+              fontSize: 12,
+            ),
           ),
           if (configuration.canSelectPayer) ...[
-            const SizedBox(height:24),
-            const Text('Quem pagou?',
-                style: TextStyle(
-                    color:DuoColors.textPrimary,
-                    fontWeight:FontWeight.w700)),
-            const SizedBox(height:10),
-            ...configuration.allowedPayerMemberIds.map((m)=>_OptionTile(
-              enabled: enabled,
-              selected: payer==m,
-              title:_resolvePayerLabel(m),
-              icon: Icons.person_rounded,
-              onTap:()=>onPayerChanged(m),
-            )),
-          ],
-          if(configuration.canSelectPurchaseDestination)...[
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical:18),
-              child: Divider(color:DuoColors.border,height:1),
+            const SizedBox(height: 24),
+            const _FieldLabel('Quem pagou?'),
+            const SizedBox(height: 10),
+            ...configuration.allowedPayerMemberIds.map(
+              (memberId) => _OptionTile(
+                enabled: enabled,
+                selected: payer == memberId,
+                title: _resolvePayerLabel(memberId),
+                icon: Icons.person_rounded,
+                onTap: () => onPayerChanged(memberId),
+              ),
             ),
-            const Text('Compra para',
-                style: TextStyle(
-                    color:DuoColors.textPrimary,
-                    fontWeight:FontWeight.w700)),
-            const SizedBox(height:10),
-            ...configuration.allowedPurchaseDestinations.map((d)=>_OptionTile(
-              enabled: enabled,
-              selected: destination==d,
-              title:_resolvePurchaseDestinationLabel(d),
-              icon: Icons.group_rounded,
-              onTap:()=>onPurchaseDestinationChanged(d),
-            )),
-          ]
+          ],
+          if (configuration.canSelectPurchaseDestination) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Divider(color: DuoColors.border, height: 1),
+            ),
+            const _FieldLabel('Compra para'),
+            const SizedBox(height: 10),
+            ...configuration.allowedPurchaseDestinations.map(
+              (value) => _OptionTile(
+                enabled: enabled,
+                selected: destination == value,
+                title: _resolvePurchaseDestinationLabel(value),
+                icon: Icons.group_rounded,
+                onTap: () => onPurchaseDestinationChanged(value),
+              ),
+            ),
+          ],
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Divider(color: DuoColors.border, height: 1),
+          ),
+          const _FieldLabel('Como dividir o valor?'),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _SplitChoice(
+                label: 'Sem divisão',
+                selected: selectedSplitType == FinancialSplitRules.splitTypeNone,
+                enabled: enabled,
+                onTap: () => onSplitTypeChanged(
+                  FinancialSplitRules.splitTypeNone,
+                ),
+              ),
+              _SplitChoice(
+                label: '50 / 50',
+                selected: selectedSplitType == FinancialSplitRules.splitTypeEqual,
+                enabled: enabled,
+                onTap: () => onSplitTypeChanged(
+                  FinancialSplitRules.splitTypeEqual,
+                ),
+              ),
+              _SplitChoice(
+                label: 'Personalizada',
+                selected: selectedSplitType == FinancialSplitRules.splitTypeCustom,
+                enabled: enabled,
+                onTap: () => onSplitTypeChanged(
+                  FinancialSplitRules.splitTypeCustom,
+                ),
+              ),
+            ],
+          ),
+          if (selectedSplitType == FinancialSplitRules.splitTypeCustom) ...[
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Eu ${currentUserPercent.round()}%',
+                    style: const TextStyle(
+                      color: DuoColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  '$_resolvedPartnerLabel ${partnerPercent.round()}%',
+                  style: const TextStyle(
+                    color: DuoColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            Slider(
+              value: currentUserPercent.clamp(0, 100),
+              min: 0,
+              max: 100,
+              divisions: 20,
+              label: '${currentUserPercent.round()} / ${partnerPercent.round()}',
+              onChanged: enabled ? onCurrentUserPercentChanged : null,
+            ),
+            const Text(
+              'Ex.: ajuste para 70% / 30%. O total sempre permanece em 100%.',
+              style: TextStyle(
+                color: DuoColors.textHint,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
   String _resolvePayerLabel(String memberId) {
-    if (memberId.trim() ==
-        configuration.currentUserMemberId.trim()) {
+    if (memberId.trim() == configuration.currentUserMemberId.trim()) {
       return 'Eu';
     }
-
     return _resolvedPartnerLabel;
   }
 
   String get _resolvedPartnerLabel {
     final normalizedName = partnerDisplayName?.trim();
-
     if (normalizedName == null || normalizedName.isEmpty) {
       return 'Parceiro';
     }
-
     return normalizedName;
   }
 
@@ -132,36 +216,105 @@ class FinancialSplitSection extends StatelessWidget {
   }
 }
 
-class _OptionTile extends StatelessWidget{
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  const _FieldLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: DuoColors.textPrimary,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _SplitChoice extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _SplitChoice({
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: enabled ? (_) => onTap() : null,
+    );
+  }
+}
+
+class _OptionTile extends StatelessWidget {
   final bool enabled;
   final bool selected;
   final String title;
   final IconData icon;
   final VoidCallback onTap;
-  const _OptionTile({required this.enabled,required this.selected,required this.title,required this.icon,required this.onTap});
+
+  const _OptionTile({
+    required this.enabled,
+    required this.selected,
+    required this.title,
+    required this.icon,
+    required this.onTap,
+  });
 
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom:10),
+      padding: const EdgeInsets.only(bottom: 10),
       child: InkWell(
-        onTap: enabled?onTap:null,
+        onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(18),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds:180),
+          duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color:selected?DuoColors.primary.withValues(alpha:.12):DuoColors.surface,
+            color: selected
+                ? DuoColors.primary.withValues(alpha: .12)
+                : DuoColors.surface,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color:selected?DuoColors.primaryLight:DuoColors.border),
+            border: Border.all(
+              color: selected ? DuoColors.primaryLight : DuoColors.border,
+            ),
           ),
           child: Row(
-            children:[
-              Icon(icon,color:selected?DuoColors.primaryLight:DuoColors.textSecondary),
-              const SizedBox(width:12),
-              Expanded(child:Text(title,style:const TextStyle(color:DuoColors.textPrimary,fontWeight:FontWeight.w700))),
-              Icon(selected?Icons.check_circle_rounded:Icons.radio_button_unchecked_rounded,
-                color:selected?DuoColors.primaryLight:DuoColors.textSecondary)
+            children: [
+              Icon(
+                icon,
+                color: selected
+                    ? DuoColors.primaryLight
+                    : DuoColors.textSecondary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: DuoColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: selected
+                    ? DuoColors.primaryLight
+                    : DuoColors.textSecondary,
+              ),
             ],
           ),
         ),

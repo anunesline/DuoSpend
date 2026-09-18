@@ -68,23 +68,49 @@ class _InsightCard extends StatelessWidget {
       FinancialInsightSeverity.info => DuoColors.primaryLight,
     };
     final amount = insight.amount;
+
     return DuoCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(Icons.auto_awesome_rounded, color: color),
-            const SizedBox(width: 10),
-            Expanded(child: Text(insight.title, style: const TextStyle(fontWeight: FontWeight.w700))),
-          ]),
+          Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded, color: color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  insight.title,
+                  style: const TextStyle(
+                    color: DuoColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
-          Text(insight.message),
+          Text(
+            insight.message,
+            style: const TextStyle(color: DuoColors.textSecondary),
+          ),
           if (amount != null) ...[
             const SizedBox(height: 10),
-            Text(NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(amount), style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+            Text(
+              NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(amount),
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
           const SizedBox(height: 10),
-          Text('Cálculo: ${insight.source}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          Text(
+            'Cálculo: ${insight.source}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: DuoColors.textHint,
+            ),
+          ),
         ],
       ),
     );

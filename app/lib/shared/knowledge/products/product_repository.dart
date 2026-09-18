@@ -1,12 +1,19 @@
 import '../../../features/transactions/data/models/product_model.dart';
+import '../../../features/transactions/domain/purchase/models/purchase_model.dart';
 import 'product_memory.dart';
+import 'product_price_history_repository.dart';
 import 'product_persistence_repository.dart';
+import 'product_price_observation.dart';
 
 class ProductRepository {
   final ProductPersistenceRepository? _persistenceRepository;
+  final ProductPriceHistoryRepository? _priceHistoryRepository;
 
-  ProductRepository({ProductPersistenceRepository? persistenceRepository})
-    : _persistenceRepository = persistenceRepository;
+  ProductRepository({
+    ProductPersistenceRepository? persistenceRepository,
+    ProductPriceHistoryRepository? priceHistoryRepository,
+  }) : _persistenceRepository = persistenceRepository,
+       _priceHistoryRepository = priceHistoryRepository;
 
   ProductModel? findById(String id) {
     return ProductMemory.findById(id);
@@ -144,6 +151,117 @@ class ProductRepository {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Registers prices only after the purchase and its financial transaction
+  /// have already been persisted by the caller.
+  Future<void> learnFromPurchase({
+    required String userId,
+    required PurchaseModel purchase,
+  }) async {
+    final historyRepository = _priceHistoryRepository;
+    if (historyRepository == null) {
+      return;
+    }
+
+    for (final item in purchase.items) {
+      final productId = item.productId?.trim();
+      if (productId == null ||
+          productId.isEmpty ||
+          item.unitPrice <= 0 ||
+          item.quantity <= 0) {
+        continue;
+      }
+
+      final observation = ProductPriceObservation(
+        productId: productId,
+        purchaseId: purchase.id,
+        purchasedAt: purchase.purchaseDate,
+        unitPrice: item.unitPrice,
+        quantity: item.quantity,
+        merchantId: item.merchantId ?? purchase.merchantId,
+      );
+      final observations = List<ProductPriceObservation>.of(
+        await historyRepository.getByProductId(
+          userId: userId,
+          productId: productId,
+        ),
+      );
+      final alreadyRecorded = observations.any(
+        (current) => current.id == observation.id,
+      );
+
+      if (!alreadyRecorded) {
+        await historyRepository.saveObservation(
+          userId: userId,
+          observation: observation,
+        );
+        observations.add(observation);
+      }
+
+      final product = await _findPersistedProduct(
+        userId: userId,
+        productId: productId,
+      );
+      if (product == null) {
+        continue;
+      }
+
+      final averagePrice = observations.isEmpty
+          ? item.unitPrice
+          : observations.fold<double>(
+                  0,
+                  (sum, price) => sum + price.unitPrice,
+                ) /
+                observations.length;
+      final latestObservation = observations.reduce(
+        (current, candidate) =>
+            candidate.purchasedAt.isAfter(current.purchasedAt)
+            ? candidate
+            : current,
+      );
+      final updatedProduct = product.copyWith(
+        lastPrice: latestObservation.unitPrice,
+        averagePrice: averagePrice,
+        lastMerchantId: latestObservation.merchantId ?? product.lastMerchantId,
+        updatedAt: DateTime.now(),
+      );
+
+      await saveLearnedProduct(userId: userId, product: updatedProduct);
+    }
+  }
+
+  Future<List<ProductPriceObservation>> getPriceHistory({
+    required String userId,
+    required String productId,
+  }) async {
+    final historyRepository = _priceHistoryRepository;
+    if (historyRepository == null) {
+      return const [];
+    }
+
+    return historyRepository.getByProductId(
+      userId: userId,
+      productId: productId,
+    );
+  }
+
+  Future<ProductModel?> _findPersistedProduct({
+    required String userId,
+    required String productId,
+  }) async {
+    final persistenceRepository = _persistenceRepository;
+    if (persistenceRepository != null) {
+      final persisted = await persistenceRepository.getById(
+        userId: userId,
+        productId: productId,
+      );
+      if (persisted != null) {
+        return persisted;
+      }
+    }
+
+    return findById(productId);
   }
 
   Future<void> _reloadMemory({required String userId}) async {

@@ -38,6 +38,42 @@ class ProductModel {
     required this.updatedAt,
   });
 
+  ProductModel copyWith({
+    String? id,
+    String? name,
+    String? normalizedName,
+    String? brand,
+    String? barcode,
+    String? defaultUnit,
+    String? productCategoryId,
+    String? productCategoryName,
+    String? taxonomyId,
+    double? averagePrice,
+    double? lastPrice,
+    String? lastMerchantId,
+    bool? favorite,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return ProductModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      normalizedName: normalizedName ?? this.normalizedName,
+      brand: brand ?? this.brand,
+      barcode: barcode ?? this.barcode,
+      defaultUnit: defaultUnit ?? this.defaultUnit,
+      productCategoryId: productCategoryId ?? this.productCategoryId,
+      productCategoryName: productCategoryName ?? this.productCategoryName,
+      taxonomyId: taxonomyId ?? this.taxonomyId,
+      averagePrice: averagePrice ?? this.averagePrice,
+      lastPrice: lastPrice ?? this.lastPrice,
+      lastMerchantId: lastMerchantId ?? this.lastMerchantId,
+      favorite: favorite ?? this.favorite,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

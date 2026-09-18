@@ -78,7 +78,7 @@ class CreditCardRepository {
 
   Future<CreditCardModel> createCard({
     required String name,
-    required String walletId,
+    String? walletId,
     required double creditLimit,
     required int closingDay,
     required int dueDay,
@@ -86,7 +86,7 @@ class CreditCardRepository {
   }) async {
     final userId = _requireUserId();
     final normalizedName = name.trim();
-    final normalizedWalletId = walletId.trim();
+    final normalizedWalletId = walletId?.trim();
     final normalizedDigits = lastFourDigits?.trim();
 
     if (normalizedName.isEmpty) {
@@ -94,14 +94,6 @@ class CreditCardRepository {
         name,
         'name',
         'O nome do cartão não pode ficar vazio.',
-      );
-    }
-
-    if (normalizedWalletId.isEmpty) {
-      throw ArgumentError.value(
-        walletId,
-        'walletId',
-        'Selecione a carteira vinculada ao cartão.',
       );
     }
 
@@ -126,23 +118,25 @@ class CreditCardRepository {
       );
     }
 
-    final walletReference = _walletReference(
-      userId: userId,
-      walletId: normalizedWalletId,
-    );
-    final walletDocument = await walletReference.get();
+    if (normalizedWalletId != null && normalizedWalletId.isNotEmpty) {
+      final walletReference = _walletReference(
+        userId: userId,
+        walletId: normalizedWalletId,
+      );
+      final walletDocument = await walletReference.get();
 
-    _validateIndividualWallet(
-      document: walletDocument,
-      ownerMemberId: userId,
-    );
+      _validateIndividualWallet(
+        document: walletDocument,
+        ownerMemberId: userId,
+      );
+    }
 
     final cardDocument =
         _firestore.collection(_cardsCollection).doc();
     final card = CreditCardModel(
       id: cardDocument.id,
       ownerMemberId: userId,
-      walletId: normalizedWalletId,
+      walletId: normalizedWalletId?.isEmpty == true ? null : normalizedWalletId,
       name: normalizedName,
       lastFourDigits:
           normalizedDigits == null || normalizedDigits.isEmpty
@@ -481,7 +475,12 @@ class CreditCardRepository {
       final selectedWalletId =
           walletId?.trim().isNotEmpty == true
               ? walletId!.trim()
-              : card.walletId;
+          : card.walletId;
+      if (selectedWalletId == null || selectedWalletId.isEmpty) {
+        throw StateError(
+          'Selecione uma carteira para pagar esta fatura.',
+        );
+      }
       final walletReference = _walletReference(
         userId: userId,
         walletId: selectedWalletId,

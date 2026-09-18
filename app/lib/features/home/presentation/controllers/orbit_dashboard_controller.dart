@@ -60,6 +60,7 @@ class OrbitDashboardController extends ChangeNotifier {
           .map((budget) => _budgetConsumptionService.calculate(
                 budget: budget,
                 transactions: transactions,
+                walletIsShared: wallet.isShared,
               ))
           .toList();
 
