@@ -40,7 +40,8 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
         symbol: 'R\$',
       ).format(value);
 
-  String _walletName(String walletId) {
+  String _walletName(String? walletId) {
+    if (walletId == null || walletId.isEmpty) return 'Sem carteira';
     for (final wallet in widget.individualWallets) {
       if (wallet.id == walletId) return wallet.name;
     }
@@ -67,17 +68,12 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
       _showMessage('Os cartões ainda estão carregando.');
       return;
     }
-    if (widget.individualWallets.isEmpty) {
-      _showMessage('Crie uma carteira individual antes de adicionar um cartão.');
-      return;
-    }
-
     final nameController = TextEditingController();
     final digitsController = TextEditingController();
     final limitController = TextEditingController();
     final closingController = TextEditingController();
     final dueController = TextEditingController();
-    var selectedWalletId = widget.individualWallets.first.id;
+    String? selectedWalletId;
 
     final form = await showDialog<_NewCardDraft>(
       context: context,
@@ -98,20 +94,26 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: selectedWalletId,
+                  initialValue: selectedWalletId ?? '',
                   decoration: const InputDecoration(
                     labelText: 'Carteira vinculada',
                   ),
-                  items: widget.individualWallets
-                      .map((wallet) => DropdownMenuItem<String>(
-                            value: wallet.id,
-                            child: Text(wallet.name),
-                          ))
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: '',
+                      child: Text('Sem carteira'),
+                    ),
+                    ...widget.individualWallets.map(
+                      (wallet) => DropdownMenuItem<String>(
+                        value: wallet.id,
+                        child: Text(wallet.name),
+                      ),
+                    ),
+                  ]
                       .toList(growable: false),
                   onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() => selectedWalletId = value);
-                    }
+                    setDialogState(() => selectedWalletId =
+                        value == null || value.isEmpty ? null : value);
                   },
                 ),
                 const SizedBox(height: 12),
@@ -191,6 +193,9 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
     dueController.dispose();
 
     if (form == null || !mounted) return;
+
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
 
     final limit = _parseMoney(form.limit);
     final closingDay = int.tryParse(form.closingDay.trim());
@@ -297,7 +302,7 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
     CreditCardModel card,
     CreditCardInvoiceModel invoice,
   ) async {
-    var selectedWalletId = card.walletId;
+    String? selectedWalletId = card.walletId;
     final confirmedWalletId = await showDialog<String>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -571,7 +576,7 @@ class _NewCardDraft {
   final String limit;
   final String closingDay;
   final String dueDay;
-  final String walletId;
+  final String? walletId;
 
   const _NewCardDraft({
     required this.name,

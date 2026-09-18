@@ -18,6 +18,7 @@ class CreditCardController extends ChangeNotifier {
   bool _isLoading = false;
   final Set<String> _processingIds = {};
   String? _errorMessage;
+  bool _disposed = false;
 
   List<CreditCardModel> get cards =>
       List<CreditCardModel>.unmodifiable(_cards);
@@ -52,7 +53,7 @@ class CreditCardController extends ChangeNotifier {
 
   Future<CreditCardModel?> createCard({
     required String name,
-    required String walletId,
+    String? walletId,
     required double creditLimit,
     required int closingDay,
     required int dueDay,
@@ -162,16 +163,25 @@ class CreditCardController extends ChangeNotifier {
   }
 
   void clearError() {
+    if (_disposed) return;
     _errorMessage = null;
     notifyListeners();
   }
 
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   void _setLoading(bool value) {
+    if (_disposed) return;
     _isLoading = value;
     notifyListeners();
   }
 
   void _setProcessing(String id, bool value) {
+    if (_disposed) return;
     if (value) {
       _processingIds.add(id);
     } else {

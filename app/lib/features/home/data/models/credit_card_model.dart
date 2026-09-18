@@ -8,7 +8,7 @@ class CreditCardModel {
   ///
   /// Serve como vínculo com a instituição financeira, mas NÃO significa
   /// que compras no crédito devam movimentar o saldo desta conta.
-  final String walletId;
+  final String? walletId;
 
   /// Nome exibido para o usuário.
   ///
@@ -36,7 +36,7 @@ class CreditCardModel {
   const CreditCardModel({
     required this.id,
     required this.ownerMemberId,
-    required this.walletId,
+    this.walletId,
     required this.name,
     this.lastFourDigits,
     required this.creditLimit,
@@ -86,7 +86,7 @@ class CreditCardModel {
       id: map['id']?.toString() ?? '',
       ownerMemberId:
           map['ownerMemberId']?.toString() ?? '',
-      walletId: map['walletId']?.toString() ?? '',
+      walletId: _parseNullableString(map['walletId']),
       name: map['name']?.toString() ?? 'Cartão',
       lastFourDigits:
           _parseNullableString(map['lastFourDigits']),
