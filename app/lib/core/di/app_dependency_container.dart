@@ -54,10 +54,12 @@ import '../../features/shopping/domain/usecases/update_shopping_item_usecase.dar
 import '../../features/shopping/presentation/controllers/shopping_controller.dart';
 
 import '../../features/transactions/data/repositories/firestore_product_persistence_repository.dart';
+import '../../features/transactions/data/repositories/firestore_product_price_history_repository.dart';
 import '../../features/transactions/presentation/controllers/purchase_controller.dart';
 
 import '../../shared/knowledge/products/product_bootstrap.dart';
 import '../../shared/knowledge/products/product_persistence_repository.dart';
+import '../../shared/knowledge/products/product_price_history_repository.dart';
 import '../../shared/knowledge/products/product_repository.dart';
 
 class AppDependencyContainer {
@@ -67,11 +69,13 @@ class AppDependencyContainer {
   late final ProductMemoryRepository productMemoryRepository;
 
   late final ProductPersistenceRepository productPersistenceRepository;
+  late final ProductPriceHistoryRepository productPriceHistoryRepository;
   late final ProductRepository productRepository;
   late final ProductBootstrap productBootstrap;
 
   late final ProductIntelligenceEngine productIntelligenceEngine;
-  late final ProcessProductIntelligenceUseCase processProductIntelligenceUseCase;
+  late final ProcessProductIntelligenceUseCase
+  processProductIntelligenceUseCase;
 
   late final CreateShoppingItemUseCase createShoppingItemUseCase;
   late final UpdateShoppingItemUseCase updateShoppingItemUseCase;
@@ -79,7 +83,8 @@ class AppDependencyContainer {
   late final GetAllShoppingItemsUseCase getAllShoppingItemsUseCase;
   late final GetPendingShoppingItemsUseCase getPendingShoppingItemsUseCase;
   late final GetPurchasedShoppingItemsUseCase getPurchasedShoppingItemsUseCase;
-  late final MarkShoppingItemAsPurchasedUseCase markShoppingItemAsPurchasedUseCase;
+  late final MarkShoppingItemAsPurchasedUseCase
+  markShoppingItemAsPurchasedUseCase;
   late final ArchiveShoppingItemUseCase archiveShoppingItemUseCase;
   late final SearchShoppingItemsUseCase searchShoppingItemsUseCase;
   late final GetShoppingSuggestionsUseCase getShoppingSuggestionsUseCase;
@@ -93,7 +98,8 @@ class AppDependencyContainer {
   late final ConsumerHabitAnalyzer consumerHabitAnalyzer;
   late final ConsumerHabitUpdater consumerHabitUpdater;
   late final ConsumerIntelligenceEngine consumerIntelligenceEngine;
-  late final ProcessConsumerIntelligenceUseCase processConsumerIntelligenceUseCase;
+  late final ProcessConsumerIntelligenceUseCase
+  processConsumerIntelligenceUseCase;
 
   late final ConsumerBootstrap consumerBootstrap;
   late final ConsumerLifecycleService consumerLifecycleService;
@@ -147,8 +153,10 @@ class AppDependencyContainer {
 
   void _registerProductServices() {
     productPersistenceRepository = FirestoreProductPersistenceRepository();
+    productPriceHistoryRepository = FirestoreProductPriceHistoryRepository();
     productRepository = ProductRepository(
       persistenceRepository: productPersistenceRepository,
+      priceHistoryRepository: productPriceHistoryRepository,
     );
     productBootstrap = ProductBootstrap(productRepository: productRepository);
   }
@@ -157,8 +165,9 @@ class AppDependencyContainer {
     productIntelligenceEngine = ProductIntelligenceEngine(
       repository: productMemoryRepository,
     );
-    processProductIntelligenceUseCase =
-        ProcessProductIntelligenceUseCase(productIntelligenceEngine);
+    processProductIntelligenceUseCase = ProcessProductIntelligenceUseCase(
+      productIntelligenceEngine,
+    );
   }
 
   void _registerConsumerIntelligence() {
@@ -182,16 +191,20 @@ class AppDependencyContainer {
     updateShoppingItemUseCase = UpdateShoppingItemUseCase(shoppingRepository);
     deleteShoppingItemUseCase = DeleteShoppingItemUseCase(shoppingRepository);
     getAllShoppingItemsUseCase = GetAllShoppingItemsUseCase(shoppingRepository);
-    getPendingShoppingItemsUseCase =
-        GetPendingShoppingItemsUseCase(shoppingRepository);
-    getPurchasedShoppingItemsUseCase =
-        GetPurchasedShoppingItemsUseCase(shoppingRepository);
-    markShoppingItemAsPurchasedUseCase =
-        MarkShoppingItemAsPurchasedUseCase(shoppingRepository);
+    getPendingShoppingItemsUseCase = GetPendingShoppingItemsUseCase(
+      shoppingRepository,
+    );
+    getPurchasedShoppingItemsUseCase = GetPurchasedShoppingItemsUseCase(
+      shoppingRepository,
+    );
+    markShoppingItemAsPurchasedUseCase = MarkShoppingItemAsPurchasedUseCase(
+      shoppingRepository,
+    );
     archiveShoppingItemUseCase = ArchiveShoppingItemUseCase(shoppingRepository);
     searchShoppingItemsUseCase = SearchShoppingItemsUseCase(shoppingRepository);
-    getShoppingSuggestionsUseCase =
-        GetShoppingSuggestionsUseCase(shoppingRepository);
+    getShoppingSuggestionsUseCase = GetShoppingSuggestionsUseCase(
+      shoppingRepository,
+    );
   }
 
   void _registerShoppingFlow() {
@@ -212,17 +225,20 @@ class AppDependencyContainer {
 
   void _registerConsumers() {
     consumerBootstrap = ConsumerBootstrap(consumerProfileRepository);
-    consumerLifecycleService =
-        ConsumerLifecycleService(consumerProfileRepository);
+    consumerLifecycleService = ConsumerLifecycleService(
+      consumerProfileRepository,
+    );
     createConsumerUseCase = CreateConsumerUseCase(consumerLifecycleService);
     saveConsumerUseCase = SaveConsumerUseCase(consumerLifecycleService);
     deleteConsumerUseCase = DeleteConsumerUseCase(consumerLifecycleService);
     getAllConsumersUseCase = GetAllConsumersUseCase(consumerProfileRepository);
     getConsumerByIdUseCase = GetConsumerByIdUseCase(consumerLifecycleService);
-    getConsumersByWalletIdUseCase =
-        GetConsumersByWalletIdUseCase(consumerLifecycleService);
-    getDefaultConsumerUseCase =
-        GetDefaultConsumerUseCase(consumerLifecycleService);
+    getConsumersByWalletIdUseCase = GetConsumersByWalletIdUseCase(
+      consumerLifecycleService,
+    );
+    getDefaultConsumerUseCase = GetDefaultConsumerUseCase(
+      consumerLifecycleService,
+    );
     consumerFlowService = ConsumerFlowService(
       consumerBootstrap: consumerBootstrap,
       createConsumer: createConsumerUseCase,

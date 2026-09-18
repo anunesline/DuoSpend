@@ -314,11 +314,9 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
       return providedMemberId;
     }
 
-    final authenticatedMemberId =
-        FirebaseAuth.instance.currentUser?.uid.trim();
+    final authenticatedMemberId = FirebaseAuth.instance.currentUser?.uid.trim();
 
-    if (authenticatedMemberId == null ||
-        authenticatedMemberId.isEmpty) {
+    if (authenticatedMemberId == null || authenticatedMemberId.isEmpty) {
       return null;
     }
 
@@ -342,9 +340,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
     final currentMemberId = _resolvedCurrentMemberId;
     final partnerMemberId = _resolvedPartnerMemberId;
 
-    if (item == null ||
-        item.consumptions.isEmpty ||
-        currentMemberId == null) {
+    if (item == null || item.consumptions.isEmpty || currentMemberId == null) {
       _selectedConsumer = 'me';
       return;
     }
@@ -355,8 +351,8 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
         .toSet();
 
     final consumedByCurrent = consumerIds.contains(currentMemberId);
-    final consumedByPartner = partnerMemberId != null &&
-        consumerIds.contains(partnerMemberId);
+    final consumedByPartner =
+        partnerMemberId != null && consumerIds.contains(partnerMemberId);
 
     if (consumedByCurrent && consumedByPartner) {
       _selectedConsumer = 'both';
@@ -386,48 +382,22 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
     switch (_selectedConsumer) {
       case 'partner':
         if (partnerMemberId == null) {
-          return [
-            ItemConsumption(
-              consumerId: currentMemberId,
-              percentage: 1,
-            ),
-          ];
+          return [ItemConsumption(consumerId: currentMemberId, percentage: 1)];
         }
 
-        return [
-          ItemConsumption(
-            consumerId: partnerMemberId,
-            percentage: 1,
-          ),
-        ];
+        return [ItemConsumption(consumerId: partnerMemberId, percentage: 1)];
       case 'both':
         if (partnerMemberId == null) {
-          return [
-            ItemConsumption(
-              consumerId: currentMemberId,
-              percentage: 1,
-            ),
-          ];
+          return [ItemConsumption(consumerId: currentMemberId, percentage: 1)];
         }
 
         return [
-          ItemConsumption(
-            consumerId: currentMemberId,
-            percentage: 0.5,
-          ),
-          ItemConsumption(
-            consumerId: partnerMemberId,
-            percentage: 0.5,
-          ),
+          ItemConsumption(consumerId: currentMemberId, percentage: 0.5),
+          ItemConsumption(consumerId: partnerMemberId, percentage: 0.5),
         ];
       case 'me':
       default:
-        return [
-          ItemConsumption(
-            consumerId: currentMemberId,
-            percentage: 1,
-          ),
-        ];
+        return [ItemConsumption(consumerId: currentMemberId, percentage: 1)];
     }
   }
 
@@ -465,6 +435,18 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
 
   double? _parseNumber(String value) {
     return double.tryParse(value.trim().replaceAll(',', '.'));
+  }
+
+  void _adjustQuantity(double delta) {
+    final current = currentQuantity < 1 ? 1 : currentQuantity;
+    final next = (current + delta).clamp(1, double.infinity).toDouble();
+    quantityController.value = quantityController.value.copyWith(
+      text: _formatEditableNumber(next),
+      selection: TextSelection.collapsed(
+        offset: _formatEditableNumber(next).length,
+      ),
+      composing: TextRange.empty,
+    );
   }
 
   String _formatMoney(double value) {
@@ -693,10 +675,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
       return selectedProduct!;
     }
 
-    final existingProduct = _findExistingProduct(
-      name: name,
-      brand: brand,
-    );
+    final existingProduct = _findExistingProduct(name: name, brand: brand);
 
     if (existingProduct != null) {
       return existingProduct;
@@ -836,8 +815,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
         totalPrice: totalPrice,
         taxonomyId: product.taxonomyId,
         category: selectedFinancialCategory.name,
-        subcategory:
-            selectedFinancialSubcategory?.name ?? 'Sem subcategoria',
+        subcategory: selectedFinancialSubcategory?.name ?? 'Sem subcategoria',
         productCategoryId: product.productCategoryId,
         productCategoryName: product.productCategoryName,
         consumptions: _buildConsumptions(),
@@ -858,9 +836,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text(
-              'Não foi possível salvar o produto: $error',
-            ),
+            content: Text('Não foi possível salvar o produto: $error'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -892,10 +868,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
               children: [
                 const Text(
                   'Produto *',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 ProductSearchField(
@@ -930,8 +903,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                   decoration: const InputDecoration(
                     labelText: 'Marca',
                     hintText: 'Ex.: Tirol',
-                    helperText:
-                        'Opcional. O DuoSpend aprenderá essa variação.',
+                    helperText: 'Opcional. O DuoSpend aprenderá essa variação.',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -955,10 +927,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                 ] else ...[
                   const Text(
                     'Classificação',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
@@ -984,9 +953,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                         .map(
                           (category) => DropdownMenuItem<TaxonomyItem>(
                             value: category,
-                            child: Text(
-                              '${category.icon} ${category.name}',
-                            ),
+                            child: Text('${category.icon} ${category.name}'),
                           ),
                         )
                         .toList(),
@@ -1041,9 +1008,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                           .map(
                             (category) => DropdownMenuItem<TaxonomyItem>(
                               value: category,
-                              child: Text(
-                                '${category.icon} ${category.name}',
-                              ),
+                              child: Text('${category.icon} ${category.name}'),
                             ),
                           )
                           .toList(),
@@ -1056,18 +1021,34 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: TextFormField(
-                        controller: quantityController,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(
-                              decimal: true,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: currentQuantity > 1
+                                  ? () => _adjustQuantity(-1)
+                                  : null,
+                              icon: const Icon(Icons.remove),
+                              tooltip: 'Diminuir quantidade',
+                              visualDensity: VisualDensity.compact,
                             ),
-                        textInputAction: TextInputAction.next,
-                        validator: _validateQuantity,
-                        decoration: const InputDecoration(
-                          labelText: 'Quantidade *',
-                          hintText: '1',
-                          border: OutlineInputBorder(),
+                            Text(
+                              _formatEditableNumber(
+                                currentQuantity < 1 ? 1 : currentQuantity,
+                              ),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => _adjustQuantity(1),
+                              icon: const Icon(Icons.add),
+                              tooltip: 'Aumentar quantidade',
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1216,14 +1197,10 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Icon(
-                            widget.isEditing
-                                ? Icons.check_outlined
-                                : Icons.add,
+                            widget.isEditing ? Icons.check_outlined : Icons.add,
                           ),
                     label: Text(
                       _isSavingItem
@@ -1241,7 +1218,7 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
       ),
     );
   }
-}                                                                                        
+}
 
 class _ItemConsumerSection extends StatelessWidget {
   final String selectedConsumer;
@@ -1270,9 +1247,7 @@ class _ItemConsumerSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: colorScheme.outlineVariant,
-        ),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1372,14 +1347,9 @@ class _ConsumerChoiceChip extends StatelessWidget {
     return ChoiceChip(
       selected: selected,
       onSelected: enabled ? (_) => onSelected() : null,
-      avatar: Icon(
-        icon,
-        size: 18,
-      ),
+      avatar: Icon(icon, size: 18),
       label: Text(label),
-      labelStyle: const TextStyle(
-        fontWeight: FontWeight.w700,
-      ),
+      labelStyle: const TextStyle(fontWeight: FontWeight.w700),
     );
   }
 }

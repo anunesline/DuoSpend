@@ -249,9 +249,9 @@ class TransactionQuantityControl extends StatelessWidget {
       _button(
         Icons.remove,
         'Diminuir quantidade',
-        quantity > 1 && onChanged != null
+        quantity > 0 && onChanged != null
             ? () => onChanged!(
-                (quantity - 1).clamp(1, double.infinity).toDouble(),
+                (quantity - 1).clamp(0, double.infinity).toDouble(),
               )
             : null,
       ),
@@ -298,6 +298,7 @@ class NewTransactionItemsSheet extends StatefulWidget {
   final ValueChanged<PurchaseItemModel> onRemove;
   final ValueChanged<PurchaseItemModel> onRestore;
   final void Function(PurchaseItemModel, double) onQuantityChanged;
+  final void Function(PurchaseItemModel, double) onUnitPriceChanged;
   final VoidCallback onScan;
   const NewTransactionItemsSheet({
     super.key,
@@ -309,6 +310,7 @@ class NewTransactionItemsSheet extends StatefulWidget {
     required this.onRemove,
     required this.onRestore,
     required this.onQuantityChanged,
+    required this.onUnitPriceChanged,
     required this.onScan,
   });
 
@@ -322,10 +324,40 @@ class _NewTransactionItemsSheetState extends State<NewTransactionItemsSheet> {
   final _inlinePrice = TextEditingController();
   // Only deselected rows are retained for re-selection during this sheet session.
   // Selected items and totals always come directly from the existing controller.
-  final Map<String, PurchaseItemModel> _deselected = {};
+  final Map<String, String> _draftPrices = {};
   bool _openingEditor = false;
   String _money(double amount) =>
       NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(amount);
+
+  PurchaseItemModel _catalogItem(
+    ProductModel product, {
+    double quantity = 1,
+    double? unitPrice,
+  }) {
+    final price =
+        unitPrice ??
+        double.tryParse(
+          (_draftPrices[product.id] ?? '').replaceAll(',', '.'),
+        ) ??
+        (product.lastPrice > 0 ? product.lastPrice : product.averagePrice);
+    return PurchaseItemModel(
+      id: '${product.id}-${DateTime.now().microsecondsSinceEpoch}',
+      purchaseId: '',
+      productId: product.id,
+      name: product.name,
+      brand: product.brand,
+      quantity: quantity,
+      unit: product.defaultUnit,
+      unitPrice: price,
+      totalPrice: price * quantity,
+      taxonomyId: product.taxonomyId,
+      financialCategory: product.productCategoryName,
+      financialSubcategory: '',
+      productCategoryId: product.productCategoryId,
+      productCategoryName: product.productCategoryName,
+      createdAt: DateTime.now(),
+    );
+  }
 
   @override
   void dispose() {
@@ -352,22 +384,30 @@ class _NewTransactionItemsSheetState extends State<NewTransactionItemsSheet> {
         for (final item in widget.controller.items) item.id: item,
       };
       final query = widget.productRepository.normalize(_search.text);
-      final rows = {..._deselected, ...selected}.values
-          .where(
-            (item) => widget.productRepository
-                .normalize('${item.name} ${item.brand}')
-                .contains(query),
-          )
-          .toList();
-      final representedProducts = {
-        ..._deselected.values,
-        ...selected.values,
-      }.map((item) => item.productId).toSet();
-      final products = widget.productRepository
-          .search(_search.text)
-          .where((product) => !representedProducts.contains(product.id))
-          .toList();
+      final products = widget.productRepository.search(_search.text).toList();
       final enabled = !_openingEditor && !widget.controller.isSaving;
+      final selectedByProduct = <String, PurchaseItemModel>{
+        for (final item in selected.values)
+          if (item.productId != null) item.productId!: item,
+      };
+      final representedProductIds = <String>{};
+      final productRows = <Widget>[];
+      for (final product in products) {
+        final item = selectedByProduct[product.id];
+        if (item != null) representedProductIds.add(product.id);
+        productRows.add(_productRow(product, item, enabled));
+      }
+      productRows.addAll(
+        selected.values
+            .where(
+              (item) =>
+                  !representedProductIds.contains(item.productId) &&
+                  widget.productRepository
+                      .normalize('${item.name} ${item.brand}')
+                      .contains(query),
+            )
+            .map((item) => _itemRow(item, true, enabled)),
+      );
       return SafeArea(
         top: false,
         child: Padding(
@@ -464,62 +504,92 @@ class _NewTransactionItemsSheetState extends State<NewTransactionItemsSheet> {
                   child: ListView(
                     shrinkWrap: true,
                     children: [
-                      if (rows.isEmpty && products.isEmpty)
+                      if (productRows.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 24),
                           child: query.isEmpty
-                              ? const Text('Nenhum item adicionado. Adicione o primeiro item da compra.', style: TextStyle(color: transactionMuted), textAlign: TextAlign.center)
-                              : TransactionPanel(outlined: true, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  const Text('Novo item', style: TextStyle(color: transactionAccent, fontSize: 14)),
-                                  const SizedBox(height: 5),
-                                  Text('Cadastrar “${_search.text.trim()}” na compra', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                                  const SizedBox(height: 10),
-                                  TextField(controller: _inlinePrice, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Preço unitário', prefixText: r'R$ ', isDense: true)),
-                                  const SizedBox(height: 10),
-                                  SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: enabled ? () async {
-                                    final price = double.tryParse(_inlinePrice.text.trim().replaceAll(',', '.'));
-                                    if (price == null || price <= 0) return;
-                                    await _edit(() => widget.onCreateInline(_search.text.trim(), price));
-                                    if (mounted) _inlinePrice.clear();
-                                  } : null, icon: const Icon(Icons.add), label: const Text('Cadastrar e adicionar'))),
-                                ])),
+                              ? const Text(
+                                  'Nenhum item adicionado. Adicione o primeiro item da compra.',
+                                  style: TextStyle(color: transactionMuted),
+                                  textAlign: TextAlign.center,
+                                )
+                              : TransactionPanel(
+                                  outlined: true,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Novo item',
+                                        style: TextStyle(
+                                          color: transactionAccent,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        'Cadastrar “${_search.text.trim()}” na compra',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      TextField(
+                                        controller: _inlinePrice,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        decoration: const InputDecoration(
+                                          labelText: 'Preço unitário',
+                                          prefixText: r'R$ ',
+                                          isDense: true,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: FilledButton.icon(
+                                          onPressed: enabled
+                                              ? () async {
+                                                  final price = double.tryParse(
+                                                    _inlinePrice.text
+                                                        .trim()
+                                                        .replaceAll(',', '.'),
+                                                  );
+                                                  if (price == null ||
+                                                      price <= 0)
+                                                    return;
+                                                  await _edit(
+                                                    () => widget.onCreateInline(
+                                                      _search.text.trim(),
+                                                      price,
+                                                    ),
+                                                  );
+                                                  if (mounted)
+                                                    _inlinePrice.clear();
+                                                }
+                                              : null,
+                                          icon: const Icon(Icons.add),
+                                          label: const Text(
+                                            'Cadastrar e adicionar',
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      const Text(
+                                        'Você poderá completar depois a marca e outros dados do catálogo.',
+                                        style: TextStyle(
+                                          color: transactionMuted,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                         ),
-                      for (final item in rows)
-                        _itemRow(item, selected.containsKey(item.id), enabled),
-                      for (final product in products)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          leading: const Icon(
-                            Icons.radio_button_unchecked,
-                            color: Color(0xFF54505F),
-                            size: 22,
-                          ),
-                          title: Text(
-                            product.name,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                            ),
-                          ),
-                          subtitle: Text(
-                            product.brand.isEmpty
-                                ? 'Informe o preço desta compra'
-                                : product.brand,
-                            style: const TextStyle(
-                              color: transactionMuted,
-                              fontSize: 11,
-                            ),
-                          ),
-                          trailing: const Icon(
-                            Icons.add,
-                            color: transactionAccent,
-                            size: 22,
-                          ),
-                          onTap: enabled
-                              ? () => _edit(() => widget.onAdd(product))
-                              : null,
-                        ),
+                      ...productRows,
                     ],
                   ),
                 ),
@@ -577,86 +647,140 @@ class _NewTransactionItemsSheetState extends State<NewTransactionItemsSheet> {
     },
   );
 
+  Widget _productRow(
+    ProductModel product,
+    PurchaseItemModel? item,
+    bool enabled,
+  ) => _itemLine(
+    productId: product.id,
+    name: product.name,
+    brand: product.brand,
+    quantity: item?.quantity ?? 0,
+    initialPrice: item == null
+        ? (_draftPrices[product.id] ??
+              (product.lastPrice > 0
+                  ? product.lastPrice.toStringAsFixed(2)
+                  : product.averagePrice.toStringAsFixed(2)))
+        : item.unitPrice.toStringAsFixed(2),
+    item: item,
+    product: product,
+    enabled: enabled,
+  );
+
   Widget _itemRow(PurchaseItemModel item, bool selected, bool enabled) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 30,
-              child: Checkbox(
-                value: selected,
-                shape: const CircleBorder(),
-                activeColor: const Color(0xFFA953F0),
-                checkColor: const Color(0xFF170D26),
-                onChanged: !enabled
-                    ? null
-                    : (checked) {
-                        if (checked == true) {
-                          widget.onRestore(item);
-                          setState(() => _deselected.remove(item.id));
-                        } else {
-                          setState(() => _deselected[item.id] = item);
-                          widget.onRemove(item);
-                        }
-                      },
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: InkWell(
-                onTap: selected && enabled
-                    ? () => _edit(() => widget.onEdit(item))
-                    : null,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (item.brand.isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          item.brand,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: transactionMuted,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _money(item.totalPrice),
-                  style: const TextStyle(fontSize: 12, color: Colors.white),
-                ),
-                Text(
-                  'Qtd. ${formatTransactionQuantity(item.quantity)}',
-                  style: const TextStyle(fontSize: 10, color: transactionMuted),
-                ),
-              ],
-            ),
-            const SizedBox(width: 6),
-            TransactionQuantityControl(
-              quantity: item.quantity,
-              onChanged: selected && enabled
-                  ? (quantity) => widget.onQuantityChanged(item, quantity)
-                  : null,
-            ),
-          ],
-        ),
+      _itemLine(
+        productId: item.productId ?? item.id,
+        name: item.name,
+        brand: item.brand,
+        quantity: item.quantity,
+        initialPrice: item.unitPrice.toStringAsFixed(2),
+        item: item,
+        enabled: enabled,
       );
+
+  Widget _itemLine({
+    required String productId,
+    required String name,
+    required String brand,
+    required double quantity,
+    required String initialPrice,
+    required PurchaseItemModel? item,
+    ProductModel? product,
+    required bool enabled,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      children: [
+        Expanded(
+          child: InkWell(
+            onTap: item != null && enabled
+                ? () => _edit(() => widget.onEdit(item))
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(fontSize: 13, color: Colors.white),
+                  ),
+                  if (brand.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      brand,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: transactionMuted,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 72,
+          child: TextFormField(
+            key: ValueKey('item-price-$productId'),
+            initialValue: initialPrice,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: enabled
+                ? (value) {
+                    final price = double.tryParse(value.replaceAll(',', '.'));
+                    if (price == null || price < 0) return;
+                    _draftPrices[productId] = value;
+                    if (item != null) {
+                      widget.onUnitPriceChanged(item, price);
+                    }
+                    setState(() {});
+                  }
+                : null,
+            decoration: InputDecoration(
+              prefixText: r'R$ ',
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 9,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: Color(0xFF39274E),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: transactionAccent,
+                ),
+              ),
+            ),
+            style: const TextStyle(fontSize: 12, color: Colors.white),
+          ),
+        ),
+        const SizedBox(width: 6),
+        TransactionQuantityControl(
+          quantity: quantity,
+          onChanged: enabled
+              ? (quantity) {
+                  if (item == null) {
+                    if (product != null && quantity > 0) {
+                      widget.onRestore(
+                        _catalogItem(product, quantity: quantity),
+                      );
+                    }
+                  } else if (quantity <= 0) {
+                    widget.onRemove(item);
+                  } else {
+                    widget.onQuantityChanged(item, quantity);
+                  }
+                }
+              : null,
+        ),
+      ],
+    ),
+  );
 }
