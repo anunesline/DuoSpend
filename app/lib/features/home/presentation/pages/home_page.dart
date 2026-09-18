@@ -274,6 +274,10 @@ class _HomePageState extends State<HomePage> {
           wallet: wallet,
           transactions: controller.transactions,
           currentUserId: userId,
+          scopeWallets: [
+            ...controller.individualWallets,
+            ...controller.sharedWallets,
+          ],
           navigationBuilder: (navigate) => SizedBox(
             height: 84 + MediaQuery.paddingOf(context).bottom,
             child: Stack(

@@ -67,11 +67,13 @@ class _BudgetEditorValues {
   final String category;
   final DateTime month;
   final double limitAmount;
+  final WalletModel targetWallet;
 
   const _BudgetEditorValues({
     required this.category,
     required this.month,
     required this.limitAmount,
+    required this.targetWallet,
   });
 }
 
@@ -79,11 +81,13 @@ class _BudgetEditorDialog extends StatefulWidget {
   final Budget? budget;
   final DateTime selectedMonth;
   final Future<String?> Function(String selected) selectCategory;
+  final List<WalletModel> scopeWallets;
 
   const _BudgetEditorDialog({
     required this.budget,
     required this.selectedMonth,
     required this.selectCategory,
+    required this.scopeWallets,
   });
 
   @override
@@ -95,6 +99,7 @@ class _BudgetEditorDialogState extends State<_BudgetEditorDialog> {
   late final TextEditingController limit;
   late DateTime month;
   late bool customCategory;
+  late WalletModel targetWallet;
 
   @override
   void initState() {
@@ -106,6 +111,12 @@ class _BudgetEditorDialogState extends State<_BudgetEditorDialog> {
           '',
     );
     month = widget.budget?.month ?? widget.selectedMonth;
+    targetWallet = widget.budget == null
+        ? widget.scopeWallets.first
+        : widget.scopeWallets.firstWhere(
+            (item) => item.id == widget.budget!.walletId,
+            orElse: () => widget.scopeWallets.first,
+          );
     customCategory = !_budgetCategories.any(
       (item) =>
           _normalizeBudgetCategory(item) ==
@@ -183,6 +194,63 @@ class _BudgetEditorDialogState extends State<_BudgetEditorDialog> {
                 hintText: 'Ex.: Academia',
               ),
             ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Escopo',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('Individual'),
+                  selected: !targetWallet.isShared,
+                  onSelected:
+                      widget.budget == null &&
+                          widget.scopeWallets.any((item) => item.isIndividual)
+                      ? (_) => setState(
+                          () => targetWallet = widget.scopeWallets.firstWhere(
+                            (item) => item.isIndividual,
+                          ),
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ChoiceChip(
+                  label: const Text('Compartilhado'),
+                  selected: targetWallet.isShared,
+                  onSelected:
+                      widget.budget == null &&
+                          widget.scopeWallets.any((item) => item.isShared)
+                      ? (_) => setState(
+                          () => targetWallet = widget.scopeWallets.firstWhere(
+                            (item) => item.isShared,
+                          ),
+                        )
+                      : null,
+                ),
+              ),
+            ],
+          ),
+          if (widget.budget != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                targetWallet.isShared
+                    ? 'Carteira compartilhada'
+                    : 'Carteira individual',
+                style: const TextStyle(
+                  color: DuoColors.orbitTextSecondary,
+                  fontSize: 11,
+                ),
+              ),
+            ),
           const SizedBox(height: 12),
           TextField(
             controller: limit,
@@ -229,6 +297,7 @@ class _BudgetEditorDialogState extends State<_BudgetEditorDialog> {
                   limit.text.trim().replaceAll('.', '').replaceAll(',', '.'),
                 ) ??
                 0,
+            targetWallet: targetWallet,
           ),
         ),
         child: const Text('Salvar'),
@@ -241,6 +310,7 @@ class BudgetsPage extends StatefulWidget {
   final WalletModel wallet;
   final List<TransactionModel> transactions;
   final String currentUserId;
+  final List<WalletModel> scopeWallets;
   final Widget Function(ValueChanged<BudgetDestination>) navigationBuilder;
 
   const BudgetsPage({
@@ -248,6 +318,7 @@ class BudgetsPage extends StatefulWidget {
     required this.wallet,
     required this.transactions,
     required this.currentUserId,
+    this.scopeWallets = const [],
     required this.navigationBuilder,
   });
 
@@ -275,6 +346,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
       wallet: widget.wallet,
       currentUserId: widget.currentUserId,
       transactions: widget.transactions,
+      availableWallets: widget.scopeWallets,
     )..load();
   }
 
@@ -384,6 +456,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
         budget: budget,
         selectedMonth: selectedMonth,
         selectCategory: _selectBudgetCategory,
+        scopeWallets: controller.scopeWallets,
       ),
     );
     if (values == null || !mounted) return;
@@ -392,6 +465,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
             category: values.category,
             month: values.month,
             limitAmount: values.limitAmount,
+            targetWallet: values.targetWallet,
           )
         : await controller.update(
             budget,
@@ -423,6 +497,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
     );
     return result;
   }
+
+  String _scopeLabel(Budget budget) =>
+      controller.walletForScope(true)?.id == budget.walletId
+      ? '👥 Compartilhado'
+      : '👤 Individual';
 
   Future<void> _status(Budget budget, BudgetStatus status) async {
     final result = await controller.changeStatus(budget, status);
@@ -550,7 +629,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
     _sheet(budget.category, [
       Text(DateFormat('MMMM yyyy', 'pt_BR').format(budget.month)),
       const SizedBox(height: 16),
-      BudgetCategoryRow(item: item, money: money),
+      BudgetCategoryRow(
+        item: item,
+        money: money,
+        scopeLabel: _scopeLabel(item.budget),
+      ),
       const SizedBox(height: 16),
       Text(
         budget.isPaused
@@ -614,7 +697,13 @@ class _BudgetsPageState extends State<BudgetsPage> {
         (sum, item) =>
             sum +
             service
-                .calculate(budget: item.budget, transactions: transactions)
+                .calculate(
+                  budget: item.budget,
+                  transactions: transactions,
+                  walletIsShared:
+                      controller.walletForScope(true)?.id ==
+                      item.budget.walletId,
+                )
                 .spentAmount,
       );
     });
@@ -724,6 +813,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                 BudgetCategoryRow(
                   item: items[i],
                   money: money,
+                  scopeLabel: _scopeLabel(items[i].budget),
                   onTap: controller.isProcessing
                       ? null
                       : () => _details(items[i]),
@@ -776,7 +866,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
                   TextButton(
                     onPressed: () => _sheet('Acima do planejado', [
                       for (final item in exceeded)
-                        BudgetCategoryRow(item: item, money: money),
+                        BudgetCategoryRow(
+                          item: item,
+                          money: money,
+                          scopeLabel: _scopeLabel(item.budget),
+                        ),
                     ]),
                     child: const Text('Ver insights'),
                   ),

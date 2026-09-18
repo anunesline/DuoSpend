@@ -126,11 +126,13 @@ class BudgetCategoryRow extends StatelessWidget {
   final BudgetConsumption item;
   final NumberFormat money;
   final VoidCallback? onTap;
+  final String? scopeLabel;
   const BudgetCategoryRow({
     super.key,
     required this.item,
     required this.money,
     this.onTap,
+    this.scopeLabel,
   });
 
   @override
@@ -205,6 +207,14 @@ class BudgetCategoryRow extends StatelessWidget {
                       fontSize: 11,
                     ),
                   ),
+                  if (scopeLabel != null)
+                    Text(
+                      scopeLabel!,
+                      style: const TextStyle(
+                        color: DuoColors.orbitTextSecondary,
+                        fontSize: 10,
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   BudgetProgress(
                     value: item.percentage,
