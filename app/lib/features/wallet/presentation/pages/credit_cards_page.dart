@@ -10,10 +10,12 @@ import '../controllers/credit_card_controller.dart';
 
 class CreditCardsPage extends StatefulWidget {
   final List<WalletModel> individualWallets;
+  final CreditCardController? controller;
 
   const CreditCardsPage({
     super.key,
     required this.individualWallets,
+    this.controller,
   });
 
   @override
@@ -26,12 +28,13 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
   @override
   void initState() {
     super.initState();
-    _controller = CreditCardController()..loadCards();
+    _controller = widget.controller ?? CreditCardController();
+    _controller.loadCards();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (widget.controller == null) _controller.dispose();
     super.dispose();
   }
 
@@ -68,134 +71,14 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
       _showMessage('Os cartões ainda estão carregando.');
       return;
     }
-    final nameController = TextEditingController();
-    final digitsController = TextEditingController();
-    final limitController = TextEditingController();
-    final closingController = TextEditingController();
-    final dueController = TextEditingController();
-    String? selectedWalletId;
-
     final form = await showDialog<_NewCardDraft>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Novo cartão'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Nome do cartão',
-                    hintText: 'Ex.: Inter Gold',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedWalletId ?? '',
-                  decoration: const InputDecoration(
-                    labelText: 'Carteira vinculada',
-                  ),
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: '',
-                      child: Text('Sem carteira'),
-                    ),
-                    ...widget.individualWallets.map(
-                      (wallet) => DropdownMenuItem<String>(
-                        value: wallet.id,
-                        child: Text(wallet.name),
-                      ),
-                    ),
-                  ]
-                      .toList(growable: false),
-                  onChanged: (value) {
-                    setDialogState(() => selectedWalletId =
-                        value == null || value.isEmpty ? null : value);
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: digitsController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Últimos 4 dígitos (opcional)',
-                    counterText: '',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: limitController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Limite total',
-                    prefixText: 'R\$ ',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: closingController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Fecha dia'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: dueController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Vence dia'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  _NewCardDraft(
-                    name: nameController.text.trim(),
-                    digits: digitsController.text.trim(),
-                    limit: limitController.text,
-                    closingDay: closingController.text,
-                    dueDay: dueController.text,
-                    walletId: selectedWalletId,
-                  ),
-                );
-              },
-              child: const Text('Criar'),
-            ),
-          ],
-        ),
+      builder: (_) => _NewCardDialog(
+        individualWallets: widget.individualWallets,
       ),
     );
 
-    nameController.dispose();
-    digitsController.dispose();
-    limitController.dispose();
-    closingController.dispose();
-    dueController.dispose();
-
     if (form == null || !mounted) return;
-
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
 
     final limit = _parseMoney(form.limit);
     final closingDay = int.tryParse(form.closingDay.trim());
@@ -564,6 +447,154 @@ class _EmptyCardsState extends StatelessWidget {
           'Cadastre um cartão para organizar limites e faturas.',
           textAlign: TextAlign.center,
           style: TextStyle(color: DuoColors.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
+class _NewCardDialog extends StatefulWidget {
+  final List<WalletModel> individualWallets;
+
+  const _NewCardDialog({required this.individualWallets});
+
+  @override
+  State<_NewCardDialog> createState() => _NewCardDialogState();
+}
+
+class _NewCardDialogState extends State<_NewCardDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _digitsController;
+  late final TextEditingController _limitController;
+  late final TextEditingController _closingController;
+  late final TextEditingController _dueController;
+  String? _selectedWalletId;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _digitsController = TextEditingController();
+    _limitController = TextEditingController();
+    _closingController = TextEditingController();
+    _dueController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _digitsController.dispose();
+    _limitController.dispose();
+    _closingController.dispose();
+    _dueController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.pop(
+      context,
+      _NewCardDraft(
+        name: _nameController.text.trim(),
+        digits: _digitsController.text.trim(),
+        limit: _limitController.text,
+        closingDay: _closingController.text,
+        dueDay: _dueController.text,
+        walletId: _selectedWalletId,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Novo cartão'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Nome do cartão',
+                hintText: 'Ex.: Inter Gold',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedWalletId ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Carteira vinculada',
+              ),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: '',
+                  child: Text('Sem carteira'),
+                ),
+                ...widget.individualWallets.map(
+                  (wallet) => DropdownMenuItem<String>(
+                    value: wallet.id,
+                    child: Text(wallet.name),
+                  ),
+                ),
+              ].toList(growable: false),
+              onChanged: (value) {
+                setState(() => _selectedWalletId =
+                    value == null || value.isEmpty ? null : value);
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _digitsController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              decoration: const InputDecoration(
+                labelText: 'Últimos 4 dígitos (opcional)',
+                counterText: '',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _limitController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Limite total',
+                prefixText: 'R\$ ',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _closingController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Fecha dia'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _dueController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Vence dia'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Criar'),
         ),
       ],
     );
