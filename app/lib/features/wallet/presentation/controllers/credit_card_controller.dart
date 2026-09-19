@@ -3,25 +3,24 @@ import 'package:flutter/foundation.dart';
 import '../../../home/data/models/credit_card_invoice_model.dart';
 import '../../../home/data/models/credit_card_model.dart';
 import '../../../home/data/repositories/credit_card_repository.dart';
+import '../../../transactions/data/models/transaction_model.dart';
 
 class CreditCardController extends ChangeNotifier {
   final CreditCardRepository _repository;
 
-  CreditCardController({
-    CreditCardRepository? repository,
-  }) : _repository = repository ?? CreditCardRepository();
+  CreditCardController({CreditCardRepository? repository})
+    : _repository = repository ?? CreditCardRepository();
 
   List<CreditCardModel> _cards = const [];
-  final Map<String, List<CreditCardInvoiceModel>>
-      _invoicesByCardId = {};
+  final Map<String, List<CreditCardInvoiceModel>> _invoicesByCardId = {};
+  final Map<String, List<TransactionModel>> _purchasesByCardId = {};
 
   bool _isLoading = false;
   final Set<String> _processingIds = {};
   String? _errorMessage;
   bool _disposed = false;
 
-  List<CreditCardModel> get cards =>
-      List<CreditCardModel>.unmodifiable(_cards);
+  List<CreditCardModel> get cards => List<CreditCardModel>.unmodifiable(_cards);
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -35,6 +34,88 @@ class CreditCardController extends ChangeNotifier {
     return List<CreditCardInvoiceModel>.unmodifiable(
       _invoicesByCardId[cardId] ?? const [],
     );
+  }
+
+  List<TransactionModel> purchasesFor(String cardId) =>
+      List<TransactionModel>.unmodifiable(
+        _purchasesByCardId[cardId] ?? const [],
+      );
+
+  Future<void> loadPurchases(String cardId) async {
+    final normalized = cardId.trim();
+    if (normalized.isEmpty || isProcessing('purchases:$normalized')) return;
+    _setProcessing('purchases:$normalized', true);
+    try {
+      _purchasesByCardId[normalized] = await _repository.getCardPurchases(
+        cardId: normalized,
+      );
+      _errorMessage = null;
+    } catch (error) {
+      _errorMessage = 'Não foi possível carregar as compras do cartão.';
+      debugPrint('Erro ao carregar compras: $error');
+    } finally {
+      _setProcessing('purchases:$normalized', false);
+    }
+  }
+
+  Future<List<TransactionModel>> loadInvoicePurchases({
+    required String cardId,
+    required String invoiceId,
+  }) {
+    return _repository.getInvoicePurchases(cardId: cardId, invoiceId: invoiceId);
+  }
+
+  Future<CreditCardModel?> updateCard(CreditCardModel card) async {
+    if (isProcessing('update:${card.id}')) return null;
+    _setProcessing('update:${card.id}', true);
+    try {
+      final updated = await _repository.updateCard(card: card);
+      _cards = _cards
+          .map((item) => item.id == updated.id ? updated : item)
+          .toList();
+      _errorMessage = null;
+      return updated;
+    } catch (error) {
+      _errorMessage = _formatError(error);
+      return null;
+    } finally {
+      _setProcessing('update:${card.id}', false);
+    }
+  }
+
+  Future<bool> setCardActive(CreditCardModel card, bool isActive) async {
+    if (isProcessing('active:${card.id}')) return false;
+    _setProcessing('active:${card.id}', true);
+    try {
+      await _repository.setCardActive(cardId: card.id, isActive: isActive);
+      _cards = _cards
+          .map(
+            (item) =>
+                item.id == card.id ? item.copyWith(isActive: isActive) : item,
+          )
+          .toList();
+      return true;
+    } catch (error) {
+      _errorMessage = _formatError(error);
+      return false;
+    } finally {
+      _setProcessing('active:${card.id}', false);
+    }
+  }
+
+  Future<bool> deleteCard(CreditCardModel card) async {
+    if (isProcessing('delete:${card.id}')) return false;
+    _setProcessing('delete:${card.id}', true);
+    try {
+      await _repository.deleteCard(cardId: card.id);
+      _cards = _cards.where((item) => item.id != card.id).toList();
+      return true;
+    } catch (error) {
+      _errorMessage = _formatError(error);
+      return false;
+    } finally {
+      _setProcessing('delete:${card.id}', false);
+    }
   }
 
   Future<void> loadCards() async {
@@ -76,9 +157,10 @@ class CreditCardController extends ChangeNotifier {
       );
 
       _cards = [..._cards, card]
-        ..sort((first, second) => first.name
-            .toLowerCase()
-            .compareTo(second.name.toLowerCase()));
+        ..sort(
+          (first, second) =>
+              first.name.toLowerCase().compareTo(second.name.toLowerCase()),
+        );
       _errorMessage = null;
 
       return card;
@@ -94,16 +176,14 @@ class CreditCardController extends ChangeNotifier {
   Future<void> loadInvoices(String cardId) async {
     final normalizedCardId = cardId.trim();
 
-    if (normalizedCardId.isEmpty ||
-        isProcessing(normalizedCardId)) {
+    if (normalizedCardId.isEmpty || isProcessing(normalizedCardId)) {
       return;
     }
 
     _setProcessing(normalizedCardId, true);
 
     try {
-      _invoicesByCardId[normalizedCardId] =
-          await _repository.getInvoices(
+      _invoicesByCardId[normalizedCardId] = await _repository.getInvoices(
         cardId: normalizedCardId,
       );
       _errorMessage = null;
@@ -138,9 +218,7 @@ class CreditCardController extends ChangeNotifier {
       final invoices = List<CreditCardInvoiceModel>.from(
         _invoicesByCardId[card.id] ?? const [],
       );
-      final index = invoices.indexWhere(
-        (item) => item.id == paidInvoice.id,
-      );
+      final index = invoices.indexWhere((item) => item.id == paidInvoice.id);
 
       if (index == -1) {
         invoices.insert(0, paidInvoice);
