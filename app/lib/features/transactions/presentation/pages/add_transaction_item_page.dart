@@ -630,26 +630,8 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
     required String name,
     required String brand,
   }) {
-    final normalizedName = _normalize(name);
-    final normalizedBrand = _normalize(brand);
-
-    final products = productRepository.search(name);
-
-    for (final product in products) {
-      if (_isGenericOtherProduct(product)) {
-        continue;
-      }
-
-      final sameName = _normalize(product.normalizedName) == normalizedName;
-
-      final sameBrand = _normalize(product.brand) == normalizedBrand;
-
-      if (sameName && sameBrand) {
-        return product;
-      }
-    }
-
-    return null;
+    final product = productRepository.findByIdentity(name: name, brand: brand);
+    return product == null || _isGenericOtherProduct(product) ? null : product;
   }
 
   bool _selectedProductMatchesCurrentFields() {
@@ -709,12 +691,10 @@ class _AddTransactionItemPageState extends State<AddTransactionItemPage> {
       updatedAt: now,
     );
 
-    await productRepository.saveLearnedProduct(
+    return productRepository.resolveLearnedProduct(
       userId: user.uid,
-      product: newProduct,
+      candidate: newProduct,
     );
-
-    return newProduct;
   }
 
   String? _validateQuantity(String? value) {

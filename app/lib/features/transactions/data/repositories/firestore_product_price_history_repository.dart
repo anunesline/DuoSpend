@@ -32,9 +32,27 @@ class FirestoreProductPriceHistoryRepository
       productId: productId,
     ).get();
 
-    return snapshot.docs
-        .map((document) => ProductPriceObservation.fromMap(document.data()))
-        .toList();
+    final observations =
+        snapshot.docs
+            .map(
+              (document) => ProductPriceObservation.fromMap(
+                document.data(),
+                fallbackProductId: productId,
+              ),
+            )
+            .toList()
+          ..sort((left, right) {
+            final dateComparison = left.purchasedAt.compareTo(
+              right.purchasedAt,
+            );
+            if (dateComparison != 0) {
+              return dateComparison;
+            }
+
+            return left.purchaseId.compareTo(right.purchaseId);
+          });
+
+    return observations;
   }
 
   @override

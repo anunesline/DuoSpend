@@ -567,7 +567,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     if (user == null || name.trim().isEmpty) return;
     final now = DateTime.now();
     final taxonomyId = selectedSubcategory?.id ?? selectedCategory.id;
-    final product = ProductModel(
+    final candidate = ProductModel(
       id: now.microsecondsSinceEpoch.toString(),
       name: name.trim(),
       normalizedName: widget.productRepository.normalize(name),
@@ -584,9 +584,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       createdAt: now,
       updatedAt: now,
     );
-    await widget.productRepository.saveLearnedProduct(
+    final product = await widget.productRepository.resolveLearnedProduct(
       userId: user.uid,
-      product: product,
+      candidate: candidate,
     );
     final item = TransactionItemModel(
       id: now.microsecondsSinceEpoch.toString(),
