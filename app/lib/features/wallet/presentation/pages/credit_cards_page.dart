@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/design_system/duo_card.dart';
 import '../../../../core/design_system/duo_colors.dart';
+import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../home/data/models/credit_card_invoice_model.dart';
 import '../../../home/data/models/credit_card_model.dart';
 import '../../../home/data/models/wallet_model.dart';
@@ -13,11 +16,13 @@ import '../controllers/credit_card_controller.dart';
 class CreditCardsPage extends StatefulWidget {
   final List<WalletModel> individualWallets;
   final CreditCardController? controller;
+  final Future<void> Function()? onNewTransaction;
 
   const CreditCardsPage({
     super.key,
     required this.individualWallets,
     this.controller,
+    this.onNewTransaction,
   });
 
   @override
@@ -120,6 +125,7 @@ class _CreditCardsPageState extends State<CreditCardsPage> {
           wallets: widget.individualWallets,
           money: _money,
           onPayInvoice: _payInvoice,
+          onNewTransaction: widget.onNewTransaction,
           onEdit: (updated) => _controller.updateCard(updated),
           onArchive: () => _controller.setCardActive(card, false),
           onReactivate: () => _controller.setCardActive(card, true),
@@ -377,6 +383,7 @@ class _CreditCardDetailPage extends StatefulWidget {
   final Future<void> Function(CreditCardModel, CreditCardInvoiceModel)
   onPayInvoice;
   final Future<CreditCardModel?> Function(CreditCardModel) onEdit;
+  final Future<void> Function()? onNewTransaction;
   final Future<bool> Function() onArchive;
   final Future<bool> Function() onReactivate;
   final Future<bool> Function() onDelete;
@@ -388,6 +395,7 @@ class _CreditCardDetailPage extends StatefulWidget {
     required this.money,
     required this.onPayInvoice,
     required this.onEdit,
+    this.onNewTransaction,
     required this.onArchive,
     required this.onReactivate,
     required this.onDelete,
@@ -490,6 +498,33 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
   }
 
   bool _showAllPurchases = false;
+  int _categoryRevision = 0;
+  bool _openingTransaction = false;
+
+  Future<void> _newTransaction() async {
+    if (_openingTransaction || widget.onNewTransaction == null) return;
+    setState(() => _openingTransaction = true);
+    try {
+      await widget.onNewTransaction!();
+      if (!mounted) return;
+      await widget.controller.loadCards();
+      if (!mounted) return;
+      for (final card in widget.controller.cards) {
+        if (card.id == _card.id) _card = card;
+      }
+      await Future.wait([
+        widget.controller.loadInvoices(_card.id),
+        widget.controller.loadPurchases(_card.id),
+      ]);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _openingTransaction = false;
+          _categoryRevision++;
+        });
+      }
+    }
+  }
 
   void _openPurchase(TransactionModel purchase) => Navigator.push(
     context,
@@ -514,7 +549,8 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
         backgroundColor: DuoColors.orbitBackground,
         appBar: AppBar(
           backgroundColor: DuoColors.orbitBackground,
-          title: const Text('Cartão'),
+          toolbarHeight: 48,
+          title: const Text('Cartão', style: TextStyle(fontSize: 19)),
           actions: [
             PopupMenuButton<String>(
               tooltip: 'Ações do cartão',
@@ -545,10 +581,14 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
         body: SafeArea(
           top: false,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-              _CardHero(card: _card, walletName: _walletName(_card.walletId)),
-              const SizedBox(height: 24),
+              _CardHero(
+                card: _card,
+                walletName: _walletName(_card.walletId),
+                money: widget.money,
+              ),
+              const SizedBox(height: 16),
               Container(
                 decoration: BoxDecoration(
                   color: DuoColors.orbitSurface,
@@ -569,7 +609,7 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
+                                  vertical: 10,
                                   horizontal: 8,
                                 ),
                                 decoration: BoxDecoration(
@@ -587,6 +627,7 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                                   i == 0 ? 'Visão geral' : 'Faturas',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
+                                    fontSize: 13,
                                     color: _tab == i
                                         ? DuoColors.orbitTextPrimary
                                         : DuoColors.orbitTextSecondary,
@@ -603,7 +644,7 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               if (_tab == 0) ...[
                 _DetailCard(
                   title: 'Fatura atual',
@@ -619,7 +660,7 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                         Text(
                           widget.money(current.total),
                           style: const TextStyle(
-                            fontSize: 32,
+                            fontSize: 27,
                             fontWeight: FontWeight.w700,
                             color: DuoColors.orbitTextPrimary,
                           ),
@@ -628,14 +669,18 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                         Text(
                           'Vence em ${DateFormat("dd/MM/yyyy").format(current.dueDate)}',
                           style: const TextStyle(
+                            fontSize: 12,
                             color: DuoColors.orbitTextSecondary,
                           ),
                         ),
                       ],
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 14),
                       const Text(
                         'Limite disponível',
-                        style: TextStyle(color: DuoColors.orbitTextSecondary),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: DuoColors.orbitTextSecondary,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Wrap(
@@ -645,7 +690,7 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                           Text(
                             widget.money(_card.availableLimit),
                             style: const TextStyle(
-                              fontSize: 21,
+                              fontSize: 17,
                               fontWeight: FontWeight.w600,
                               color: DuoColors.orbitTextPrimary,
                             ),
@@ -653,6 +698,7 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                           Text(
                             'de ${widget.money(_card.creditLimit)}',
                             style: const TextStyle(
+                              fontSize: 11,
                               color: DuoColors.orbitTextSecondary,
                             ),
                           ),
@@ -663,23 +709,23 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                         borderRadius: BorderRadius.circular(20),
                         child: LinearProgressIndicator(
                           value: usage,
-                          minHeight: 10,
+                          minHeight: 7,
                           color: DuoColors.primary,
                           backgroundColor: const Color(0xFF343B4D),
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${NumberFormat.decimalPattern("pt_BR").format(usage * 100)}% utilizado • ${widget.money(_card.usedLimit)}',
+                        '${NumberFormat('0.#', 'pt_BR').format(usage * 100)}% utilizado • ${widget.money(_card.usedLimit)}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: DuoColors.orbitTextSecondary,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      const Divider(color: DuoColors.orbitBorder),
+                      const SizedBox(height: 6),
+                      const Divider(height: 8, color: DuoColors.orbitBorder),
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -707,7 +753,19 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                _DetailCard(
+                  title: 'Gastos por categoria (fatura atual)',
+                  child: _CategorySpending(
+                    key: ValueKey(
+                      '${current?.id}:${current?.updatedAt}:$_categoryRevision',
+                    ),
+                    invoice: current,
+                    controller: widget.controller,
+                    money: widget.money,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 _DetailCard(
                   title: 'Compras recentes',
                   child: Column(
@@ -726,47 +784,6 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                           onTap: () => setState(() => _showAllPurchases = true),
                         ),
                       ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _DetailCard(
-                  title: 'Informações do cartão',
-                  child: Column(
-                    children: [
-                      const _InfoRow(
-                        icon: Icons.credit_card,
-                        label: 'Tipo',
-                        value: 'Cartão de crédito',
-                      ),
-                      _InfoRow(
-                        icon: Icons.account_balance_wallet_outlined,
-                        label: 'Limite',
-                        value: widget.money(_card.creditLimit),
-                      ),
-                      _InfoRow(
-                        icon: Icons.calendar_today_outlined,
-                        label: 'Fechamento',
-                        value: 'Dia ${_card.closingDay}',
-                      ),
-                      _InfoRow(
-                        icon: Icons.event_outlined,
-                        label: 'Vencimento',
-                        value: 'Dia ${_card.dueDay}',
-                      ),
-                      _InfoRow(
-                        icon: Icons.account_balance_wallet_outlined,
-                        label: 'Carteira vinculada',
-                        value: _walletName(_card.walletId),
-                      ),
-                      _InfoRow(
-                        icon: Icons.info_outline,
-                        label: 'Status',
-                        value: _card.isActive ? '●  Ativo' : '●  Arquivado',
-                        valueColor: _card.isActive
-                            ? DuoColors.success
-                            : DuoColors.orbitTextSecondary,
-                      ),
                     ],
                   ),
                 ),
@@ -789,6 +806,22 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                           ],
                         ),
                 ),
+              if (widget.onNewTransaction != null) ...[
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _openingTransaction ? null : _newTransaction,
+                  icon: const Icon(Icons.add_shopping_cart_outlined, size: 19),
+                  label: const Text('Nova transação'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: DuoColors.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -887,137 +920,406 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
   }
 }
 
-class _CardHero extends StatelessWidget {
+class _CardHero extends StatefulWidget {
   final CreditCardModel card;
   final String walletName;
-  const _CardHero({required this.card, required this.walletName});
+  final String Function(double) money;
+  const _CardHero({
+    required this.card,
+    required this.walletName,
+    required this.money,
+  });
+
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: AspectRatio(
-          aspectRatio: MediaQuery.textScalerOf(context).scale(14) > 20
-              ? 1.25
-              : 1.65,
-          child: Container(
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF363443)),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF343440),
-                  Color(0xFF101119),
-                  Color(0xFF292042),
-                ],
-              ),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  right: -70,
-                  bottom: -120,
-                  child: Container(
-                    width: 310,
-                    height: 270,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: DuoColors.orbitAccent.withValues(alpha: .65),
-                      ),
-                      gradient: RadialGradient(
-                        colors: [
-                          DuoColors.primary.withValues(alpha: .15),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: Padding(
-                    padding: const EdgeInsets.all(22),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'CRÉDITO',
-                          style: TextStyle(
-                            color: DuoColors.orbitTextPrimary,
-                            fontSize: 10,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const Spacer(),
-                        Flexible(
-                          flex: 3,
-                          child: Text(
-                            card.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 29,
-                              fontWeight: FontWeight.w700,
-                              color: DuoColors.orbitTextPrimary,
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                        if (card.lastFourDigits?.isNotEmpty == true)
-                          Text(
-                            '•••• •••• ${card.lastFourDigits}',
-                            style: const TextStyle(
-                              color: DuoColors.orbitTextPrimary,
-                              fontSize: 17,
-                              letterSpacing: 1,
-                            ),
-                          ),
+  State<_CardHero> createState() => _CardHeroState();
+}
+
+class _CardHeroState extends State<_CardHero> {
+  bool _showLimit = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = widget.card;
+    return Column(
+      children: [
+        FractionallySizedBox(
+          widthFactor: .80,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 290),
+            child: Semantics(
+              button: true,
+              label: _showLimit
+                  ? 'Mostrar frente do cartão'
+                  : 'Mostrar resumo do limite',
+              child: Material(
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                color: const Color(0xFF101119),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF363443)),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF343440),
+                        Color(0xFF101119),
+                        Color(0xFF292042),
                       ],
                     ),
                   ),
+                  child: InkWell(
+                    onTap: () => setState(() => _showLimit = !_showLimit),
+                    child: AspectRatio(
+                      aspectRatio:
+                          MediaQuery.textScalerOf(context).scale(14) > 18
+                          ? 1.05
+                          : 1.68,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: _showLimit
+                              ? Column(
+                                  key: const ValueKey('limit-back'),
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    const Text(
+                                      'Resumo do limite',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: DuoColors.orbitTextPrimary,
+                                      ),
+                                    ),
+                                    for (final entry in {
+                                      'Limite total': card.creditLimit,
+                                      'Utilizado': card.usedLimit,
+                                      'Disponível': card.availableLimit,
+                                    }.entries)
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              entry.key,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: DuoColors
+                                                    .orbitTextSecondary,
+                                              ),
+                                            ),
+                                          ),
+                                          Flexible(
+                                            child: Text(
+                                              widget.money(entry.value),
+                                              textAlign: TextAlign.right,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color:
+                                                    DuoColors.orbitTextPrimary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                  ],
+                                )
+                              : Column(
+                                  key: const ValueKey('card-front'),
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            'CRÉDITO',
+                                            style: TextStyle(
+                                              fontSize: 8,
+                                              letterSpacing: 1.2,
+                                              color:
+                                                  DuoColors.orbitTextSecondary,
+                                            ),
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.flip_outlined,
+                                          size: 15,
+                                          color: DuoColors.orbitTextSecondary,
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      card.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 25,
+                                        fontWeight: FontWeight.w700,
+                                        color: DuoColors.orbitTextPrimary,
+                                      ),
+                                    ),
+                                    if (card.lastFourDigits?.isNotEmpty == true)
+                                      Text(
+                                        '•••• •••• ${card.lastFourDigits}',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          letterSpacing: 1,
+                                          color: DuoColors.orbitTextPrimary,
+                                        ),
+                                      )
+                                    else
+                                      const SizedBox(height: 8),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-      const SizedBox(height: 16),
-      Text(
-        card.name,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: DuoColors.orbitTextPrimary,
-          fontSize: 23,
-          fontWeight: FontWeight.w600,
+        const SizedBox(height: 10),
+        Text(
+          card.name,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: DuoColors.orbitTextPrimary,
+          ),
         ),
-      ),
-      const SizedBox(height: 10),
-      Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          const _VisualBadge(
-            text: 'Cartão de crédito',
-            color: DuoColors.orbitAccent,
-          ),
-          _VisualBadge(
-            text: walletName,
-            color: DuoColors.orbitTextSecondary,
-            icon: Icons.account_balance_wallet_outlined,
-          ),
-          if (!card.isActive)
-            const _VisualBadge(
-              text: 'Arquivado',
+        if (card.lastFourDigits?.isNotEmpty == true)
+          Text(
+            '•••• ${card.lastFourDigits}',
+            style: const TextStyle(
+              fontSize: 12,
               color: DuoColors.orbitTextSecondary,
             ),
+          ),
+        const SizedBox(height: 8),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            const _VisualBadge(
+              text: 'Cartão de crédito',
+              color: DuoColors.orbitAccent,
+            ),
+            _VisualBadge(
+              text: widget.walletName,
+              color: DuoColors.orbitTextSecondary,
+              icon: Icons.account_balance_wallet_outlined,
+            ),
+            if (!card.isActive)
+              const _VisualBadge(
+                text: 'Arquivado',
+                color: DuoColors.orbitTextSecondary,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// Presentation-only aggregation of the repository's invoice purchase relation.
+// No date heuristics: installments remain in their actual invoice.
+class _CategorySpending extends StatefulWidget {
+  final CreditCardInvoiceModel? invoice;
+  final CreditCardController controller;
+  final String Function(double) money;
+  const _CategorySpending({
+    super.key,
+    required this.invoice,
+    required this.controller,
+    required this.money,
+  });
+
+  @override
+  State<_CategorySpending> createState() => _CategorySpendingState();
+}
+
+class _CategorySpendingState extends State<_CategorySpending> {
+  late Future<List<TransactionModel>> _purchases;
+
+  @override
+  void initState() {
+    super.initState();
+    _purchases = _load();
+  }
+
+  Future<List<TransactionModel>> _load() {
+    final invoice = widget.invoice;
+    return invoice == null
+        ? Future.value(const <TransactionModel>[])
+        : widget.controller.loadInvoicePurchases(
+            cardId: invoice.cardId,
+            invoiceId: invoice.id,
+          );
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<TransactionModel>>(
+    future: _purchases,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _DetailEmpty(text: 'Não foi possível carregar os gastos.'),
+            TextButton(
+              onPressed: () {
+                final purchases = _load();
+                setState(() {
+                  _purchases = purchases;
+                });
+              },
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        );
+      }
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: LinearProgressIndicator(minHeight: 2),
+        );
+      }
+      final totals = <String, double>{};
+      for (final purchase in snapshot.data ?? const <TransactionModel>[]) {
+        final category = DuoTaxonomy.canonicalCategory(purchase.category);
+        if (purchase.type != 'expense' ||
+            !purchase.value.isFinite ||
+            purchase.value <= 0 ||
+            category.isEmpty ||
+            category.toLowerCase() == 'sem categoria') {
+          continue;
+        }
+        totals.update(
+          category,
+          (value) => value + purchase.value,
+          ifAbsent: () => purchase.value,
+        );
+      }
+      if (totals.isEmpty) {
+        return const _DetailEmpty(
+          text: 'Nenhum gasto categorizado nesta fatura.',
+        );
+      }
+      final entries = totals.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      final total = entries.fold<double>(0, (sum, entry) => sum + entry.value);
+      final legend = Column(
+        children: [
+          for (var i = 0; i < entries.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 9,
+                    color: _categoryColors[i % _categoryColors.length],
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      entries[i].key,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: DuoColors.orbitTextSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Tooltip(
+                    message: widget.money(entries[i].value),
+                    child: Text(
+                      '${NumberFormat('0.#', 'pt_BR').format(entries[i].value / total * 100)}%',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: DuoColors.orbitTextPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
-      ),
-    ],
+      );
+      final chart = Semantics(
+        label: entries
+            .map((entry) => '${entry.key}: ${widget.money(entry.value)}')
+            .join(', '),
+        child: CustomPaint(
+          size: const Size.square(96),
+          painter: _CategoryRing(
+            entries.map((entry) => entry.value / total).toList(),
+          ),
+        ),
+      );
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 260 ||
+              MediaQuery.textScalerOf(context).scale(14) > 20) {
+            return Column(
+              children: [chart, const SizedBox(height: 12), legend],
+            );
+          }
+          return Row(
+            children: [
+              chart,
+              const SizedBox(width: 18),
+              Expanded(child: legend),
+            ],
+          );
+        },
+      );
+    },
   );
+}
+
+const _categoryColors = [
+  DuoColors.primary,
+  Color(0xFF529BFF),
+  Color(0xFFEF7DA4),
+  Color(0xFF959BB1),
+  Color(0xFF31B6C7),
+  Color(0xFFD97F58),
+];
+
+class _CategoryRing extends CustomPainter {
+  final List<double> fractions;
+  const _CategoryRing(this.fractions);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = (Offset.zero & size).deflate(9);
+    var start = -math.pi / 2;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 18;
+    for (var i = 0; i < fractions.length; i++) {
+      final sweep = fractions[i] * math.pi * 2;
+      paint.color = _categoryColors[i % _categoryColors.length];
+      canvas.drawArc(rect, start, sweep, false, paint);
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CategoryRing oldDelegate) =>
+      oldDelegate.fractions != fractions;
 }
 
 class _VisualBadge extends StatelessWidget {
@@ -1027,7 +1329,7 @@ class _VisualBadge extends StatelessWidget {
   const _VisualBadge({required this.text, required this.color, this.icon});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     decoration: BoxDecoration(
       color: color.withValues(alpha: .13),
       borderRadius: BorderRadius.circular(14),
@@ -1040,13 +1342,13 @@ class _VisualBadge extends StatelessWidget {
               alignment: PlaceholderAlignment.middle,
               child: Padding(
                 padding: const EdgeInsets.only(right: 6),
-                child: Icon(icon, size: 17, color: color),
+                child: Icon(icon, size: 14, color: color),
               ),
             ),
           TextSpan(text: text),
         ],
       ),
-      style: TextStyle(color: color, fontSize: 13),
+      style: TextStyle(color: color, fontSize: 11),
     ),
   );
 }
@@ -1076,10 +1378,10 @@ class _DetailCard extends StatelessWidget {
   const _DetailCard({required this.title, required this.child, this.trailing});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(18),
+    padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
       color: DuoColors.orbitSurface,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(15),
       border: Border.all(color: DuoColors.orbitBorder),
     ),
     child: Column(
@@ -1095,14 +1397,14 @@ class _DetailCard extends StatelessWidget {
               title,
               style: const TextStyle(
                 color: DuoColors.orbitTextPrimary,
-                fontSize: 18,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
             ),
             ?trailing,
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 10),
         child,
       ],
     ),
@@ -1114,63 +1416,21 @@ class _DetailEmpty extends StatelessWidget {
   const _DetailEmpty({required this.text});
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
-    child: Center(
-      child: Column(
-        children: [
-          const Icon(
-            Icons.receipt_long_outlined,
-            size: 32,
-            color: DuoColors.orbitAccent,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            text,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: DuoColors.orbitTextSecondary),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color? valueColor;
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.icon = Icons.info_outline,
-    this.valueColor,
-  });
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    decoration: const BoxDecoration(
-      border: Border(bottom: BorderSide(color: DuoColors.orbitBorder)),
-    ),
+    padding: const EdgeInsets.symmetric(vertical: 6),
     child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: DuoColors.orbitTextSecondary),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(color: DuoColors.orbitTextSecondary),
-          ),
+        const Icon(
+          Icons.receipt_long_outlined,
+          size: 20,
+          color: DuoColors.orbitAccent,
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: valueColor ?? DuoColors.orbitTextPrimary,
-              fontWeight: FontWeight.w500,
+            text,
+            style: const TextStyle(
+              fontSize: 12,
+              color: DuoColors.orbitTextSecondary,
             ),
           ),
         ),
@@ -1189,7 +1449,7 @@ class _CalendarValue extends StatelessWidget {
     children: [
       const Icon(
         Icons.calendar_today_outlined,
-        size: 20,
+        size: 17,
         color: DuoColors.orbitAccent,
       ),
       const SizedBox(width: 10),
@@ -1208,7 +1468,7 @@ class _CalendarValue extends StatelessWidget {
             Text(
               '$day',
               style: const TextStyle(
-                fontSize: 23,
+                fontSize: 19,
                 color: DuoColors.orbitTextPrimary,
               ),
             ),
@@ -1231,13 +1491,16 @@ class _DetailAction extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(color: DuoColors.orbitTextPrimary),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: DuoColors.orbitTextPrimary,
+                ),
               ),
             ),
             const Icon(
@@ -1354,10 +1617,11 @@ class _PurchaseGroups extends StatelessWidget {
       children: [
         for (final group in groups.entries) ...[
           Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 10),
+            padding: const EdgeInsets.only(top: 6, bottom: 6),
             child: Text(
               group.key,
               style: const TextStyle(
+                fontSize: 12,
                 color: DuoColors.orbitTextSecondary,
                 fontWeight: FontWeight.w500,
               ),
@@ -1365,7 +1629,7 @@ class _PurchaseGroups extends StatelessWidget {
           ),
           for (final purchase in group.value)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 6),
               child: _PurchaseTile(
                 transaction: purchase,
                 money: money,
@@ -1423,6 +1687,7 @@ class _PurchaseTile extends StatelessWidget {
         Text(
           transaction.description,
           style: const TextStyle(
+            fontSize: 13,
             fontWeight: FontWeight.w600,
             color: DuoColors.orbitTextPrimary,
           ),
@@ -1432,7 +1697,7 @@ class _PurchaseTile extends StatelessWidget {
           Text(
             details,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               color: DuoColors.orbitTextSecondary,
             ),
           ),
@@ -1442,6 +1707,7 @@ class _PurchaseTile extends StatelessWidget {
     final amount = Text(
       money(transaction.value),
       style: const TextStyle(
+        fontSize: 13,
         fontWeight: FontWeight.w600,
         color: DuoColors.orbitTextPrimary,
       ),
@@ -1452,27 +1718,27 @@ class _PurchaseTile extends StatelessWidget {
     );
     return Material(
       color: DuoColors.surfaceLight,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(9),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact =
-                  constraints.maxWidth < 320 ||
+                  constraints.maxWidth < 250 ||
                   MediaQuery.textScalerOf(context).scale(14) > 18;
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(9),
+                    padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: .13),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(icon, size: 22, color: color),
+                    child: Icon(icon, size: 20, color: color),
                   ),
                   const SizedBox(width: 10),
                   Expanded(

@@ -110,6 +110,7 @@ class _HomePageState extends State<HomePage> {
       MaterialPageRoute(
         builder: (_) => CreditCardsPage(
           individualWallets: controller.individualWallets,
+          onNewTransaction: () => _openNewTransactionPage(),
         ),
       ),
     );

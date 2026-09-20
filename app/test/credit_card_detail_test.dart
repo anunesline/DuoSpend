@@ -106,11 +106,15 @@ void main() {
       findsOneWidget,
     );
     await tester.scrollUntilVisible(
-      find.text('Informações do cartão', skipOffstage: false),
+      find.text('Compras recentes', skipOffstage: false),
       400,
     );
     await tester.pumpAndSettle();
-    expect(find.text('Informações do cartão'), findsOneWidget);
+    expect(find.text('Compras recentes'), findsOneWidget);
+    expect(
+      find.text('Informações do cartão', skipOffstage: false),
+      findsNothing,
+    );
   });
 
   testWidgets('abre detalhe de cartão com carteira e permite voltar', (
