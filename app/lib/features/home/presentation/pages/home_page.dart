@@ -1,4 +1,6 @@
 ﻿import 'dart:ui';
+import '../../../finances/presentation/finances_page.dart';
+import '../../../finances/presentation/finance_widgets.dart' show FinanceScaffold;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -928,107 +930,49 @@ class _HomePageState extends State<HomePage> {
     if (mounted) await _loadOrbitSummary();
   }
 
+  bool _financeHubOpen = false;
   Future<void> _openFinanceHub() async {
-    final shortcutScrollController = ScrollController();
-    try {
-      await showModalBottomSheet<bool>(
-            context: context,
-            backgroundColor: DuoColors.surface,
-            showDragHandle: true,
-            builder: (sheetContext) => LayoutBuilder(
-              builder: (context, constraints) => SizedBox(
-                height: constraints.maxHeight,
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Column(
-                      children: [
-                        const ListTile(
-                          title: Text(
-                            'Finanças',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          subtitle: Text(
-                            'Acesse os principais recursos financeiros.',
-                          ),
-                        ),
-                        Expanded(
-                          child: Scrollbar(
-                            controller: shortcutScrollController,
-                            thumbVisibility: true,
-                            thickness: 3,
-                            radius: const Radius.circular(99),
-                            child: ListView(
-                              controller: shortcutScrollController,
-                              padding: EdgeInsets.zero,
-                              children: [
-                                _FinanceShortcut(
-                                  icon: Icons.pie_chart_rounded,
-                                  label: 'Orçamentos',
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _openBudgetsPage();
-                                  },
-                                ),
-                                _FinanceShortcut(
-                                  icon: Icons.savings_rounded,
-                                  label: 'Metas',
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _openSavingsGoalsPage();
-                                  },
-                                ),
-                                _FinanceShortcut(
-                                  icon: Icons.credit_card_rounded,
-                                  label: 'Cartões',
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _openCreditCardsPage();
-                                  },
-                                ),
-                                _FinanceShortcut(
-                                  icon: Icons.insights_rounded,
-                                  label: 'Relatórios',
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _openMonthlyReportPage();
-                                  },
-                                ),
-                                _FinanceShortcut(
-                                  icon: Icons.calendar_month_rounded,
-                                  label: 'Calendário',
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _openFinancialCalendarPage();
-                                  },
-                                ),
-                                _FinanceShortcut(
-                                  icon: Icons.history_rounded,
-                                  label: 'Histórico',
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _openHistoryPage();
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ) ??
-          false;
-    } finally {
-      shortcutScrollController.dispose();
+    if (_financeHubOpen) {
+      Navigator.of(context).popUntil((route) => route.settings.name == '/finances' || route.isFirst);
+      return;
     }
+    final homeRoute = ModalRoute.of(context);
+    _financeHubOpen = true;
+    try {
+      await Navigator.push(context, MaterialPageRoute<void>(
+        settings: const RouteSettings(name: '/finances'),
+        builder: (_) => FinancesPage(
+          userName: controller.userName, photoUrl: controller.userPhotoUrl,
+          valuesVisible: _valuesVisible, hasWallet: controller.wallet != null,
+          onProfile: _openProfileMenu, onNotifications: _openPendingItems,
+          hasPendingItems: orbitController.overview?.hasPendingItems ?? false,
+          onHome: () => Navigator.of(context).popUntil((route) => route == homeRoute),
+          onCreate: _showQuickCreateMenu, onRoutines: _openHouseholdRoutinesPage,
+          onAi: _openInsightsPage, onCards: _openCreditCardsPage,
+          onBills: _openBillsPage, onBudgets: _openBudgetsPage,
+          onTransactions: _openHistoryPage, onReports: _openMonthlyReportPage,
+          onGoals: _openSavingsGoalsPage, onAccountsChanged: _loadHome,
+        ),
+      ));
+    } finally {
+      _financeHubOpen = false;
+      if (mounted) await _loadHome();
+    }
+  }
 
+  Future<void> _openBillsPage() async {
+    // Recurring obligations already live in the calendar; no duplicate ledger.
+    await Navigator.push(context, MaterialPageRoute<void>(builder: (pageContext) => FinanceScaffold(
+      title: 'Contas a pagar',
+      child: Padding(padding: const EdgeInsets.all(16), child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const OrbitHomeMessage(message: 'Acompanhe suas despesas, vencimentos e recorrências no calendário financeiro.'),
+          const SizedBox(height: 12),
+          TextButton(onPressed: _openFinancialCalendarPage, child: const Text('Abrir calendário financeiro')),
+        ],
+      )),
+    )));
   }
 
   Future<void> _showQuickCreateMenu() async {
@@ -1052,6 +996,12 @@ class _HomePageState extends State<HomePage> {
         bottomGap,
       ),
       items: const [
+        PopupMenuItem(
+          value: 'finance',
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: _QuickCreateMenuItem(icon: Icons.account_balance_wallet_outlined,
+            label: 'Finanças', color: DuoColors.primaryLight),
+        ),
         PopupMenuItem(
           value: 'transaction',
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
@@ -1101,7 +1051,9 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (!mounted || result == null) return;
-    if (result == 'transaction' || result == 'income') {
+    if (result == 'finance') {
+      await _openFinanceHub();
+    } else if (result == 'transaction' || result == 'income') {
       await _openNewTransactionPage();
     } else if (result == 'scan') {
       await _openReceiptScanner();
@@ -1517,29 +1469,6 @@ class _QuickCreateMenuItem extends StatelessWidget {
     );
   }
 }
-
-class _FinanceShortcut extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _FinanceShortcut({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: DuoColors.primaryLight),
-      title: Text(label),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: onTap,
-    );
-  }
-}
-
 
 class _OrbitProfilePage extends StatefulWidget {
   final String name;

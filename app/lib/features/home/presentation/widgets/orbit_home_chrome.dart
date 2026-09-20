@@ -399,6 +399,7 @@ class _ScopeOption extends StatelessWidget {
 }
 
 class OrbitHomeNavigation extends StatelessWidget {
+  final bool financeActive;
   final VoidCallback onHome;
   final VoidCallback onFinance;
   final VoidCallback onRoutines;
@@ -406,6 +407,7 @@ class OrbitHomeNavigation extends StatelessWidget {
   final VoidCallback? onCreate;
   const OrbitHomeNavigation({
     super.key,
+    this.financeActive = false,
     required this.onHome,
     required this.onFinance,
     required this.onRoutines,
@@ -442,7 +444,7 @@ class OrbitHomeNavigation extends StatelessWidget {
                     child: _NavigationItem(
                       icon: Icons.home_rounded,
                       label: 'Início',
-                      active: true,
+                      active: !financeActive,
                       onTap: onHome,
                     ),
                   ),
@@ -450,6 +452,7 @@ class OrbitHomeNavigation extends StatelessWidget {
                     child: _NavigationItem(
                       icon: Icons.credit_card_rounded,
                       label: 'Finanças',
+                      active: financeActive,
                       onTap: onFinance,
                     ),
                   ),

@@ -256,7 +256,7 @@ class HomeController extends ChangeNotifier {
       }
 
       final loadedWallets = await _walletRepository.getUserWallets();
-      final mainWallet = await _walletRepository.getMainWallet();
+      final mainWallet = await _walletRepository.getHomeWallet();
       if (_disposed || loadVersion != _homeLoadVersion) return;
 
       final mergedWallets = _mergeWallets(
@@ -694,6 +694,8 @@ class HomeController extends ChangeNotifier {
     required String? currentWalletId,
     required WalletModel? mainWallet,
   }) {
+    // Solo always resumes the preferred financial account; Nós keeps its scope.
+    if (mainWallet != null && !_walletContext.isCoupleMode) return mainWallet;
     if (currentWalletId != null && currentWalletId.isNotEmpty) {
       for (final currentWallet in availableWallets) {
         if (currentWallet.id == currentWalletId) {
