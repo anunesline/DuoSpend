@@ -45,6 +45,10 @@ class HomeController extends ChangeNotifier {
 
   bool _isInitializingWalletContext = false;
   int _transactionLoadVersion = 0;
+  int _homeLoadVersion = 0;
+  bool _disposed = false;
+  Future<void>? _pendingTransactionLoad;
+  bool isLoadingTransactions = false;
 
   /// Carteira atualmente selecionada.
   ///
@@ -226,21 +230,18 @@ class HomeController extends ChangeNotifier {
 
   List<WalletModel> get individualWallets {
     return List<WalletModel>.unmodifiable(
-      wallets.where(
-        (currentWallet) => currentWallet.isIndividual,
-      ),
+      wallets.where((currentWallet) => currentWallet.isIndividual),
     );
   }
 
   List<WalletModel> get sharedWallets {
     return List<WalletModel>.unmodifiable(
-      wallets.where(
-        (currentWallet) => currentWallet.isShared,
-      ),
+      wallets.where((currentWallet) => currentWallet.isShared),
     );
   }
 
   Future<void> loadHome() async {
+    final loadVersion = ++_homeLoadVersion;
     isLoading = true;
     errorMessage = null;
     notifyListeners();
@@ -256,6 +257,7 @@ class HomeController extends ChangeNotifier {
 
       final loadedWallets = await _walletRepository.getUserWallets();
       final mainWallet = await _walletRepository.getMainWallet();
+      if (_disposed || loadVersion != _homeLoadVersion) return;
 
       final mergedWallets = _mergeWallets(
         loadedWallets: loadedWallets,
@@ -275,12 +277,8 @@ class HomeController extends ChangeNotifier {
           wallets: mergedWallets,
           selectedWallet: selectedWallet,
           sharedWalletIds: mergedWallets
-              .where(
-                (currentWallet) => currentWallet.isShared,
-              )
-              .map(
-                (currentWallet) => currentWallet.id,
-              )
+              .where((currentWallet) => currentWallet.isShared)
+              .map((currentWallet) => currentWallet.id)
               .toSet(),
         );
       } finally {
@@ -292,14 +290,17 @@ class HomeController extends ChangeNotifier {
         notifyWhenFinished: false,
       );
     } catch (error, stackTrace) {
+      if (_disposed || loadVersion != _homeLoadVersion) return;
       debugPrint('Erro ao carregar a Home: $error');
       debugPrintStack(stackTrace: stackTrace);
 
       _clearHomeData();
       errorMessage = 'Não foi possível carregar os dados da Home.';
     } finally {
-      isLoading = false;
-      notifyListeners();
+      if (!_disposed && loadVersion == _homeLoadVersion) {
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -307,7 +308,7 @@ class HomeController extends ChangeNotifier {
     _walletContext.selectWallet(selectedWallet.id);
   }
 
-  void selectWalletById(String walletId) {
+  Future<void> selectWalletById(String walletId) async {
     final normalizedWalletId = walletId.trim();
 
     if (normalizedWalletId.isEmpty) {
@@ -315,6 +316,7 @@ class HomeController extends ChangeNotifier {
     }
 
     _walletContext.selectWallet(normalizedWalletId);
+    await _pendingTransactionLoad;
   }
 
   void useSoloMode() {
@@ -395,9 +397,7 @@ class HomeController extends ChangeNotifier {
       return null;
     }
 
-    final existingSharedWallet = _findOwnedSharedWallet(
-      currentUser.uid,
-    );
+    final existingSharedWallet = _findOwnedSharedWallet(currentUser.uid);
 
     if (existingSharedWallet != null) {
       _walletContext.registerSharedWallet(existingSharedWallet);
@@ -429,8 +429,7 @@ class HomeController extends ChangeNotifier {
       debugPrint('Erro ao criar carteira compartilhada: $error');
       debugPrintStack(stackTrace: stackTrace);
 
-      errorMessage =
-          'Não foi possível criar a carteira compartilhada.';
+      errorMessage = 'Não foi possível criar a carteira compartilhada.';
 
       return null;
     } finally {
@@ -483,11 +482,9 @@ class HomeController extends ChangeNotifier {
       return null;
     }
 
-    final currentUserEmail =
-        currentUser.email?.trim().toLowerCase();
+    final currentUserEmail = currentUser.email?.trim().toLowerCase();
 
-    if (currentUserEmail != null &&
-        currentUserEmail == normalizedEmail) {
+    if (currentUserEmail != null && currentUserEmail == normalizedEmail) {
       errorMessage = 'Você não pode convidar o seu próprio e-mail.';
       notifyListeners();
       return null;
@@ -602,9 +599,11 @@ class HomeController extends ChangeNotifier {
     bool notifyWhenFinished = true,
   }) async {
     final loadVersion = ++_transactionLoadVersion;
+    isLoadingTransactions = true;
 
     if (selectedWallet == null) {
       _clearTransactionData();
+      isLoadingTransactions = false;
 
       if (notifyWhenFinished) {
         notifyListeners();
@@ -616,11 +615,8 @@ class HomeController extends ChangeNotifier {
     errorMessage = null;
 
     try {
-      final loadedTransactions =
-          await _transactionRepository.getTransactionsByWallet(
-        selectedWallet.id,
-        wallet: selectedWallet,
-      );
+      final loadedTransactions = await _transactionRepository
+          .getTransactionsByWallet(selectedWallet.id, wallet: selectedWallet);
 
       if (loadVersion != _transactionLoadVersion) {
         return;
@@ -630,9 +626,7 @@ class HomeController extends ChangeNotifier {
         return;
       }
 
-      transactions = List<TransactionModel>.unmodifiable(
-        loadedTransactions,
-      );
+      transactions = List<TransactionModel>.unmodifiable(loadedTransactions);
 
       _calculateTotals();
       _calculateSharedBalance();
@@ -648,12 +642,11 @@ class HomeController extends ChangeNotifier {
       }
 
       _clearTransactionData();
-      errorMessage =
-          'Não foi possível carregar as transações da carteira.';
+      errorMessage = 'Não foi possível carregar as transações da carteira.';
     } finally {
-      if (notifyWhenFinished &&
-          loadVersion == _transactionLoadVersion) {
-        notifyListeners();
+      if (!_disposed && loadVersion == _transactionLoadVersion) {
+        isLoadingTransactions = false;
+        if (notifyWhenFinished) notifyListeners();
       }
     }
   }
@@ -736,11 +729,8 @@ class HomeController extends ChangeNotifier {
     }
 
     _clearTransactionData();
+    _pendingTransactionLoad = _loadTransactionsForWallet(wallet);
     notifyListeners();
-
-    unawaited(
-      _loadTransactionsForWallet(wallet),
-    );
   }
 
   void _calculateTotals() {
@@ -756,8 +746,7 @@ class HomeController extends ChangeNotifier {
         transaction.date.month,
         transaction.date.day,
       );
-      if (transactionDate.isAfter(today) ||
-          !transaction.isFinanciallySettled) {
+      if (transactionDate.isAfter(today) || !transaction.isFinanciallySettled) {
         continue;
       }
 
@@ -818,6 +807,8 @@ class HomeController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _homeLoadVersion++;
     _transactionLoadVersion++;
     _walletContext.removeListener(_handleWalletContextChanged);
     super.dispose();

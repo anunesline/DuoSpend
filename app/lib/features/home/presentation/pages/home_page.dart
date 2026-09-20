@@ -1,9 +1,13 @@
-import 'dart:ui';
+﻿import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../../core/context/wallet_context.dart';
+import '../../../../core/services/auth/auth_service.dart';
 import '../../../../core/design_system/duo_colors.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../budgets/presentation/pages/budgets_page.dart';
@@ -23,11 +27,19 @@ import '../../../transactions/presentation/pages/history_page.dart';
 import '../../../transactions/presentation/pages/new_transaction_page.dart';
 import '../../../wallet/presentation/pages/credit_cards_page.dart';
 import '../../../wallet/presentation/pages/wallet_details_page.dart';
-import '../../domain/models/orbit_dashboard_summary.dart';
+import '../../../settings/presentation/pages/orbit_settings_page.dart';
+import '../../../auth/data/repositories/user_repository.dart';
+import '../../data/models/partner_invite_model.dart';
+import '../../data/repositories/partner_invite_repository.dart';
+import '../../../household_routines/domain/models/household_task.dart';
+import '../../../transactions/presentation/pages/balance_settlement_page.dart';
+import '../../domain/services/orbit_home_overview_builder.dart';
+import '../widgets/orbit_home_chrome.dart';
+import '../widgets/orbit_home_content.dart';
+import '../widgets/orbit_home_primitives.dart';
+import 'partner_invites_page.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/orbit_dashboard_controller.dart';
-import 'partner_invites_page.dart';
-import '../widgets/orbit_insight_card.dart';
 
 class HomePage extends StatefulWidget {
   final WalletContext walletContext;
@@ -55,13 +67,20 @@ class _HomePageState extends State<HomePage> {
   late final HomeController controller;
   late final OrbitDashboardController orbitController;
   late final TransactionController transactionController;
-  bool _hasUnreadNotifications = false;
+
+  bool _valuesVisible = true;
+  int _refreshVersion = 0;
+  final Set<String> _completingTasks = {};
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     controller = HomeController(walletContext: widget.walletContext);
-    orbitController = OrbitDashboardController();
+    orbitController = OrbitDashboardController(
+      taskRepository: widget.householdRoutinesController.taskRepository,
+      userRepository: widget.householdRoutinesController.userRepository,
+    );
     transactionController = TransactionController();
     _loadHome();
   }
@@ -73,219 +92,544 @@ class _HomePageState extends State<HomePage> {
     return 'Boa noite';
   }
 
-  String get _greetingEmoji {
-    final hour = DateTime.now().hour;
-    if (hour >= 5 && hour < 12) return '☀️';
-    if (hour >= 12 && hour < 18) return '🌤️';
-    return '🌙';
-  }
-
-  String get _questionCopy {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Que tal começar o dia mais leve e com as finanças no controle?';
-    if (hour < 18) return 'Como estão suas finanças hoje?';
-    return 'Que tal fechar o dia com as finanças no controle?';
-  }
-
   Future<void> _loadHome() async {
+    if (!mounted) return;
+    final version = ++_refreshVersion;
+    orbitController.clear();
     await controller.loadHome();
+    if (!mounted || version != _refreshVersion) return;
     await _loadOrbitSummary();
   }
 
   Future<void> _loadOrbitSummary() async {
+    if (!mounted ||
+        controller.isLoadingTransactions ||
+        controller.errorMessage != null) {
+      return;
+    }
     final wallet = controller.wallet;
-    if (wallet == null) return;
+    final userId = controller.user?.uid;
+    if (wallet == null || userId == null) {
+      orbitController.clear();
+      return;
+    }
     await orbitController.load(
       wallet: wallet,
       transactions: controller.transactions,
+      currentUserId: userId,
     );
   }
 
   Future<void> _selectWallet(String walletId) async {
-    controller.selectWalletById(walletId);
+    final version = ++_refreshVersion;
+    orbitController.clear();
+    await controller.selectWalletById(walletId);
+    if (!mounted || version != _refreshVersion) return;
     await _loadOrbitSummary();
   }
 
   Future<void> _openProfileMenu() async {
-    await showModalBottomSheet<void>(
+    final wallet = controller.wallet;
+    final shared = wallet?.isShared ?? false;
+    final overview = orbitController.overview;
+    final partnerId = shared
+        ? wallet?.memberIds.where((id) => id != controller.user?.uid).firstOrNull
+        : null;
+    final partner = overview?.profiles[partnerId];
+    final action = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _OrbitProfilePage(
+          name: controller.user?.displayName?.trim().isNotEmpty == true
+              ? controller.user!.displayName!.trim()
+              : controller.userName,
+          email: controller.user?.email ?? '',
+          photoUrl: controller.userPhotoUrl,
+          partnerName: partnerId == null
+              ? null
+              : overview?.memberName(partnerId) ?? 'Seu parceiro',
+          partnerPhotoUrl: partner?.photoUrl,
+          connected: controller.connectedSharedWallet != null,
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case 'profile-updated':
+        await controller.loadHome();
+        if (mounted) setState(() {});
+      case 'signed-out':
+        return;
+      case 'couple':
+        var wallet = controller.connectedSharedWallet;
+        if (wallet == null || !wallet.canInvitePartner) {
+          wallet = controller.sharedWallets
+              .where((item) => item.canInvitePartner)
+              .firstOrNull;
+        }
+        if (wallet == null) {
+          wallet = await controller.createSharedWallet();
+        }
+        if (!mounted || wallet == null) {
+          if (mounted) {
+            _showMessage(
+              controller.errorMessage ??
+                  'Não foi possível preparar o Orbit a Dois.',
+            );
+          }
+          return;
+        }
+        await _selectWallet(wallet.id);
+        if (mounted) await _invitePartner();
+      case 'notifications':
+        await _openPendingItems();
+      case 'share':
+        _showMessage('O compartilhamento será ativado com o link oficial do Orbit.');
+      case 'appearance':
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OrbitSettingsPage(
+              sharedWalletId: controller.connectedSharedWallet?.id,
+              sharedMemberIds: controller.connectedSharedWallet?.memberIds ?? const [],
+            ),
+          ),
+        );
+        if (mounted) await _loadHome();
+      default:
+        break;
+    }
+  }
+
+  Future<void> _openCoupleSettings() async {
+    await controller.loadHome();
+    if (!mounted) return;
+
+    final sharedWallet = controller.connectedSharedWallet;
+    final currentUserId = controller.user?.uid ?? '';
+    final partnerId = sharedWallet?.memberIds
+        .where((id) => id != currentUserId)
+        .firstOrNull;
+
+    String? partnerName;
+    String? partnerPhotoUrl;
+    if (partnerId != null) {
+      final profiles =
+          await UserRepository().getUserProfileSummaries([partnerId]);
+      final profile = profiles[partnerId];
+      partnerName = profile?.displayName ?? 'Seu parceiro';
+      partnerPhotoUrl = profile?.photoUrl;
+    }
+
+    final inviteRepository = PartnerInviteRepository();
+    final sentInvites = await inviteRepository.getSentInvites();
+    final pendingSentInvite = sentInvites
+        .where((invite) => invite.isPending && !invite.isExpired)
+        .where((invite) {
+          if (sharedWallet != null) return invite.walletId == sharedWallet.id;
+          return true;
+        })
+        .firstOrNull;
+    final receivedInvites = sharedWallet == null
+        ? await inviteRepository.getReceivedInvites()
+        : const <PartnerInviteModel>[];
+
+    if (!mounted) return;
+    final action = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _OrbitCouplePage(
+          connected: sharedWallet != null,
+          userName: controller.user?.displayName?.trim().isNotEmpty == true
+              ? controller.user!.displayName!.trim()
+              : controller.userName,
+          userPhotoUrl: controller.userPhotoUrl,
+          partnerName: partnerName,
+          partnerPhotoUrl: partnerPhotoUrl,
+          pendingInviteEmail: pendingSentInvite?.invitedEmail,
+          receivedInviteCount: receivedInvites.length,
+        ),
+      ),
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == 'invite') {
+      var wallet = controller.wallet;
+      if (wallet == null || !wallet.isShared || !wallet.canInvitePartner) {
+        wallet = controller.sharedWallets
+            .where((item) => item.canInvitePartner)
+            .firstOrNull;
+      }
+      if (wallet == null) {
+        wallet = await controller.createSharedWallet();
+      }
+      if (!mounted) return;
+      if (wallet == null) {
+        _showMessage(
+          controller.errorMessage ?? 'Não foi possível preparar o Orbit a Dois.',
+        );
+        return;
+      }
+      await _selectWallet(wallet.id);
+      if (mounted) await _invitePartner();
+      if (mounted) await _openCoupleSettings();
+      return;
+    }
+
+    if (action == 'received') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PartnerInvitesPage()),
+      );
+      if (mounted) {
+        await _loadHome();
+        await _openCoupleSettings();
+      }
+      return;
+    }
+
+    if (action == 'cancel-invite' && pendingSentInvite != null) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Cancelar convite?'),
+          content: Text(
+            'O convite enviado para ${pendingSentInvite.invitedEmail} deixará de ficar disponível.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Voltar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Cancelar convite'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        await inviteRepository.cancelInvite(pendingSentInvite);
+        if (mounted) {
+          _showMessage('Convite cancelado.');
+          await _openCoupleSettings();
+        }
+      }
+      return;
+    }
+
+    if (action == 'disconnect' && sharedWallet != null && partnerId != null) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Sair do Orbit a Dois?'),
+          content: const Text(
+            'A conexão entre vocês será encerrada. Sua conta individual continuará ativa.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Encerrar conexão'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+
+      await FirebaseFirestore.instance
+          .collection('wallets')
+          .doc(sharedWallet.id)
+          .update({
+        'memberIds': FieldValue.arrayRemove([
+          sharedWallet.isOwner(currentUserId) ? partnerId : currentUserId,
+        ]),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      if (!mounted) return;
+      await _loadHome();
+      _showMessage('Orbit a Dois desconectado.');
+      return;
+    }
+
+    if (action == 'manage') {
+      _showMessage('Conectado com ${partnerName ?? 'seu parceiro'}.');
+    }
+  }
+
+  Future<void> _switchScope(bool shared) async {
+    if (controller.isLoading) return;
+    if (controller.wallet?.isShared == shared) return;
+    final candidates = shared
+        ? controller.sharedWallets
+        : controller.individualWallets;
+    if (candidates.isNotEmpty) {
+      final target = shared
+          ? controller.connectedSharedWallet ?? candidates.first
+          : candidates.first;
+      await _selectWallet(target.id);
+      return;
+    }
+    final choice = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: DuoColors.orbitSurface,
+      backgroundColor: OrbitHomeTokens.surface,
       showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
+      builder: (context) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const ListTile(
-                title: Text(
-                  'Configurações',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              Text(
+                shared ? 'Seu espaço compartilhado' : 'Seu espaço individual',
+                style: const TextStyle(
+                  color: OrbitHomeTokens.text,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w600,
                 ),
-                subtitle: Text('Conta, casal e preferências do Orbit.'),
               ),
-              ListTile(
-                leading: const Icon(Icons.group_add_rounded),
-                title: const Text('Usar como casal'),
-                subtitle: const Text('Envie ou acompanhe convites do parceiro.'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openCoupleSettings();
-                },
+              const SizedBox(height: 10),
+              Text(
+                shared
+                    ? 'Crie uma carteira compartilhada ou aceite um convite para organizar a vida a dois.'
+                    : 'Crie uma carteira individual para acompanhar suas finanças.',
+                style: const TextStyle(
+                  color: OrbitHomeTokens.muted,
+                  height: 1.4,
+                ),
               ),
-              ListTile(
-                leading: const Icon(Icons.share_rounded),
-                title: const Text('Compartilhar Orbit'),
-                subtitle: const Text('Disponível quando o app for publicado.'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _showMessage(
-                    'O compartilhamento será ativado com o link oficial do Orbit.',
-                  );
-                },
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, 'create'),
+                child: Text(
+                  shared
+                      ? 'Criar carteira compartilhada'
+                      : 'Criar carteira individual',
+                ),
               ),
-              const ListTile(
-                enabled: false,
-                leading: Icon(Icons.contrast_rounded),
-                title: Text('Aparência'),
-                subtitle: Text('Tema claro em preparação.'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.restart_alt_rounded),
-                title: const Text('Zerar app'),
-                subtitle: const Text('Recurso protegido em preparação.'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _showMessage(
-                    'O reset completo será habilitado quando puder apagar os dados com segurança.',
-                  );
-                },
-              ),
+              if (shared)
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'invites'),
+                  child: const Text('Ver convites recebidos'),
+                ),
             ],
           ),
         ),
       ),
     );
+    if (!mounted || choice == null) return;
+    if (choice == 'invites') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PartnerInvitesPage()),
+      );
+    } else {
+      final created = shared
+          ? await controller.createSharedWallet()
+          : await controller.createIndividualWallet(
+              name: 'Carteira individual',
+            );
+      if (created == null) {
+        _showMessage(
+          controller.errorMessage ?? 'Não foi possível criar a carteira.',
+        );
+      }
+    }
+    if (mounted) await _loadHome();
   }
 
-  Future<void> _openCoupleSettings() async {
-    final emailController = TextEditingController();
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: DuoColors.orbitSurface,
-        showDragHandle: true,
-        builder: (sheetContext) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            0,
-            16,
-            MediaQuery.viewInsetsOf(sheetContext).bottom + 20,
+  Future<void> _invitePartner() async {
+    var email = '';
+    final submitted = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Convidar para a carteira'),
+        content: TextField(
+          autofocus: true,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'E-mail'),
+          onChanged: (value) => email = value,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
           ),
-          child: SafeArea(
-            top: false,
+          FilledButton(
+            onPressed: () => Navigator.pop(context, email),
+            child: const Text('Enviar convite'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || submitted == null) return;
+    final invite = await controller.sendPartnerInvite(invitedEmail: submitted);
+    _showMessage(
+      invite == null
+          ? controller.errorMessage ?? 'Não foi possível enviar o convite.'
+          : 'Convite enviado.',
+    );
+  }
+
+  Future<void> _openSelectedWallet() async {
+    final wallet = controller.wallet;
+    if (wallet == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => WalletDetailsPage(
+          wallet: wallet,
+          individualWallets: controller.individualWallets,
+          currentUserId: controller.user?.uid,
+          onAdd: () => _openNewTransactionPage(),
+          onRoutines: _openHouseholdRoutinesPage,
+        ),
+      ),
+    );
+    if (mounted) await _loadHome();
+  }
+
+  Future<void> _openSettlements() async {
+    final wallet = controller.wallet;
+    if (wallet == null || !wallet.isShared) return;
+    final data = orbitController.overview;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => BalanceSettlementPage(
+          walletId: wallet.id,
+          wallet: wallet,
+          memberNames: {
+            for (final id in wallet.memberIds)
+              id: data?.memberName(id) ?? 'Outro membro',
+          },
+        ),
+      ),
+    );
+    if (mounted) await _loadHome();
+  }
+
+  Future<void> _completeTask(HouseholdTask task) async {
+    final wallet = controller.wallet;
+    final userId = controller.user?.uid;
+    if (wallet == null ||
+        userId == null ||
+        !task.isPending ||
+        _completingTasks.contains(task.id) ||
+        task.scopeId != OrbitHomeOverviewBuilder.taskScope(wallet, userId)) {
+      return;
+    }
+    setState(() => _completingTasks.add(task.id));
+    await widget.householdRoutinesController.completeTask(
+      task.id,
+      completedByUserId: userId,
+    );
+    if (!mounted) return;
+    setState(() => _completingTasks.remove(task.id));
+    final error = widget.householdRoutinesController.errorMessage;
+    if (error != null) _showMessage(error);
+    await _loadOrbitSummary();
+  }
+
+  Future<void> _openPendingItems() async {
+    final data = orbitController.overview;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: OrbitHomeTokens.surface,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const ListTile(
-                  title: Text(
-                    'Orbit a dois',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
+                  title: Text('Suas pendências'),
                   subtitle: Text(
-                    'Convide seu parceiro ou veja convites recebidos.',
+                    'Acompanhe os próximos passos deste contexto.',
                   ),
                 ),
-                TextField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'E-mail do parceiro',
-                    prefixIcon: Icon(Icons.alternate_email_rounded),
+                if (data == null)
+                  const ListTile(
+                    title: Text(
+                      'Atualize a Home para consultar as pendências.',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () async {
-                      var selectedWallet = controller.wallet;
-                      if (selectedWallet == null ||
-                          !selectedWallet.isShared ||
-                          !selectedWallet.canInvitePartner) {
-                        selectedWallet = await controller.createSharedWallet();
-                      }
-                      if (!mounted || !sheetContext.mounted) return;
-                      if (selectedWallet == null) {
-                        _showMessage(
-                          controller.errorMessage ??
-                              'Não foi possível preparar o modo casal.',
-                        );
-                        return;
-                      }
-                      controller.selectWallet(selectedWallet);
-                      final invite = await controller.sendPartnerInvite(
-                        invitedEmail: emailController.text,
-                      );
-                      if (!mounted || !sheetContext.mounted) return;
-                      if (invite == null) {
-                        _showMessage(
-                          controller.errorMessage ??
-                              'Não foi possível enviar o convite.',
-                        );
-                        return;
-                      }
-                      Navigator.pop(sheetContext);
-                      _showMessage('Convite enviado com sucesso.');
-                    },
-                    icon: const Icon(Icons.send_rounded),
-                    label: const Text('Enviar convite'),
+                if (data != null && !data.hasPendingItems)
+                  const ListTile(
+                    title: Text('Nenhuma pendência carregada neste contexto.'),
                   ),
-                ),
+                if ((data?.pendingConfirmationCount ?? 0) > 0)
+                  ListTile(
+                    leading: const Icon(Icons.fact_check_outlined),
+                    title: Text(
+                      '${data!.pendingConfirmationCount} despesas para confirmar',
+                    ),
+                    onTap: () => Navigator.pop(context, 'history'),
+                  ),
+                if (data != null &&
+                    data.settlements.any(
+                      (item) =>
+                          item.isAwaitingConfirmation &&
+                          item.toMemberId == data.currentUserId,
+                    ))
+                  ListTile(
+                    leading: const Icon(Icons.swap_horiz_rounded),
+                    title: const Text('Acertos aguardando recebimento'),
+                    onTap: () => Navigator.pop(context, 'settlements'),
+                  ),
+                if ((data?.overdueTaskCount ?? 0) > 0)
+                  ListTile(
+                    leading: const Icon(Icons.task_alt_rounded),
+                    title: Text('${data!.overdueTaskCount} rotinas atrasadas'),
+                    onTap: () => Navigator.pop(context, 'routines'),
+                  ),
                 ListTile(
-                  leading: const Icon(Icons.mark_email_unread_rounded),
+                  leading: const Icon(Icons.mail_outline_rounded),
                   title: const Text('Convites recebidos'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PartnerInvitesPage(),
-                      ),
-                    );
-                  },
+                  onTap: () => Navigator.pop(context, 'invites'),
                 ),
               ],
             ),
           ),
         ),
-      );
-    } finally {
-      emailController.dispose();
-    }
-  }
-
-  Future<void> _openNotifications() async {
-    if (_hasUnreadNotifications) {
-      setState(() => _hasUnreadNotifications = false);
-    }
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const PartnerInvitesPage()),
+      ),
     );
-    if (mounted) await _loadHome();
+    if (!mounted) return;
+    switch (action) {
+      case 'history':
+        await _openHistoryPage();
+      case 'settlements':
+        await _openSettlements();
+      case 'routines':
+        await _openHouseholdRoutinesPage();
+      case 'invites':
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PartnerInvitesPage()),
+        );
+        if (mounted) await _loadHome();
+      default:
+        break;
+    }
   }
 
   Future<void> _openCreditCardsPage() async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CreditCardsPage(
-          individualWallets: controller.individualWallets,
-          onNewTransaction: () => _openNewTransactionPage(),
-        ),
+        builder: (_) =>
+            CreditCardsPage(
+              individualWallets: controller.individualWallets,
+              onNewTransaction: () => _openNewTransactionPage(),
+            ),
       ),
     );
     await _loadHome();
@@ -567,7 +911,9 @@ class _HomePageState extends State<HomePage> {
     final userId = controller.user?.uid.trim();
     if (userId == null || userId.isEmpty) return;
 
-    final sharedWallet = controller.connectedSharedWallet;
+    final sharedWallet = controller.wallet?.isShared == true
+        ? controller.wallet
+        : controller.connectedSharedWallet;
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -579,112 +925,115 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+    if (mounted) await _loadOrbitSummary();
   }
 
   Future<void> _openFinanceHub() async {
     final shortcutScrollController = ScrollController();
-    var openWalletSelector = false;
     try {
-      openWalletSelector = await showModalBottomSheet<bool>(
-        context: context,
-        backgroundColor: DuoColors.surface,
-        showDragHandle: true,
-        builder: (sheetContext) => LayoutBuilder(
-          builder: (context, constraints) => SizedBox(
-            height: constraints.maxHeight,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Column(
-                  children: [
-                    const ListTile(
-                      title: Text(
-                        'Finanças',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                      ),
-                      subtitle: Text('Acesse os principais recursos financeiros.'),
-                    ),
-                    Expanded(
-                      child: Scrollbar(
-                        controller: shortcutScrollController,
-                        thumbVisibility: true,
-                        thickness: 3,
-                        radius: const Radius.circular(99),
-                        child: ListView(
-                          controller: shortcutScrollController,
-                          padding: EdgeInsets.zero,
-                          children: [
-                    _FinanceShortcut(
-                      icon: Icons.pie_chart_rounded,
-                      label: 'Orçamentos',
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openBudgetsPage();
-                      },
-                    ),
-                    _FinanceShortcut(
-                      icon: Icons.savings_rounded,
-                      label: 'Metas',
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openSavingsGoalsPage();
-                      },
-                    ),
-                    _FinanceShortcut(
-                      icon: Icons.credit_card_rounded,
-                      label: 'Cartões',
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openCreditCardsPage();
-                      },
-                    ),
-                    _FinanceShortcut(
-                      icon: Icons.insights_rounded,
-                      label: 'Relatórios',
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openMonthlyReportPage();
-                      },
-                    ),
-                    _FinanceShortcut(
-                      icon: Icons.calendar_month_rounded,
-                      label: 'Calendário',
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openFinancialCalendarPage();
-                      },
-                    ),
-                    _FinanceShortcut(
-                      icon: Icons.history_rounded,
-                      label: 'Histórico',
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openHistoryPage();
-                      },
-                    ),
-                          ],
+      await showModalBottomSheet<bool>(
+            context: context,
+            backgroundColor: DuoColors.surface,
+            showDragHandle: true,
+            builder: (sheetContext) => LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                height: constraints.maxHeight,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
+                      children: [
+                        const ListTile(
+                          title: Text(
+                            'Finanças',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Acesse os principais recursos financeiros.',
+                          ),
                         ),
-                      ),
+                        Expanded(
+                          child: Scrollbar(
+                            controller: shortcutScrollController,
+                            thumbVisibility: true,
+                            thickness: 3,
+                            radius: const Radius.circular(99),
+                            child: ListView(
+                              controller: shortcutScrollController,
+                              padding: EdgeInsets.zero,
+                              children: [
+                                _FinanceShortcut(
+                                  icon: Icons.pie_chart_rounded,
+                                  label: 'Orçamentos',
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _openBudgetsPage();
+                                  },
+                                ),
+                                _FinanceShortcut(
+                                  icon: Icons.savings_rounded,
+                                  label: 'Metas',
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _openSavingsGoalsPage();
+                                  },
+                                ),
+                                _FinanceShortcut(
+                                  icon: Icons.credit_card_rounded,
+                                  label: 'Cartões',
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _openCreditCardsPage();
+                                  },
+                                ),
+                                _FinanceShortcut(
+                                  icon: Icons.insights_rounded,
+                                  label: 'Relatórios',
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _openMonthlyReportPage();
+                                  },
+                                ),
+                                _FinanceShortcut(
+                                  icon: Icons.calendar_month_rounded,
+                                  label: 'Calendário',
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _openFinancialCalendarPage();
+                                  },
+                                ),
+                                _FinanceShortcut(
+                                  icon: Icons.history_rounded,
+                                  label: 'Histórico',
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    _openHistoryPage();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-      ) ??
+          ) ??
           false;
     } finally {
       shortcutScrollController.dispose();
     }
 
-    if (openWalletSelector && mounted) {
-      await _openWalletSelector();
-    }
   }
 
   Future<void> _showQuickCreateMenu() async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
     final bottomGap = MediaQuery.paddingOf(context).bottom + 72;
 
@@ -765,6 +1114,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _refreshVersion++;
+    _scrollController.dispose();
     transactionController.dispose();
     orbitController.dispose();
     controller.dispose();
@@ -772,926 +1123,195 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
+  Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
+    value: SystemUiOverlayStyle.light.copyWith(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: OrbitHomeTokens.background,
+    ),
+    child: ListenableBuilder(
       listenable: Listenable.merge([controller, orbitController]),
       builder: (context, _) {
         final wallet = controller.wallet;
-        final summary = orbitController.summary;
-        final size = MediaQuery.sizeOf(context);
-        final isTablet = size.width >= 600;
-        final horizontalPadding = isTablet ? 24.0 : 20.0;
-
+        final shared = wallet?.isShared ?? false;
+        final loaded = orbitController.overview;
+        final data = loaded?.wallet.id == wallet?.id ? loaded : null;
+        final loading =
+            controller.isLoading ||
+            controller.isLoadingTransactions ||
+            orbitController.isLoading;
+        final error = controller.errorMessage ?? orbitController.errorMessage;
+        final partnerId = shared
+            ? wallet?.memberIds
+                  .where((id) => id != controller.user?.uid)
+                  .firstOrNull
+            : null;
+        final partner = data?.profiles[partnerId];
+        final user = data?.profiles[controller.user?.uid];
+        final top = MediaQuery.paddingOf(context).top;
         return Scaffold(
-          backgroundColor: DuoColors.orbitBackground,
+          backgroundColor: OrbitHomeTokens.background,
           extendBody: true,
-          body: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: Stack(
-              children: [
-                const Positioned.fill(
-                  child: ColoredBox(color: DuoColors.orbitBackground),
-                ),
-                const Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: _OrbitBackdrop(),
-                ),
-                RefreshIndicator(
-                  color: DuoColors.success,
-                  backgroundColor: DuoColors.orbitSurface,
-                  onRefresh: _loadHome,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            horizontalPadding,
-                            48,
-                            horizontalPadding,
-                            16,
-                          ),
-                          child: _OrbitHeader(
-                            photoUrl: controller.userPhotoUrl,
-                            hasUnreadNotifications: _hasUnreadNotifications,
+          bottomNavigationBar: OrbitHomeNavigation(
+            onHome: () {
+              if (_scrollController.hasClients) {
+                _scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                );
+              }
+            },
+            onFinance: _openFinanceHub,
+            onRoutines: _openHouseholdRoutinesPage,
+            onAi: _openInsightsPage,
+            onCreate: wallet == null || controller.isLoading
+                ? null
+                : _showQuickCreateMenu,
+          ),
+          body: Stack(
+            children: [
+              const Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: OrbitHomeBackdrop(),
+              ),
+              RefreshIndicator(
+                onRefresh: _loadHome,
+                color: OrbitHomeTokens.green,
+                backgroundColor: OrbitHomeTokens.surface,
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    top + 4,
+                    16,
+                    96 + MediaQuery.paddingOf(context).bottom,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 580),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          OrbitHomeHeader(
+                            name: controller.userName,
+                            photoUrl: controller.userPhotoUrl ?? user?.photoUrl,
+                            partnerName: partnerId == null
+                                ? null
+                                : data?.memberName(partnerId) ?? 'Outro membro',
+                            partnerPhotoUrl: partner?.photoUrl,
+                            valuesVisible: _valuesVisible,
+                            hasPendingItems: data?.hasPendingItems ?? false,
+                            onPrivacy: () => setState(
+                              () => _valuesVisible = !_valuesVisible,
+                            ),
+                            onNotifications: _openPendingItems,
                             onProfile: _openProfileMenu,
-                            onNotifications: _openNotifications,
+                            onWallets: _openWalletSelector,
                           ),
-                        ),
-                        if (controller.isLoading)
-                          const SizedBox(
-                            height: 360,
-                            child: _PremiumLoadingState(),
-                          )
-                        else ...[
-                          Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              horizontalPadding,
-                              24,
-                              horizontalPadding,
-                              0,
-                            ),
-                            child: _GreetingBlock(
-                              greeting: _greeting,
-                              userName: controller.userName,
-                              emoji: _greetingEmoji,
-                              subtitle: _questionCopy,
-                            ),
+                          const SizedBox(height: 6),
+                          OrbitHomeScopeSelector(
+                            shared: shared,
+                            onSolo: () => _switchScope(false),
+                            onShared: () => _switchScope(true),
                           ),
-                          const SizedBox(height: 20),
                           Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
-                            ),
-                            child: _BalanceCard(
-                              balance: wallet?.balance ?? 0,
-                              income: controller.totalIncome,
-                              expense: controller.totalExpense,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
-                            ),
-                            child: _BudgetCard(
-                              budget: summary.budget,
-                              isLoading: orbitController.isLoading,
-                              onTap: _openBudgetsPage,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
-                            ),
-                            child: Row(
+                            padding: const EdgeInsets.fromLTRB(2, 12, 2, 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: _InvoiceCard(
-                                    invoice: summary.invoice,
-                                    onTap: _openFinancialCalendarPage,
+                                Text(
+                                  shared
+                                      ? '$_greeting, nós! 💜'
+                                      : 'Olá, ${controller.userName}! 👋',
+                                  style: const TextStyle(
+                                    color: OrbitHomeTokens.text,
+                                    fontSize: 21,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: -.4,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _GoalCard(
-                                    goal: summary.goal,
-                                    onTap: _openSavingsGoalsPage,
+                                const SizedBox(height: 4),
+                                Text(
+                                  shared
+                                      ? 'Tudo que importa para vocês,\nem um só lugar.'
+                                      : 'Que tal deixar o dia mais leve e\nas finanças no controle?',
+                                  style: const TextStyle(
+                                    color: OrbitHomeTokens.text,
+                                    fontSize: 13,
+                                    height: 1.3,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
+                          if (loading)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 70),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: OrbitHomeTokens.green,
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          else if (error != null)
+                            OrbitHomeMessage(
+                              message: '$error Toque para tentar novamente.',
+                              onTap: _loadHome,
+                            )
+                          else if (wallet == null)
+                            OrbitHomeMessage(
+                              message:
+                                  'Crie sua primeira carteira para começar.',
+                              onTap: () => _switchScope(false),
+                              icon: Icons.account_balance_wallet_outlined,
+                            )
+                          else if (data != null) ...[
+                            if (shared && controller.canInvitePartner) ...[
+                              OrbitHomeMessage(
+                                message:
+                                    'Convide alguém para organizar a vida com você.',
+                                onTap: _invitePartner,
+                                icon: Icons.person_add_alt_1_rounded,
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            OrbitHomeContent(
+                              data: data,
+                              valuesVisible: _valuesVisible,
+                              onWallet: _openSelectedWallet,
+                              onBudget: _openBudgetsPage,
+                              onCalendar: _openFinancialCalendarPage,
+                              onGoals: _openSavingsGoalsPage,
+                              onInsights: _openInsightsPage,
+                              onRoutines: _openHouseholdRoutinesPage,
+                              onSettlements: _openSettlements,
+                              onContribution: _openMonthlyReportPage,
+                              onHistory: _openHistoryPage,
+                              onRetry: _loadHome,
+                              onCompleteTask: _completeTask,
+                              completingTasks: _completingTasks,
                             ),
-                            child: _SectionTitle(
-                              title: 'Insights da IA',
-                              actionLabel: wallet == null ? null : 'Ver tudo',
-                              onAction:
-                                  wallet == null ? null : _openInsightsPage,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
-                            ),
-                            child: wallet != null
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(24),
-                                    child: OrbitInsightCard(
-                                      wallet: wallet,
-                                      onTap: _openInsightsPage,
-                                    ),
-                                  )
-                                : const _EmptyInsightCard(),
-                          ),
-                          const SizedBox(height: 120),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _OrbitBottomNavigation(
-                    onHome: () {},
-                    onFinance: _openFinanceHub,
-                    onRoutines: _openHouseholdRoutinesPage,
-                    onAi: _openInsightsPage,
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: MediaQuery.paddingOf(context).bottom + 32,
-                  child: Center(
-                    child: _CreateButton(
-                      onTap: wallet == null ? null : _showQuickCreateMenu,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
-    );
-  }
+    ),
+  );
 }
 
-String _money(double value) => NumberFormat.currency(
-      locale: 'pt_BR',
-      symbol: 'R\$',
-    ).format(value);
-
-class _OrbitHeader extends StatelessWidget {
-  final String? photoUrl;
-  final bool hasUnreadNotifications;
-  final VoidCallback onProfile;
-  final VoidCallback onNotifications;
-
-  const _OrbitHeader({
-    required this.photoUrl,
-    required this.hasUnreadNotifications,
-    required this.onProfile,
-    required this.onNotifications,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasPhoto = photoUrl != null && photoUrl!.trim().isNotEmpty;
-    return SizedBox(
-      height: 44,
-      child: Row(
-        children: [
-          InkWell(
-            onTap: onProfile,
-            customBorder: const CircleBorder(),
-            child: Container(
-              width: 40,
-              height: 40,
-              padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
-                color: DuoColors.orbitBorder,
-                shape: BoxShape.circle,
-              ),
-              child: CircleAvatar(
-                backgroundColor: DuoColors.orbitSurface,
-                backgroundImage: hasPhoto ? NetworkImage(photoUrl!) : null,
-                child: hasPhoto
-                    ? null
-                    : const Icon(
-                        Icons.person_rounded,
-                        size: 19,
-                        color: DuoColors.orbitTextSecondary,
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _OrbitMark(),
-                    SizedBox(width: 6),
-                    Text(
-                      'Orbit',
-                      style: TextStyle(
-                        color: DuoColors.orbitTextPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: .5,
-                        height: 1,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 3),
-                Text(
-                  'Organize. Planeje. Conquiste.',
-                  style: TextStyle(
-                    color: DuoColors.orbitTextSecondary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: .3,
-                    height: 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 40,
-            height: 40,
-            child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                onPressed: onNotifications,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-                icon: const Icon(
-                  Icons.notifications_none_rounded,
-                  color: DuoColors.orbitTextPrimary,
-                  size: 22,
-                ),
-              ),
-              if (hasUnreadNotifications)
-                const Positioned(
-                  right: 3,
-                  top: 2,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: DuoColors.success,
-                      shape: BoxShape.circle,
-                    ),
-                    child: SizedBox(width: 8, height: 8),
-                  ),
-                ),
-            ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OrbitMark extends StatelessWidget {
-  const _OrbitMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFA782FF), Color(0xFF72B9FF), DuoColors.success],
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Container(
-        width: 12,
-        height: 12,
-        decoration: const BoxDecoration(
-          color: DuoColors.orbitBackground,
-          shape: BoxShape.circle,
-        ),
-      ),
-    );
-  }
-}
-
-class _GreetingBlock extends StatelessWidget {
-  final String greeting;
-  final String userName;
-  final String emoji;
-  final String subtitle;
-
-  const _GreetingBlock({
-    required this.greeting,
-    required this.userName,
-    required this.emoji,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$greeting, $userName! $emoji',
-          style: const TextStyle(
-            color: DuoColors.orbitTextPrimary,
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -.35,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(
-            color: DuoColors.orbitTextSecondary,
-            fontSize: 14,
-            height: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _OrbitCard extends StatelessWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-  final EdgeInsetsGeometry padding;
-  final double borderRadius;
-
-  const _OrbitCard({
-    required this.child,
-    this.onTap,
-    this.padding = const EdgeInsets.all(16),
-    this.borderRadius = 24,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: const Color(0xE8111622),
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: DuoColors.orbitBorder),
-          ),
-          child: Padding(padding: padding, child: child),
-        ),
-      ),
-    );
-  }
-}
-
-class _BalanceCard extends StatelessWidget {
-  final double balance;
-  final double income;
-  final double expense;
-
-  const _BalanceCard({
-    required this.balance,
-    required this.income,
-    required this.expense,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final monthResult = income - expense;
-    return _OrbitCard(
-      borderRadius: 28,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                flex: 56,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Saldo disponível',
-                      style: TextStyle(
-                        color: DuoColors.orbitTextSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            _money(balance),
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: DuoColors.orbitTextPrimary,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -.6,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(
-                          Icons.visibility_outlined,
-                          color: DuoColors.orbitTextSecondary,
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(width: 1, height: 40, color: DuoColors.orbitBorder),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 44,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Saldo previsto',
-                      style: TextStyle(
-                        color: DuoColors.orbitTextSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _money(balance),
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: DuoColors.orbitTextPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 7),
-          Row(
-            children: [
-              Icon(
-                monthResult >= 0
-                    ? Icons.arrow_upward_rounded
-                    : Icons.arrow_downward_rounded,
-                color: monthResult >= 0
-                    ? DuoColors.success
-                    : const Color(0xFFFF8A8A),
-                size: 12,
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  'Resultado do mês ${_money(monthResult.abs())}',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: monthResult >= 0
-                        ? DuoColors.success
-                        : const Color(0xFFFF8A8A),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const _ProgressBar(progress: .72, color: DuoColors.success),
-        ],
-      ),
-    );
-  }
-}
-
-class _BudgetCard extends StatelessWidget {
-  final OrbitBudgetSummary? budget;
-  final bool isLoading;
-  final VoidCallback onTap;
-
-  const _BudgetCard({
-    required this.budget,
-    required this.isLoading,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final current = budget;
-    final progress = current?.progress ?? 0;
-    final percentage = (progress * 100).round();
-    final month = DateFormat('MMMM', 'pt_BR').format(DateTime.now());
-
-    return _OrbitCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(16),
-      borderRadius: 24,
-      child: Row(
-        children: [
-          _IconTile(
-            icon: Icons.pie_chart_rounded,
-            color: DuoColors.orbitAccent,
-            size: 36,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'Orçamento de $month',
-                    style: const TextStyle(
-                      color: DuoColors.orbitTextSecondary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        isLoading
-                            ? 'Carregando...'
-                            : current == null
-                                ? 'Nenhum orçamento ativo'
-                                : '${_money(current.spentAmount)} de ${_money(current.limitAmount)}',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: DuoColors.orbitTextPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '$percentage%',
-                      style: const TextStyle(
-                        color: DuoColors.orbitTextSecondary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 7),
-                _ProgressBar(
-                  progress: progress,
-                  color: DuoColors.orbitAccent,
-                  height: 5,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InvoiceCard extends StatelessWidget {
-  final OrbitInvoiceSummary? invoice;
-  final VoidCallback onTap;
-
-  const _InvoiceCard({required this.invoice, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final current = invoice;
-    final today = DateTime.now();
-    final days = current == null
-        ? null
-        : DateUtils.dateOnly(current.dueDate)
-            .difference(DateUtils.dateOnly(today))
-            .inDays;
-    final countLabel = current?.invoiceCount.toString() ?? '—';
-    final title = current == null
-        ? 'Nenhuma conta próxima'
-        : current.invoiceCount == 1
-            ? 'conta a vencer'
-            : 'contas a vencer';
-    final detail = current == null
-        ? 'Calendário em dia'
-        : days == 0
-            ? 'Hoje: ${_money(current.total)}'
-            : days == 1
-                ? 'Amanhã: ${_money(current.total)}'
-                : 'Em ${days ?? 0} dias: ${_money(current.total)}';
-
-    return _OrbitCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(14),
-      borderRadius: 24,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _IconTile(
-            icon: Icons.calendar_month_rounded,
-            color: const Color(0xFF38BDF8),
-            size: 32,
-            borderRadius: 8,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            countLabel,
-            style: const TextStyle(
-              color: DuoColors.orbitTextPrimary,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Text(
-            title,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: DuoColors.orbitTextSecondary,
-              fontSize: 13,
-              height: 1.3,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            detail,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: DuoColors.orbitTextSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GoalCard extends StatelessWidget {
-  final OrbitGoalSummary? goal;
-  final VoidCallback onTap;
-
-  const _GoalCard({required this.goal, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final current = goal;
-    final progress = current?.progress ?? 0;
-    return _OrbitCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(14),
-      borderRadius: 24,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _IconTile(
-            icon: Icons.track_changes_rounded,
-            color: DuoColors.success,
-            size: 32,
-            borderRadius: 8,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            current == null ? 'Sem meta ativa' : 'Meta em andamento',
-            style: const TextStyle(
-              color: DuoColors.orbitTextSecondary,
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            current?.name ?? 'Nenhuma meta ativa',
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: DuoColors.orbitTextPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            current == null ? '—' : '${(progress * 100).round()}% concluído',
-            style: const TextStyle(
-              color: DuoColors.orbitTextSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _ProgressBar(progress: progress, color: DuoColors.success, height: 5),
-        ],
-      ),
-    );
-  }
-}
-
-class _IconTile extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final double size;
-  final double borderRadius;
-  final double? iconSize;
-
-  const _IconTile({
-    required this.icon,
-    required this.color,
-    this.size = 34,
-    this.borderRadius = 10,
-    this.iconSize,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .13),
-        borderRadius: BorderRadius.circular(borderRadius),
-      ),
-      child: Icon(icon, color: color, size: iconSize ?? (size == 32 ? 18 : 20)),
-    );
-  }
-}
-
-class _ProgressBar extends StatelessWidget {
-  final double progress;
-  final Color color;
-
-  final double height;
-
-  const _ProgressBar({
-    required this.progress,
-    required this.color,
-    this.height = 4,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(99),
-      child: SizedBox(
-        height: height,
-        child: LinearProgressIndicator(
-          value: progress.clamp(0.0, 1.0),
-          backgroundColor: DuoColors.orbitBorder,
-          valueColor: AlwaysStoppedAnimation(color),
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  const _SectionTitle({required this.title, this.actionLabel, this.onAction});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const _IconTile(
-          icon: Icons.bolt_rounded,
-          color: DuoColors.orbitAccent,
-          size: 28,
-          borderRadius: 8,
-          iconSize: 16,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              color: DuoColors.orbitTextPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        if (actionLabel != null)
-          TextButton(
-            onPressed: onAction,
-            style: TextButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-            ),
-            child: Text(
-              actionLabel!,
-              style: const TextStyle(
-                color: DuoColors.orbitAccent,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _EmptyInsightCard extends StatelessWidget {
-  const _EmptyInsightCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(
-      height: 76,
-      child: _OrbitCard(
-        borderRadius: 24,
-        child: Row(
-          children: [
-            Icon(Icons.lightbulb_outline_rounded, color: Color(0xFFFFCC66)),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Conecte uma carteira para receber insights financeiros.',
-                style: TextStyle(
-                  color: Color(0xFF98A2B3),
-                  fontSize: 11,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OrbitBackdrop extends StatelessWidget {
-  const _OrbitBackdrop();
-
-  static const _heroImageUrl =
-      'https://dimg.dreamflow.cloud/v1/image/dark%20landscape%20with%20distant%20mountains%20and%20sunset%20glow';
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: SizedBox(
-        height: 320,
-        width: double.infinity,
-        child: Opacity(
-          opacity: .4,
-          child: Image.network(
-            _heroImageUrl,
-            fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
+// Existing budget navigation is kept local to its route. The new Home chrome
+// does not restyle another screen as a side effect of this reconstruction.
 class _OrbitBottomNavigation extends StatelessWidget {
   final bool financeActive;
   final VoidCallback onHome;
@@ -1843,7 +1463,11 @@ class _CreateButton extends StatelessWidget {
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
-          child: const Icon(Icons.add_rounded, color: Color(0xFF071109), size: 28),
+          child: const Icon(
+            Icons.add_rounded,
+            color: Color(0xFF071109),
+            size: 28,
+          ),
         ),
       ),
     );
@@ -1877,12 +1501,15 @@ class _QuickCreateMenuItem extends StatelessWidget {
             child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(width: 10),
-          Text(
-            label,
-            style: const TextStyle(
-              color: DuoColors.orbitTextPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 2,
+              style: const TextStyle(
+                color: DuoColors.orbitTextPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -1913,13 +1540,485 @@ class _FinanceShortcut extends StatelessWidget {
   }
 }
 
-class _PremiumLoadingState extends StatelessWidget {
-  const _PremiumLoadingState();
+
+class _OrbitProfilePage extends StatefulWidget {
+  final String name;
+  final String email;
+  final String? photoUrl;
+  final String? partnerName;
+  final String? partnerPhotoUrl;
+  final bool connected;
+
+  const _OrbitProfilePage({
+    required this.name,
+    required this.email,
+    required this.photoUrl,
+    required this.partnerName,
+    required this.partnerPhotoUrl,
+    required this.connected,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(color: Color(0xFF9EEA8A)),
+  State<_OrbitProfilePage> createState() => _OrbitProfilePageState();
+}
+
+class _OrbitProfilePageState extends State<_OrbitProfilePage> {
+  final AuthService _authService = AuthService();
+  bool _busy = false;
+  late String _name;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = widget.name;
+  }
+
+  Future<void> _editProfile() async {
+    var draftName = _name;
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Editar perfil'),
+        content: TextFormField(
+          initialValue: _name,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Nome'),
+          onChanged: (value) => draftName = value,
+          onFieldSubmitted: (value) => Navigator.pop(dialogContext, value),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, draftName), child: const Text('Salvar')),
+        ],
+      ),
+    );
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty || normalized == _name) return;
+    setState(() => _busy = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw StateError('Usuário não autenticado');
+      await user.updateDisplayName(normalized);
+      await user.reload();
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {'name': normalized, 'displayName': normalized},
+        SetOptions(merge: true),
+      );
+      if (!mounted) return;
+      setState(() => _name = normalized);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perfil atualizado.')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Não foi possível atualizar o perfil.')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _privacy() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const _OrbitInfoPage(
+      title: 'Privacidade e segurança',
+      icon: Icons.lock_outline_rounded,
+      children: [
+        _OrbitInfoItem(title: 'Sua conta', body: 'O acesso ao Orbit usa a autenticação da sua conta Google.'),
+        _OrbitInfoItem(title: 'Seus dados', body: 'Seus dados financeiros e pessoais ficam vinculados à sua conta autenticada.'),
+        _OrbitInfoItem(title: 'Orbit a Dois', body: 'O compartilhamento com outra pessoa só acontece após convite e aceite.'),
+      ],
+    )));
+  }
+
+  Future<void> _help() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'indisponível';
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => _OrbitInfoPage(
+      title: 'Ajuda e suporte',
+      icon: Icons.help_outline_rounded,
+      children: [
+        const _OrbitInfoItem(title: 'Precisa de ajuda?', body: 'Use esta área para consultar informações da sua conta e identificar o acesso em um atendimento.'),
+        _OrbitInfoItem(title: 'E-mail da conta', body: widget.email.isEmpty ? 'Não informado' : widget.email),
+        _OrbitInfoItem(title: 'ID de diagnóstico', body: uid),
+      ],
+    )));
+  }
+
+  Future<void> _signOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sair da conta?'),
+        content: const Text('Você precisará entrar novamente para acessar o Orbit.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Sair')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _busy = true);
+    try {
+      await _authService.signOut();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _OrbitSettingsScaffold(
+    child: AbsorbPointer(
+      absorbing: _busy,
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          OrbitHomeAvatar(name: _name, photoUrl: widget.photoUrl, size: 76),
+          const SizedBox(height: 14),
+          Text(_name, style: const TextStyle(color: OrbitHomeTokens.text, fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 5),
+          Text(widget.email.isEmpty ? 'Sua conta Orbit' : widget.email, style: const TextStyle(color: OrbitHomeTokens.muted, fontSize: 13)),
+          const SizedBox(height: 18),
+          OutlinedButton(onPressed: _editProfile, child: const Text('Editar perfil')),
+          const SizedBox(height: 22),
+          _OrbitMenuCard(children: [
+            _OrbitMenuTile(icon: Icons.favorite_border_rounded, title: 'Orbit a Dois', subtitle: widget.connected ? 'Gerencie sua conexão' : 'Convide alguém para compartilhar sua jornada', accent: true, onTap: () => Navigator.pop(context, 'couple')),
+          ]),
+          const SizedBox(height: 12),
+          _OrbitMenuCard(children: [
+            _OrbitMenuTile(icon: Icons.notifications_none_rounded, title: 'Notificações', onTap: () => Navigator.pop(context, 'notifications')),
+            _OrbitMenuTile(icon: Icons.settings_outlined, title: 'Configurações', onTap: () => Navigator.pop(context, 'appearance')),
+            _OrbitMenuTile(icon: Icons.lock_outline_rounded, title: 'Privacidade e segurança', onTap: _privacy),
+            _OrbitMenuTile(icon: Icons.help_outline_rounded, title: 'Ajuda e suporte', onTap: _help),
+          ]),
+          const SizedBox(height: 12),
+          _OrbitMenuCard(children: [
+            _OrbitMenuTile(icon: Icons.logout_rounded, title: 'Sair da conta', danger: true, onTap: _signOut),
+          ]),
+        ],
+      ),
+    ),
+  );
+}
+
+class _OrbitInfoPage extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+  const _OrbitInfoPage({required this.title, required this.icon, required this.children});
+
+  @override
+  Widget build(BuildContext context) => _OrbitSettingsScaffold(
+    title: title,
+    child: Column(children: [
+      const SizedBox(height: 8),
+      CircleAvatar(radius: 30, backgroundColor: DuoColors.orbitAccent.withValues(alpha: .12), child: Icon(icon, color: DuoColors.orbitAccent, size: 30)),
+      const SizedBox(height: 22),
+      _OrbitMenuCard(children: children),
+    ]),
+  );
+}
+
+class _OrbitInfoItem extends StatelessWidget {
+  final String title;
+  final String body;
+  const _OrbitInfoItem({required this.title, required this.body});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+    child: Align(alignment: Alignment.centerLeft, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(title, style: const TextStyle(color: OrbitHomeTokens.text, fontSize: 14, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 5),
+      SelectableText(body, style: const TextStyle(color: OrbitHomeTokens.muted, fontSize: 13, height: 1.4)),
+    ])),
+  );
+}
+
+class _OrbitCouplePage extends StatelessWidget {
+  final bool connected;
+  final String userName;
+  final String? userPhotoUrl;
+  final String? partnerName;
+  final String? partnerPhotoUrl;
+  final String? pendingInviteEmail;
+  final int receivedInviteCount;
+
+  const _OrbitCouplePage({
+    required this.connected,
+    required this.userName,
+    required this.userPhotoUrl,
+    required this.partnerName,
+    required this.partnerPhotoUrl,
+    required this.pendingInviteEmail,
+    required this.receivedInviteCount,
+  });
+
+  @override
+  Widget build(BuildContext context) => _OrbitSettingsScaffold(
+    title: connected ? 'Orbit a Dois' : null,
+    child: connected ? _connected(context) : _solo(context),
+  );
+
+  Widget _solo(BuildContext context) {
+    final pendingEmail = pendingInviteEmail?.trim();
+    final hasPendingInvite = pendingEmail != null && pendingEmail.isNotEmpty;
+
+    return Column(
+      children: [
+        const SizedBox(height: 34),
+        const _OrbitCoupleArt(),
+        const SizedBox(height: 26),
+        const Text(
+          'Orbit a Dois',
+          style: TextStyle(
+            color: OrbitHomeTokens.text,
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Mais organização, juntos.',
+          style: TextStyle(color: OrbitHomeTokens.muted, fontSize: 15),
+        ),
+        const SizedBox(height: 28),
+        const _OrbitBenefit(
+          icon: Icons.account_balance_wallet_outlined,
+          text: 'Finanças compartilhadas\nou individuais',
+        ),
+        const _OrbitBenefit(
+          icon: Icons.auto_awesome_rounded,
+          text: 'Metas e sonhos em conjunto',
+        ),
+        const _OrbitBenefit(
+          icon: Icons.people_outline_rounded,
+          text: 'Rotinas da casa mais leves',
+        ),
+        const _OrbitBenefit(
+          icon: Icons.settings_suggest_outlined,
+          text: 'Visão completa, com o mesmo\nestilo visual que você já ama',
+        ),
+        const SizedBox(height: 28),
+        if (hasPendingInvite)
+          _OrbitMenuCard(
+            children: [
+              _OrbitInfoItem(
+                title: 'Convite enviado',
+                body: 'Aguardando $pendingEmail aceitar o convite.',
+              ),
+              _OrbitMenuTile(
+                icon: Icons.close_rounded,
+                title: 'Cancelar convite',
+                danger: true,
+                onTap: () => Navigator.pop(context, 'cancel-invite'),
+              ),
+            ],
+          )
+        else
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.pop(context, 'invite'),
+              child: const Text('Convidar alguém'),
+            ),
+          ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context, 'received'),
+            icon: const Icon(Icons.mail_outline_rounded),
+            label: Text(
+              receivedInviteCount > 0
+                  ? 'Convites recebidos ($receivedInviteCount)'
+                  : 'Ver convites recebidos',
+            ),
+          ),
+        ),
+        const SizedBox(height: 28),
+        const Text(
+          '“Juntos, o hoje faz mais sentido\ne o amanhã vai mais longe.”',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: OrbitHomeTokens.purple,
+            fontStyle: FontStyle.italic,
+            height: 1.4,
+          ),
+        ),
+      ],
     );
   }
+
+  Widget _connected(BuildContext context) => Column(
+    children: [
+      const SizedBox(height: 24),
+      SizedBox(
+        height: 84,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Transform.translate(
+              offset: const Offset(-24, 0),
+              child: OrbitHomeAvatar(
+                name: userName,
+                photoUrl: userPhotoUrl,
+                size: 72,
+              ),
+            ),
+            Transform.translate(
+              offset: const Offset(24, 0),
+              child: OrbitHomeAvatar(
+                name: partnerName ?? 'Parceiro',
+                photoUrl: partnerPhotoUrl,
+                size: 72,
+              ),
+            ),
+            const Positioned(
+              bottom: 0,
+              child: CircleAvatar(
+                radius: 15,
+                backgroundColor: OrbitHomeTokens.purple,
+                child: Icon(
+                  Icons.favorite_rounded,
+                  size: 15,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      const _OrbitConnectedBadge(),
+      const SizedBox(height: 12),
+      Text(
+        'Você e ${partnerName ?? 'seu parceiro'}',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: OrbitHomeTokens.text,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 6),
+      const Text(
+        'Mais organização, juntos.',
+        style: TextStyle(color: OrbitHomeTokens.muted),
+      ),
+      const SizedBox(height: 26),
+      _OrbitMenuCard(
+        children: [
+          _OrbitMenuTile(
+            icon: Icons.manage_accounts_outlined,
+            title: 'Gerenciar conexão',
+            subtitle: 'Veja com quem seu Orbit está conectado',
+            onTap: () => Navigator.pop(context, 'manage'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 14),
+      _OrbitMenuCard(
+        children: [
+          _OrbitMenuTile(
+            icon: Icons.logout_rounded,
+            title: 'Sair do Orbit a Dois',
+            subtitle: 'Sua conta individual continuará ativa',
+            danger: true,
+            onTap: () => Navigator.pop(context, 'disconnect'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 28),
+      const Text(
+        '“Dois contextos. Uma vida mais organizada.”',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: OrbitHomeTokens.purple,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+    ],
+  );
 }
+
+class _OrbitSettingsScaffold extends StatelessWidget {
+  final Widget child;
+  final String? title;
+  const _OrbitSettingsScaffold({required this.child, this.title});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: OrbitHomeTokens.background,
+    appBar: AppBar(
+      backgroundColor: Colors.transparent,
+      foregroundColor: OrbitHomeTokens.text,
+      elevation: 0,
+      centerTitle: true,
+      title: title == null ? null : Text(title!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+    ),
+    body: SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: child)),
+      ),
+    ),
+  );
+}
+
+class _OrbitMenuCard extends StatelessWidget {
+  final List<Widget> children;
+  const _OrbitMenuCard({required this.children});
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(color: OrbitHomeTokens.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: OrbitHomeTokens.border)),
+    child: Column(children: [for (var i = 0; i < children.length; i++) ...[children[i], if (i != children.length - 1) const Divider(height: 1, indent: 58, color: OrbitHomeTokens.border)]]),
+  );
+}
+
+class _OrbitMenuTile extends StatelessWidget {
+  final IconData icon; final String title; final String? subtitle; final VoidCallback onTap; final bool accent; final bool danger;
+  const _OrbitMenuTile({required this.icon, required this.title, required this.onTap, this.subtitle, this.accent = false, this.danger = false});
+  @override
+  Widget build(BuildContext context) => ListTile(
+    onTap: onTap,
+    minLeadingWidth: 34,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+    leading: Container(width: 38, height: 38, decoration: BoxDecoration(color: (accent ? OrbitHomeTokens.purple : OrbitHomeTokens.surface).withValues(alpha: accent ? .18 : 1), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: danger ? Colors.redAccent : accent ? OrbitHomeTokens.purple : OrbitHomeTokens.text, size: 21)),
+    title: Text(title, style: TextStyle(color: danger ? Colors.redAccent : OrbitHomeTokens.text, fontWeight: FontWeight.w500)),
+    subtitle: subtitle == null ? null : Text(subtitle!, style: const TextStyle(color: OrbitHomeTokens.muted, fontSize: 12)),
+    trailing: danger ? null : const Icon(Icons.chevron_right_rounded, color: OrbitHomeTokens.muted),
+  );
+}
+
+class _OrbitBenefit extends StatelessWidget {
+  final IconData icon; final String text;
+  const _OrbitBenefit({required this.icon, required this.text});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 9),
+    child: Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: OrbitHomeTokens.purple.withValues(alpha: .14), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: OrbitHomeTokens.purple)), const SizedBox(width: 14), Expanded(child: Text(text, style: const TextStyle(color: OrbitHomeTokens.text, height: 1.35)))]),
+  );
+}
+
+class _OrbitCoupleArt extends StatelessWidget {
+  const _OrbitCoupleArt();
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 120,
+    child: Stack(alignment: Alignment.center, children: [
+      Transform.translate(offset: const Offset(-28, -6), child: Container(width: 88, height: 88, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: OrbitHomeTokens.purple, width: 2), boxShadow: [BoxShadow(color: OrbitHomeTokens.purple.withValues(alpha: .25), blurRadius: 28)]))),
+      Transform.translate(offset: const Offset(28, 8), child: Container(width: 88, height: 88, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: OrbitHomeTokens.purple, width: 2), boxShadow: [BoxShadow(color: OrbitHomeTokens.purple.withValues(alpha: .25), blurRadius: 28)]))),
+      const Icon(Icons.favorite_border_rounded, color: OrbitHomeTokens.purple, size: 30),
+    ]),
+  );
+}
+
+class _OrbitConnectedBadge extends StatelessWidget {
+  const _OrbitConnectedBadge();
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+    decoration: BoxDecoration(color: OrbitHomeTokens.green.withValues(alpha: .14), borderRadius: BorderRadius.circular(20), border: Border.all(color: OrbitHomeTokens.green.withValues(alpha: .45))),
+    child: const Text('●  Conectados', style: TextStyle(color: OrbitHomeTokens.green, fontSize: 12, fontWeight: FontWeight.w600)),
+  );
+}
+
+
+
