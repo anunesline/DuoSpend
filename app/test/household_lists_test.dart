@@ -169,6 +169,37 @@ void main() {
         'leite sem lactose');
   });
 
+  test('item preserva productId opcional sem associação por nome', () {
+    final now = DateTime.utc(2026, 9, 1);
+    final linked = _item(_list(
+      id: 'market',
+      scopeId: 'user:aline',
+      name: 'Mercado',
+      type: HouseholdListType.shopping,
+      now: now,
+    ), now).edit(
+      displayName: 'Leite',
+      identityKey: 'leite',
+      productId: 'leite-integral-1l',
+      updatedAt: now,
+    );
+    final legacy = HouseholdListItem.fromMap({
+      'id': 'free-item',
+      'listId': 'market',
+      'scopeId': 'user:aline',
+      'displayName': 'Vela de aniversário',
+      'identityKey': 'vela de aniversario',
+      'status': 'pending',
+      'createdAt': now.toIso8601String(),
+      'updatedAt': now.toIso8601String(),
+    });
+
+    expect(HouseholdListItem.fromMap(linked.toMap()).productId,
+        'leite-integral-1l');
+    expect(legacy.productId, isNull);
+    expect(legacy.identityKey, 'vela de aniversario');
+  });
+
   test('documentos antigos sem tipo e status usam fallbacks seguros', () {
     final list = HouseholdList.fromMap({
       'id': 'old',

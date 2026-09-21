@@ -22,6 +22,9 @@ import '../../features/consumers/domain/usecases/process_consumer_intelligence_u
 import '../../features/consumers/domain/usecases/save_consumer_usecase.dart';
 import '../../features/consumers/presentation/controllers/consumer_controller.dart';
 
+import '../../features/consumption/data/repositories/firestore_consumption_event_repository.dart';
+import '../../features/consumption/domain/repositories/consumption_event_repository.dart';
+
 import '../../features/household_routines/data/repositories/firestore_household_routine_repository.dart';
 import '../../features/household_routines/data/repositories/firestore_household_task_repository.dart';
 import '../../features/household_routines/data/repositories/firestore_household_list_repository.dart';
@@ -72,6 +75,7 @@ class AppDependencyContainer {
   late final ProductPriceHistoryRepository productPriceHistoryRepository;
   late final ProductRepository productRepository;
   late final ProductBootstrap productBootstrap;
+  late final ConsumptionEventRepository consumptionEventRepository;
 
   late final ProductIntelligenceEngine productIntelligenceEngine;
   late final ProcessProductIntelligenceUseCase
@@ -154,6 +158,7 @@ class AppDependencyContainer {
   void _registerProductServices() {
     productPersistenceRepository = FirestoreProductPersistenceRepository();
     productPriceHistoryRepository = FirestoreProductPriceHistoryRepository();
+    consumptionEventRepository = FirestoreConsumptionEventRepository();
     productRepository = ProductRepository(
       persistenceRepository: productPersistenceRepository,
       priceHistoryRepository: productPriceHistoryRepository,

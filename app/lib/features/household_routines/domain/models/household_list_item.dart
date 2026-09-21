@@ -15,6 +15,7 @@ class HouseholdListItem {
   final String? completedBy;
   final num? quantity;
   final String? unit;
+  final String? productId;
   final String? financialReferenceId;
 
   const HouseholdListItem({
@@ -30,6 +31,7 @@ class HouseholdListItem {
     this.completedBy,
     this.quantity,
     this.unit,
+    this.productId,
     this.financialReferenceId,
   });
 
@@ -53,6 +55,7 @@ class HouseholdListItem {
         completedBy: by,
         quantity: quantity,
         unit: unit,
+        productId: productId,
         financialReferenceId:
             financialReferenceId ?? this.financialReferenceId,
       );
@@ -68,6 +71,7 @@ class HouseholdListItem {
         updatedAt: at,
         quantity: quantity,
         unit: unit,
+        productId: productId,
         financialReferenceId: financialReferenceId,
       );
 
@@ -76,6 +80,7 @@ class HouseholdListItem {
     required String identityKey,
     num? quantity,
     String? unit,
+    String? productId,
     required DateTime updatedAt,
   }) =>
       HouseholdListItem(
@@ -91,6 +96,7 @@ class HouseholdListItem {
         completedBy: completedBy,
         quantity: quantity,
         unit: unit,
+        productId: productId ?? this.productId,
         financialReferenceId: financialReferenceId,
       );
 
@@ -107,6 +113,7 @@ class HouseholdListItem {
         'completedBy': completedBy,
         'quantity': quantity,
         'unit': unit,
+        'productId': productId,
         'financialReferenceId': financialReferenceId,
       };
 
@@ -129,6 +136,7 @@ class HouseholdListItem {
         completedBy: map['completedBy']?.toString(),
         quantity: map['quantity'] as num?,
         unit: map['unit']?.toString(),
+        productId: map['productId']?.toString(),
         financialReferenceId: map['financialReferenceId']?.toString(),
       );
 }
