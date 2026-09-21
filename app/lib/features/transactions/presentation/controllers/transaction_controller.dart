@@ -207,6 +207,7 @@ class TransactionController extends ChangeNotifier {
                   (item) => PurchasedTransactionItem(
                     id: item.id,
                     displayName: item.name,
+                    productId: item.productId,
                   ),
                 )
                 .toList(growable: false),

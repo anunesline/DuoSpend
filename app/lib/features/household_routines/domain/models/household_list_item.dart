@@ -10,6 +10,7 @@ class HouseholdListItem {
   final String identityKey;
   final HouseholdListItemStatus status;
   final DateTime createdAt;
+  final String? createdBy;
   final DateTime updatedAt;
   final DateTime? completedAt;
   final String? completedBy;
@@ -26,6 +27,7 @@ class HouseholdListItem {
     required this.identityKey,
     required this.status,
     required this.createdAt,
+    this.createdBy,
     required this.updatedAt,
     this.completedAt,
     this.completedBy,
@@ -50,6 +52,7 @@ class HouseholdListItem {
         identityKey: identityKey,
         status: HouseholdListItemStatus.purchased,
         createdAt: createdAt,
+        createdBy: createdBy,
         updatedAt: at,
         completedAt: at,
         completedBy: by,
@@ -68,6 +71,7 @@ class HouseholdListItem {
         identityKey: identityKey,
         status: HouseholdListItemStatus.pending,
         createdAt: createdAt,
+        createdBy: createdBy,
         updatedAt: at,
         quantity: quantity,
         unit: unit,
@@ -91,6 +95,7 @@ class HouseholdListItem {
         identityKey: identityKey,
         status: status,
         createdAt: createdAt,
+        createdBy: createdBy,
         updatedAt: updatedAt,
         completedAt: completedAt,
         completedBy: completedBy,
@@ -108,6 +113,7 @@ class HouseholdListItem {
         'identityKey': identityKey,
         'status': status.name,
         'createdAt': createdAt.toIso8601String(),
+        'createdBy': createdBy,
         'updatedAt': updatedAt.toIso8601String(),
         'completedAt': completedAt?.toIso8601String(),
         'completedBy': completedBy,
@@ -131,6 +137,7 @@ class HouseholdListItem {
           orElse: () => HouseholdListItemStatus.pending,
         ),
         createdAt: householdListDateFromValue(map['createdAt']) ?? DateTime.now(),
+        createdBy: map['createdBy']?.toString(),
         updatedAt: householdListDateFromValue(map['updatedAt']) ?? DateTime.now(),
         completedAt: householdListDateFromValue(map['completedAt']),
         completedBy: map['completedBy']?.toString(),

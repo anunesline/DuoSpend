@@ -7,8 +7,13 @@ import '../repositories/household_list_repository.dart';
 class PurchasedTransactionItem {
   final String id;
   final String displayName;
+  final String? productId;
 
-  const PurchasedTransactionItem({required this.id, required this.displayName});
+  const PurchasedTransactionItem({
+    required this.id,
+    required this.displayName,
+    this.productId,
+  });
 }
 
 abstract class ShoppingListPurchaseSynchronizer {
@@ -67,6 +72,7 @@ class ShoppingListTransactionSynchronizer
     }
 
     final pendingByIdentity = <String, Map<String, List<HouseholdListItem>>>{};
+    final pendingByProductId = <String, Map<String, List<HouseholdListItem>>>{};
     for (final list in lists) {
       final pending = (await repository.getItemsByList(list.id))
           .where((item) => !item.isPurchased)
@@ -76,6 +82,13 @@ class ShoppingListTransactionSynchronizer
             .putIfAbsent(item.identityKey, () => {})
             .putIfAbsent(list.id, () => [])
             .add(item);
+        final productId = item.productId?.trim();
+        if (productId != null && productId.isNotEmpty) {
+          pendingByProductId
+              .putIfAbsent(productId, () => {})
+              .putIfAbsent(list.id, () => [])
+              .add(item);
+        }
       }
     }
 
@@ -83,11 +96,17 @@ class ShoppingListTransactionSynchronizer
     var ambiguousItems = 0;
     for (var index = 0; index < items.length; index++) {
       final purchasedItem = items[index];
+      final productId = purchasedItem.productId?.trim();
       final identity = HouseholdListItemIdentity.normalize(
         purchasedItem.displayName,
       );
-      if (identity.isEmpty) continue;
-      final candidatesByList = pendingByIdentity[identity];
+      final candidatesByList = productId != null && productId.isNotEmpty
+          ? pendingByProductId[productId] ??
+                // A textual fallback remains only for legacy list entries with
+                // no canonical product. A conflicting canonical product never
+                // matches by name.
+                _legacyCandidates(pendingByIdentity[identity])
+          : pendingByIdentity[identity];
       if (candidatesByList == null) continue;
       if (candidatesByList.length != 1) {
         ambiguousItems++;
@@ -127,5 +146,21 @@ class ShoppingListTransactionSynchronizer
       matchedItems: matchedItems,
       ambiguousItems: ambiguousItems,
     );
+  }
+
+  Map<String, List<HouseholdListItem>>? _legacyCandidates(
+    Map<String, List<HouseholdListItem>>? candidates,
+  ) {
+    if (candidates == null) return null;
+    final filtered = <String, List<HouseholdListItem>>{};
+    for (final entry in candidates.entries) {
+      final legacy = entry.value
+          .where(
+            (item) => item.productId == null || item.productId!.trim().isEmpty,
+          )
+          .toList();
+      if (legacy.isNotEmpty) filtered[entry.key] = legacy;
+    }
+    return filtered.isEmpty ? null : filtered;
   }
 }

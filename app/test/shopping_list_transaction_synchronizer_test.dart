@@ -31,32 +31,34 @@ void main() {
     );
   });
 
-  test('scope da Nova Transação encontra lista pessoal criada em Tarefas',
-      () async {
-    final listScope = HouseholdScopeId.personal('aline');
-    final transactionScope = HouseholdScopeId.forContext(
-      currentUserId: 'aline',
-      isShared: false,
-      // A carteira ativa pode ser compartilhada; compra para si continua
-      // pertencendo ao mesmo escopo pessoal usado por Minhas > Listas.
-      memberIds: const ['aline', 'matheus'],
-    );
-    final fixture = await _fixture(scopeId: listScope, itemName: 'Leite');
-    await fixture.synchronizer.synchronize(
-      scopeId: transactionScope,
-      transactionId: 'android-transaction',
-      purchasedAt: purchasedAt,
-      purchasedBy: 'aline',
-      items: const [
-        PurchasedTransactionItem(
-          id: 'android-milk-item',
-          displayName: 'Leite',
-        ),
-      ],
-    );
-    expect(transactionScope, listScope);
-    expect((await fixture.items()).single.isPurchased, isTrue);
-  });
+  test(
+    'scope da Nova Transação encontra lista pessoal criada em Tarefas',
+    () async {
+      final listScope = HouseholdScopeId.personal('aline');
+      final transactionScope = HouseholdScopeId.forContext(
+        currentUserId: 'aline',
+        isShared: false,
+        // A carteira ativa pode ser compartilhada; compra para si continua
+        // pertencendo ao mesmo escopo pessoal usado por Minhas > Listas.
+        memberIds: const ['aline', 'matheus'],
+      );
+      final fixture = await _fixture(scopeId: listScope, itemName: 'Leite');
+      await fixture.synchronizer.synchronize(
+        scopeId: transactionScope,
+        transactionId: 'android-transaction',
+        purchasedAt: purchasedAt,
+        purchasedBy: 'aline',
+        items: const [
+          PurchasedTransactionItem(
+            id: 'android-milk-item',
+            displayName: 'Leite',
+          ),
+        ],
+      );
+      expect(transactionScope, listScope);
+      expect((await fixture.items()).single.isPurchased, isTrue);
+    },
+  );
 
   test('scope compartilhado independe da ordem dos membros', () {
     final listScope = HouseholdScopeId.shared(const ['aline', 'matheus']);
@@ -74,30 +76,91 @@ void main() {
     expect((await fixture.items()).single.isPurchased, isTrue);
   });
 
+  test(
+    'productId canônico tem prioridade e não conclui produto diferente por nome',
+    () async {
+      final fixture = await _fixture(scopeId: scopeId, itemName: 'Leite');
+      final item = (await fixture.items()).single;
+      await fixture.repository.saveItem(
+        HouseholdListItem(
+          id: item.id,
+          listId: item.listId,
+          scopeId: item.scopeId,
+          displayName: item.displayName,
+          identityKey: item.identityKey,
+          status: item.status,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          productId: 'milk-a',
+        ),
+      );
+      await fixture.synchronizer.synchronize(
+        scopeId: scopeId,
+        transactionId: 'canonical',
+        purchasedAt: purchasedAt,
+        purchasedBy: 'aline',
+        items: const [
+          PurchasedTransactionItem(
+            id: 'a',
+            displayName: 'Leite',
+            productId: 'milk-b',
+          ),
+        ],
+      );
+      expect((await fixture.items()).single.isPurchased, isFalse);
+      await fixture.synchronizer.synchronize(
+        scopeId: scopeId,
+        transactionId: 'canonical-ok',
+        purchasedAt: purchasedAt,
+        purchasedBy: 'aline',
+        items: const [
+          PurchasedTransactionItem(
+            id: 'b',
+            displayName: 'Outro nome',
+            productId: 'milk-a',
+          ),
+        ],
+      );
+      expect((await fixture.items()).single.isPurchased, isTrue);
+    },
+  );
+
   test('produto diferente e variante semântica não correspondem', () async {
     final different = await _fixture(scopeId: scopeId, itemName: 'Leite');
     await different.sync('Café', purchasedAt: purchasedAt);
     expect((await different.items()).single.isPurchased, isFalse);
 
-    final variant = await _fixture(scopeId: scopeId, itemName: 'Leite integral');
+    final variant = await _fixture(
+      scopeId: scopeId,
+      itemName: 'Leite integral',
+    );
     await variant.sync('Leite sem lactose', purchasedAt: purchasedAt);
     expect((await variant.items()).single.isPurchased, isFalse);
   });
 
-  test('item concluído não gera evento e reprocessamento é idempotente', () async {
-    final fixture = await _fixture(scopeId: scopeId, itemName: 'Leite');
-    await fixture.sync('Leite', purchasedAt: purchasedAt);
-    await fixture.sync('Leite', purchasedAt: purchasedAt);
-    expect(await fixture.repository.getPurchaseEvents(scopeId: scopeId), hasLength(1));
+  test(
+    'item concluído não gera evento e reprocessamento é idempotente',
+    () async {
+      final fixture = await _fixture(scopeId: scopeId, itemName: 'Leite');
+      await fixture.sync('Leite', purchasedAt: purchasedAt);
+      await fixture.sync('Leite', purchasedAt: purchasedAt);
+      expect(
+        await fixture.repository.getPurchaseEvents(scopeId: scopeId),
+        hasLength(1),
+      );
 
-    final completed = await _fixture(
-      scopeId: scopeId,
-      itemName: 'Leite',
-      purchased: true,
-    );
-    await completed.sync('Leite', purchasedAt: purchasedAt);
-    expect(await completed.repository.getPurchaseEvents(scopeId: scopeId), isEmpty);
-  });
+      final completed = await _fixture(
+        scopeId: scopeId,
+        itemName: 'Leite',
+        purchased: true,
+      );
+      await completed.sync('Leite', purchasedAt: purchasedAt);
+      expect(
+        await completed.repository.getPurchaseEvents(scopeId: scopeId),
+        isEmpty,
+      );
+    },
+  );
 
   test('reprocessar após desmarcar não conclui nem duplica evento', () async {
     final fixture = await _fixture(scopeId: scopeId, itemName: 'Leite');
@@ -113,26 +176,32 @@ void main() {
       purchasedAt: purchasedAt,
       purchasedBy: 'aline',
       items: const [
-        PurchasedTransactionItem(
-          id: 'financial-item-1',
-          displayName: 'Leite',
-        ),
+        PurchasedTransactionItem(id: 'financial-item-1', displayName: 'Leite'),
       ],
     );
 
     expect((await fixture.items()).single.isPurchased, isFalse);
-    expect(await fixture.repository.getPurchaseEvents(scopeId: scopeId), hasLength(1));
+    expect(
+      await fixture.repository.getPurchaseEvents(scopeId: scopeId),
+      hasLength(1),
+    );
     expect(report.matchedItems, 0);
   });
 
-  test('mesmo produto pendente em listas diferentes permanece intacto', () async {
-    final fixture = await _fixture(scopeId: scopeId, itemName: 'Leite');
-    await fixture.addListAndItem(listId: 'secondary', itemName: 'leite');
-    await fixture.sync('LEITE', purchasedAt: purchasedAt);
-    expect((await fixture.items()).single.isPurchased, isFalse);
-    expect((await fixture.items('secondary')).single.isPurchased, isFalse);
-    expect(await fixture.repository.getPurchaseEvents(scopeId: scopeId), isEmpty);
-  });
+  test(
+    'mesmo produto pendente em listas diferentes permanece intacto',
+    () async {
+      final fixture = await _fixture(scopeId: scopeId, itemName: 'Leite');
+      await fixture.addListAndItem(listId: 'secondary', itemName: 'leite');
+      await fixture.sync('LEITE', purchasedAt: purchasedAt);
+      expect((await fixture.items()).single.isPurchased, isFalse);
+      expect((await fixture.items('secondary')).single.isPurchased, isFalse);
+      expect(
+        await fixture.repository.getPurchaseEvents(scopeId: scopeId),
+        isEmpty,
+      );
+    },
+  );
 
   test('marcação manual continua preservando seu evento', () async {
     final fixture = await _fixture(scopeId: scopeId, itemName: 'Leite');
@@ -151,7 +220,9 @@ void main() {
         purchasedBy: 'aline',
       ),
     );
-    final event = (await fixture.repository.getPurchaseEvents(scopeId: scopeId)).single;
+    final event = (await fixture.repository.getPurchaseEvents(
+      scopeId: scopeId,
+    )).single;
     expect(event.id, 'manual-event');
     expect(event.source, isNull);
   });
@@ -167,24 +238,28 @@ class _Fixture {
   Future<ShoppingListSyncReport> sync(
     String name, {
     required DateTime purchasedAt,
-  }) =>
-      synchronizer.synchronize(
-        scopeId: scopeId,
-        transactionId: 'transaction-1',
-        purchasedAt: purchasedAt,
-        purchasedBy: 'aline',
-        items: [
-          PurchasedTransactionItem(id: 'financial-item-1', displayName: name),
-        ],
-      );
+  }) => synchronizer.synchronize(
+    scopeId: scopeId,
+    transactionId: 'transaction-1',
+    purchasedAt: purchasedAt,
+    purchasedBy: 'aline',
+    items: [
+      PurchasedTransactionItem(id: 'financial-item-1', displayName: name),
+    ],
+  );
 
   Future<List<HouseholdListItem>> items([String listId = 'market']) =>
       repository.getItemsByList(listId);
 
-  Future<void> addListAndItem({required String listId, required String itemName}) async {
+  Future<void> addListAndItem({
+    required String listId,
+    required String itemName,
+  }) async {
     final now = DateTime.utc(2026, 9, 1);
     await repository.saveList(_list(listId, scopeId, now));
-    await repository.saveItem(_item('$listId-item', listId, scopeId, itemName, now));
+    await repository.saveItem(
+      _item('$listId-item', listId, scopeId, itemName, now),
+    );
   }
 }
 
@@ -210,14 +285,14 @@ Future<_Fixture> _fixture({
 }
 
 HouseholdList _list(String id, String scopeId, DateTime now) => HouseholdList(
-      id: id,
-      scopeId: scopeId,
-      name: 'Mercado',
-      type: HouseholdListType.shopping,
-      status: HouseholdListStatus.active,
-      createdAt: now,
-      updatedAt: now,
-    );
+  id: id,
+  scopeId: scopeId,
+  name: 'Mercado',
+  type: HouseholdListType.shopping,
+  status: HouseholdListStatus.active,
+  createdAt: now,
+  updatedAt: now,
+);
 
 HouseholdListItem _item(
   String id,
@@ -225,14 +300,13 @@ HouseholdListItem _item(
   String scopeId,
   String name,
   DateTime now,
-) =>
-    HouseholdListItem(
-      id: id,
-      listId: listId,
-      scopeId: scopeId,
-      displayName: name,
-      identityKey: HouseholdListItemIdentity.normalize(name),
-      status: HouseholdListItemStatus.pending,
-      createdAt: now,
-      updatedAt: now,
-    );
+) => HouseholdListItem(
+  id: id,
+  listId: listId,
+  scopeId: scopeId,
+  displayName: name,
+  identityKey: HouseholdListItemIdentity.normalize(name),
+  status: HouseholdListItemStatus.pending,
+  createdAt: now,
+  updatedAt: now,
+);
