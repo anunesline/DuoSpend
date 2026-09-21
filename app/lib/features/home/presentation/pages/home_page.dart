@@ -14,7 +14,11 @@ import '../../../../core/design_system/duo_colors.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../budgets/presentation/pages/budgets_page.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
-import '../../../financial_intelligence/presentation/pages/insights_page.dart';
+import '../../../consumption/presentation/pages/orbit_intelligence_page.dart';
+import '../../../consumption/presentation/controllers/orbit_intelligence_controller.dart';
+import '../../../consumption/data/repositories/firestore_consumption_event_repository.dart';
+import '../../../consumption/domain/interactions/consumption_interaction.dart';
+import '../../../household_routines/domain/services/household_scope_id.dart';
 import '../../../goals/presentation/pages/savings_goals_page.dart';
 import '../../../household_routines/presentation/controllers/household_routines_controller.dart';
 import '../../../household_routines/presentation/pages/household_routines_hub_page.dart';
@@ -43,6 +47,24 @@ import 'partner_invites_page.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/orbit_dashboard_controller.dart';
 
+String orbitAiHomeMessage(OrbitIntelligenceEntry entry) {
+  return switch (entry.interaction!.type) {
+    ConsumptionInteractionType.confirmStock => 'Orbit IA\nAinda tem ${entry.productName}? Toque para responder.',
+    ConsumptionInteractionType.offerAddToShoppingList => 'Orbit IA\nQuer colocar ${entry.productName} na lista de compras?',
+    ConsumptionInteractionType.confirmExceptionalPurchase => 'Orbit IA\nEssa compra de ${entry.productName} foi fora do seu padrão?',
+    ConsumptionInteractionType.acknowledgePriceOpportunity => '',
+  };
+}
+class OrbitAiHomeHighlight extends StatelessWidget {
+  const OrbitAiHomeHighlight({super.key, required this.controller, required this.onTap});
+  final OrbitIntelligenceController? controller;
+  final VoidCallback onTap;
+  @override Widget build(BuildContext context) {
+    final priority = controller?.priorityAction;
+    return priority == null ? const SizedBox.shrink() : OrbitHomeMessage(message: orbitAiHomeMessage(priority), onTap: onTap, icon: Icons.auto_awesome_rounded);
+  }
+}
+
 class HomePage extends StatefulWidget {
   final WalletContext walletContext;
   final ShoppingController shoppingController;
@@ -69,6 +91,7 @@ class _HomePageState extends State<HomePage> {
   late final HomeController controller;
   late final OrbitDashboardController orbitController;
   late final TransactionController transactionController;
+  OrbitIntelligenceController? _orbitAiController;
 
   bool _valuesVisible = true;
   int _refreshVersion = 0;
@@ -111,6 +134,11 @@ class _HomePageState extends State<HomePage> {
     }
     final wallet = controller.wallet;
     final userId = controller.user?.uid;
+    if (wallet != null && userId != null && userId.isNotEmpty) {
+      _orbitAiController?.dispose();
+      _orbitAiController = OrbitIntelligenceController(userId: userId, scopeId: HouseholdScopeId.forContext(currentUserId: userId, isShared: wallet.isShared, memberIds: wallet.memberIds), products: widget.productRepository, events: FirestoreConsumptionEventRepository())..load();
+      _orbitAiController!.addListener(() { if (mounted) setState(() {}); });
+    }
     if (wallet == null || userId == null) {
       orbitController.clear();
       return;
@@ -480,7 +508,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openSelectedWallet() async {
     final wallet = controller.wallet;
-    if (wallet == null) return;
+    final userId = controller.user?.uid;
+    if (wallet == null || userId == null || userId.trim().isEmpty) return;
+    final scopeId = HouseholdScopeId.forContext(currentUserId: userId, isShared: wallet.isShared, memberIds: wallet.memberIds);
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
@@ -867,10 +897,12 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openInsightsPage() async {
     final wallet = controller.wallet;
-    if (wallet == null) return;
+    final userId = controller.user?.uid;
+    if (wallet == null || userId == null || userId.trim().isEmpty) return;
+    final scopeId = HouseholdScopeId.forContext(currentUserId: userId, isShared: wallet.isShared, memberIds: wallet.memberIds);
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => InsightsPage(wallet: wallet)),
+      MaterialPageRoute(builder: (_) => OrbitIntelligencePage(userId: userId, scopeId: scopeId, products: widget.productRepository)),
     );
   }
 
@@ -1222,6 +1254,10 @@ class _HomePageState extends State<HomePage> {
                               icon: Icons.account_balance_wallet_outlined,
                             )
                           else if (data != null) ...[
+                            if (_orbitAiController?.priorityAction != null) ...[
+                              OrbitAiHomeHighlight(controller: _orbitAiController, onTap: _openInsightsPage),
+                              const SizedBox(height: 12),
+                            ],
                             if (shared && controller.canInvitePartner) ...[
                               OrbitHomeMessage(
                                 message:

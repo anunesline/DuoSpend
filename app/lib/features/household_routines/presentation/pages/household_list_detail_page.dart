@@ -186,7 +186,7 @@ class _HouseholdListDetailPageState extends State<HouseholdListDetailPage> {
                     child: Column(
                       children: [
                         for (var index = 0; index < items.length; index++) ...[
-                          _ListItemTile(
+                          HouseholdListItemTile(
                             item: items[index],
                             onChanged: (value) =>
                                 widget.controller.setListItemPurchased(
@@ -287,12 +287,13 @@ class _ListProgress extends StatelessWidget {
   }
 }
 
-class _ListItemTile extends StatelessWidget {
+class HouseholdListItemTile extends StatelessWidget {
   final HouseholdListItem item;
   final ValueChanged<bool?> onChanged;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  const _ListItemTile({
+  const HouseholdListItemTile({
+    super.key,
     required this.item,
     required this.onChanged,
     required this.onEdit,
@@ -316,8 +317,8 @@ class _ListItemTile extends StatelessWidget {
             onChanged: onChanged,
           ),
           const SizedBox(width: 3),
-          Expanded(
-            child: Text(
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
               item.displayName,
               style: TextStyle(
                 color: item.isPurchased
@@ -328,7 +329,8 @@ class _ListItemTile extends StatelessWidget {
                 decoration: item.isPurchased ? TextDecoration.lineThrough : null,
               ),
             ),
-          ),
+            Text(_metadata(item), style: const TextStyle(color: DuoColors.orbitTextSecondary, fontSize: 10)),
+          ])),
           if (quantity != null)
             Text(quantity,
                 style: const TextStyle(
@@ -348,6 +350,14 @@ class _ListItemTile extends StatelessWidget {
       ),
     );
   }
+
+  String _metadata(HouseholdListItem item) {
+    final added = item.createdBy == null ? 'Incluído em ${_day(item.createdAt)}' : 'Adicionado por ${item.createdBy} · ${_day(item.createdAt)}';
+    if (!item.isPurchased || item.completedAt == null) return added;
+    final by = item.completedBy == null ? '' : ' por ${item.completedBy}';
+    return '$added · comprado em ${_day(item.completedAt!)}$by';
+  }
+  String _day(DateTime value) => '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}';
 }
 
 class _ItemsEmpty extends StatelessWidget {
