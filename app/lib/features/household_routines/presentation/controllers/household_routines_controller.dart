@@ -275,6 +275,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
   Future<HouseholdListItem?> createListItem({
     required HouseholdList list,
     required String displayName,
+    required String createdBy,
     num? quantity,
     String? unit,
   }) async {
@@ -292,6 +293,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
       identityKey: HouseholdListItemIdentity.normalize(normalizedName),
       status: HouseholdListItemStatus.pending,
       createdAt: now,
+      createdBy: _emptyToNull(createdBy),
       updatedAt: now,
       quantity: quantity,
       unit: _emptyToNull(unit),

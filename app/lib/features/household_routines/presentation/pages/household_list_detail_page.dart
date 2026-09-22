@@ -19,7 +19,8 @@ class HouseholdListDetailPage extends StatefulWidget {
   });
 
   @override
-  State<HouseholdListDetailPage> createState() => _HouseholdListDetailPageState();
+  State<HouseholdListDetailPage> createState() =>
+      _HouseholdListDetailPageState();
 }
 
 class _HouseholdListDetailPageState extends State<HouseholdListDetailPage> {
@@ -55,7 +56,9 @@ class _HouseholdListDetailPageState extends State<HouseholdListDetailPage> {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   labelText: widget.list.isShopping ? 'Produto' : 'Item',
-                  hintText: widget.list.isShopping ? 'Ex.: Leite integral' : null,
+                  hintText: widget.list.isShopping
+                      ? 'Ex.: Leite integral'
+                      : null,
                 ),
               ),
               const SizedBox(height: 12),
@@ -64,7 +67,9 @@ class _HouseholdListDetailPageState extends State<HouseholdListDetailPage> {
                   Expanded(
                     child: TextField(
                       controller: quantity,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Quantidade',
                         hintText: 'Opcional',
@@ -104,6 +109,7 @@ class _HouseholdListDetailPageState extends State<HouseholdListDetailPage> {
         await widget.controller.createListItem(
           list: widget.list,
           displayName: name.text,
+          createdBy: widget.currentUserId,
           quantity: parsedQuantity,
           unit: unit.text,
         );
@@ -130,8 +136,10 @@ class _HouseholdListDetailPageState extends State<HouseholdListDetailPage> {
         backgroundColor: DuoColors.orbitBackground,
         foregroundColor: DuoColors.orbitTextPrimary,
         surfaceTintColor: Colors.transparent,
-        title: Text(widget.list.name,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        title: Text(
+          widget.list.name,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
         actions: [
           if (widget.list.isShopping)
             TextButton.icon(
@@ -190,10 +198,10 @@ class _HouseholdListDetailPageState extends State<HouseholdListDetailPage> {
                             item: items[index],
                             onChanged: (value) =>
                                 widget.controller.setListItemPurchased(
-                              item: items[index],
-                              purchased: value ?? false,
-                              completedBy: widget.currentUserId,
-                            ),
+                                  item: items[index],
+                                  purchased: value ?? false,
+                                  completedBy: widget.currentUserId,
+                                ),
                             onEdit: () => _editItem(items[index]),
                             onDelete: () =>
                                 widget.controller.deleteListItem(items[index]),
@@ -202,7 +210,9 @@ class _HouseholdListDetailPageState extends State<HouseholdListDetailPage> {
                             Divider(
                               height: 1,
                               indent: 62,
-                              color: DuoColors.orbitBorder.withValues(alpha: .5),
+                              color: DuoColors.orbitBorder.withValues(
+                                alpha: .5,
+                              ),
                             ),
                         ],
                       ],
@@ -228,12 +238,18 @@ class _ListProgress extends StatelessWidget {
   final HouseholdList list;
   final int total;
   final int purchased;
-  const _ListProgress({required this.list, required this.total, required this.purchased});
+  const _ListProgress({
+    required this.list,
+    required this.total,
+    required this.purchased,
+  });
 
   @override
   Widget build(BuildContext context) {
     final progress = total == 0 ? 0.0 : purchased / total;
-    final color = list.isShopping ? const Color(0xFF4E8BFF) : DuoColors.orbitAccent;
+    final color = list.isShopping
+        ? const Color(0xFF4E8BFF)
+        : DuoColors.orbitAccent;
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
@@ -251,7 +267,9 @@ class _ListProgress extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
-              list.isShopping ? Icons.shopping_basket_outlined : Icons.list_alt_rounded,
+              list.isShopping
+                  ? Icons.shopping_basket_outlined
+                  : Icons.list_alt_rounded,
               color: color,
             ),
           ),
@@ -261,7 +279,9 @@ class _ListProgress extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  total == 0 ? 'Adicione o primeiro item' : '$purchased de $total itens',
+                  total == 0
+                      ? 'Adicione o primeiro item'
+                      : '$purchased de $total itens',
                   style: const TextStyle(
                     color: DuoColors.orbitTextPrimary,
                     fontSize: 13,
@@ -317,24 +337,41 @@ class HouseholdListItemTile extends StatelessWidget {
             onChanged: onChanged,
           ),
           const SizedBox(width: 3),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.displayName,
+                  style: TextStyle(
+                    color: item.isPurchased
+                        ? DuoColors.orbitTextSecondary
+                        : DuoColors.orbitTextPrimary,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    decoration: item.isPurchased
+                        ? TextDecoration.lineThrough
+                        : null,
+                  ),
+                ),
+                Text(
+                  _metadata(item),
+                  style: const TextStyle(
+                    color: DuoColors.orbitTextSecondary,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (quantity != null)
             Text(
-              item.displayName,
-              style: TextStyle(
-                color: item.isPurchased
-                    ? DuoColors.orbitTextSecondary
-                    : DuoColors.orbitTextPrimary,
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-                decoration: item.isPurchased ? TextDecoration.lineThrough : null,
+              quantity,
+              style: const TextStyle(
+                color: DuoColors.orbitTextSecondary,
+                fontSize: 11,
               ),
             ),
-            Text(_metadata(item), style: const TextStyle(color: DuoColors.orbitTextSecondary, fontSize: 10)),
-          ])),
-          if (quantity != null)
-            Text(quantity,
-                style: const TextStyle(
-                    color: DuoColors.orbitTextSecondary, fontSize: 11)),
           PopupMenuButton<String>(
             color: DuoColors.orbitSurface,
             onSelected: (value) {
@@ -352,12 +389,16 @@ class HouseholdListItemTile extends StatelessWidget {
   }
 
   String _metadata(HouseholdListItem item) {
-    final added = item.createdBy == null ? 'Incluído em ${_day(item.createdAt)}' : 'Adicionado por ${item.createdBy} · ${_day(item.createdAt)}';
+    final added = item.createdBy == null
+        ? 'Incluído em ${_day(item.createdAt)}'
+        : 'Adicionado por ${item.createdBy} · ${_day(item.createdAt)}';
     if (!item.isPurchased || item.completedAt == null) return added;
     final by = item.completedBy == null ? '' : ' por ${item.completedBy}';
     return '$added · comprado em ${_day(item.completedAt!)}$by';
   }
-  String _day(DateTime value) => '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}';
+
+  String _day(DateTime value) =>
+      '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}';
 }
 
 class _ItemsEmpty extends StatelessWidget {
@@ -365,27 +406,34 @@ class _ItemsEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: DuoColors.orbitCardSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .48)),
+    padding: const EdgeInsets.all(22),
+    decoration: BoxDecoration(
+      color: DuoColors.orbitCardSurface,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .48)),
+    ),
+    child: const Column(
+      children: [
+        Icon(
+          Icons.add_shopping_cart_rounded,
+          size: 30,
+          color: DuoColors.orbitAccent,
         ),
-        child: const Column(
-          children: [
-            Icon(Icons.add_shopping_cart_rounded,
-                size: 30, color: DuoColors.orbitAccent),
-            SizedBox(height: 8),
-            Text('Sua lista está vazia',
-                style: TextStyle(
-                    color: DuoColors.orbitTextPrimary,
-                    fontWeight: FontWeight.w800)),
-            SizedBox(height: 4),
-            Text('Adicione os itens que você precisa lembrar.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: DuoColors.orbitTextSecondary, fontSize: 11)),
-          ],
+        SizedBox(height: 8),
+        Text(
+          'Sua lista está vazia',
+          style: TextStyle(
+            color: DuoColors.orbitTextPrimary,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-      );
+        SizedBox(height: 4),
+        Text(
+          'Adicione os itens que você precisa lembrar.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: DuoColors.orbitTextSecondary, fontSize: 11),
+        ),
+      ],
+    ),
+  );
 }
