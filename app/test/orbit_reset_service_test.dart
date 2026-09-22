@@ -121,4 +121,151 @@ void main() {
       );
     },
   );
+
+  test(
+    'individual reset removes personal derived data but preserves shared data',
+    () async {
+      final aline = serviceFor('aline');
+      final product = firestore
+          .collection('users')
+          .doc('aline')
+          .collection('products')
+          .doc('milk');
+      await product.set({});
+      await product.collection('priceHistory').doc('purchase').set({});
+      await firestore
+          .collection('users')
+          .doc('aline')
+          .collection('accountTransfers')
+          .doc('transfer')
+          .set({});
+      for (final collection in [
+        'household_lists',
+        'household_list_items',
+        'household_list_purchase_events',
+        'consumption_events',
+      ]) {
+        await firestore.collection(collection).doc('personal-$collection').set({
+          'scopeId': 'user:aline',
+        });
+        await firestore.collection(collection).doc('shared-$collection').set({
+          'scopeId': 'household:aline|matheus',
+        });
+      }
+
+      await aline.resetMyData();
+
+      expect((await product.get()).exists, isFalse);
+      expect(
+        (await product.collection('priceHistory').doc('purchase').get()).exists,
+        isFalse,
+      );
+      expect(
+        (await firestore
+                .collection('users')
+                .doc('aline')
+                .collection('accountTransfers')
+                .doc('transfer')
+                .get())
+            .exists,
+        isFalse,
+      );
+      expect(
+        (await firestore
+                .collection('household_lists')
+                .doc('personal-household_lists')
+                .get())
+            .exists,
+        isFalse,
+      );
+      expect(
+        (await firestore
+                .collection('consumption_events')
+                .doc('personal-consumption_events')
+                .get())
+            .exists,
+        isFalse,
+      );
+      expect(
+        (await firestore
+                .collection('household_lists')
+                .doc('shared-household_lists')
+                .get())
+            .exists,
+        isTrue,
+      );
+      expect(
+        (await firestore
+                .collection('consumption_events')
+                .doc('shared-consumption_events')
+                .get())
+            .exists,
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'shared reset removes only shared lists and consumption events',
+    () async {
+      final aline = serviceFor('aline');
+      final matheus = serviceFor('matheus');
+      for (final collection in [
+        'household_lists',
+        'household_list_items',
+        'household_list_purchase_events',
+        'consumption_events',
+      ]) {
+        await firestore.collection(collection).doc('personal-$collection').set({
+          'scopeId': 'user:aline',
+        });
+        await firestore.collection(collection).doc('shared-$collection').set({
+          'scopeId': 'household:aline|matheus',
+        });
+      }
+      await aline.requestSharedReset(
+        walletId: 'shared',
+        memberIds: ['aline', 'matheus'],
+      );
+      final request = await matheus.getPendingSharedReset('shared');
+      await matheus.confirmSharedReset(
+        walletId: 'shared',
+        requestId: request!.id,
+        memberIds: ['aline', 'matheus'],
+      );
+
+      expect(
+        (await firestore
+                .collection('household_lists')
+                .doc('shared-household_lists')
+                .get())
+            .exists,
+        isFalse,
+      );
+      expect(
+        (await firestore
+                .collection('consumption_events')
+                .doc('shared-consumption_events')
+                .get())
+            .exists,
+        isFalse,
+      );
+      expect(
+        (await firestore
+                .collection('household_lists')
+                .doc('personal-household_lists')
+                .get())
+            .exists,
+        isTrue,
+      );
+      expect(
+        (await firestore
+                .collection('consumption_events')
+                .doc('personal-consumption_events')
+                .get())
+            .exists,
+        isTrue,
+      );
+    },
+  );
 }

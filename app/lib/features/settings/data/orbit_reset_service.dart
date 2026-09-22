@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../household_routines/domain/services/household_scope_id.dart';
+
 class OrbitResetRequest {
   final String id;
   final String walletId;
@@ -51,11 +53,19 @@ class OrbitResetService {
       'transactions',
       'budgets',
       'purchases',
-      'products',
       'merchant_memory',
+      'accountTransfers',
+      'accountOperations',
     ]) {
       await _deleteCollection(user.collection(name));
     }
+    await _deleteUserProducts(user);
+    await _deleteScopeData(HouseholdScopeId.personal(userId));
+    await _deleteWhere(
+      'consumption_events',
+      'scopeId',
+      HouseholdScopeId.personal(userId),
+    );
 
     // Legacy/main individual wallet: keep the document, reset its balance.
     final principal = user.collection('wallets').doc('principal');
@@ -262,11 +272,18 @@ class OrbitResetService {
 
   Future<void> _resetSharedData(String walletId) async {
     final wallet = firestore.collection('wallets').doc(walletId);
+    final snapshot = await wallet.get();
+    final members = List<String>.from(
+      snapshot.data()?['memberIds'] as List? ?? const [],
+    );
+    final scopeId = HouseholdScopeId.shared(members);
     await _deleteCollection(wallet.collection('transactions'));
     await _deleteCollection(wallet.collection('budgets'));
     await _deleteCollection(wallet.collection('settlements'));
     await _deleteWhere('household_routines', 'scopeId', walletId);
     await _deleteWhere('household_tasks', 'scopeId', walletId);
+    await _deleteScopeData(scopeId);
+    await _deleteWhere('consumption_events', 'scopeId', scopeId);
 
     final goals = await firestore
         .collection('savingsGoals')
@@ -282,6 +299,22 @@ class OrbitResetService {
       'balance': 0,
       'updatedAt': DateTime.now().toIso8601String(),
     }, SetOptions(merge: true));
+  }
+
+  Future<void> _deleteUserProducts(
+    DocumentReference<Map<String, dynamic>> user,
+  ) async {
+    final products = await user.collection('products').get();
+    for (final product in products.docs) {
+      await _deleteCollection(product.reference.collection('priceHistory'));
+      await product.reference.delete();
+    }
+  }
+
+  Future<void> _deleteScopeData(String scopeId) async {
+    await _deleteWhere('household_list_items', 'scopeId', scopeId);
+    await _deleteWhere('household_list_purchase_events', 'scopeId', scopeId);
+    await _deleteWhere('household_lists', 'scopeId', scopeId);
   }
 
   Future<void> _deleteWhere(
