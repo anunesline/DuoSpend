@@ -235,6 +235,9 @@ class FinancialFactNormalizer {
       } else {
         commitment = FinancialKnownCommitment(
           kind: FinancialCommitmentKind.installment,
+          direction: transaction.type == 'income'
+              ? FinancialCommitmentDirection.inflow
+              : FinancialCommitmentDirection.outflow,
           amount: transaction.value,
           dueAt: transaction.date,
         );
@@ -242,6 +245,9 @@ class FinancialFactNormalizer {
     } else if (transaction.isFinanciallyPending) {
       commitment = FinancialKnownCommitment(
         kind: FinancialCommitmentKind.pending,
+        direction: transaction.type == 'income'
+            ? FinancialCommitmentDirection.inflow
+            : FinancialCommitmentDirection.outflow,
         amount: transaction.value,
         dueAt: transaction.date,
       );
@@ -303,6 +309,9 @@ class FinancialFactNormalizer {
           ),
           commitment: FinancialKnownCommitment(
             kind: FinancialCommitmentKind.recurring,
+            direction: transaction.type == 'income'
+                ? FinancialCommitmentDirection.inflow
+                : FinancialCommitmentDirection.outflow,
             amount: transaction.value,
             dueAt: occurrence,
           ),
@@ -355,6 +364,7 @@ class FinancialFactNormalizer {
       cashReason = FinancialFactSuppressionReason.openInvoiceHasNoCashEffect;
       commitment = FinancialKnownCommitment(
         kind: FinancialCommitmentKind.creditCardInvoice,
+        direction: FinancialCommitmentDirection.outflow,
         amount: invoice.total,
         dueAt: invoice.dueDate,
       );

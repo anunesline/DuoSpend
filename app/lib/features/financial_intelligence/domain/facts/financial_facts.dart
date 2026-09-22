@@ -34,6 +34,8 @@ enum FinancialCommitmentKind {
   creditCardInvoice,
 }
 
+enum FinancialCommitmentDirection { inflow, outflow }
+
 enum FinancialFactEligibility { eligible, conditionallyEligible, suppressed }
 
 /// Why a source deliberately has no fact in one of the financial dimensions.
@@ -138,11 +140,13 @@ class FinancialCashFact {
 class FinancialKnownCommitment {
   const FinancialKnownCommitment({
     required this.kind,
+    required this.direction,
     required this.amount,
     required this.dueAt,
   });
 
   final FinancialCommitmentKind kind;
+  final FinancialCommitmentDirection direction;
   final double amount;
   final DateTime dueAt;
 }

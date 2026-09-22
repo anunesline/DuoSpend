@@ -148,6 +148,7 @@ void main() {
     expect(fact.economic, isNull);
     expect(fact.cash, isNull);
     expect(fact.commitment?.kind, FinancialCommitmentKind.pending);
+    expect(fact.commitment?.direction, FinancialCommitmentDirection.outflow);
   });
 
   test('4. receita pending é entrada conhecida, não receita realizada', () {
@@ -157,6 +158,7 @@ void main() {
     expect(fact.economic, isNull);
     expect(fact.cash, isNull);
     expect(fact.commitment?.kind, FinancialCommitmentKind.pending);
+    expect(fact.commitment?.direction, FinancialCommitmentDirection.inflow);
   });
 
   test('5. compra no cartão é econômica e não reduz caixa', () {
@@ -182,6 +184,7 @@ void main() {
     expect(fact.economic, isNull);
     expect(fact.cash, isNull);
     expect(fact.commitment?.kind, FinancialCommitmentKind.creditCardInvoice);
+    expect(fact.commitment?.direction, FinancialCommitmentDirection.outflow);
     expect(fact.commitment?.dueAt, DateTime(2026, 8, 25));
     expect(fact.source.invoiceReferenceYear, 2026);
     expect(fact.source.invoiceReferenceMonth, 8);
@@ -365,6 +368,7 @@ void main() {
     ).facts.single;
     expect(fact.economic, isNull);
     expect(fact.commitment?.kind, FinancialCommitmentKind.installment);
+    expect(fact.commitment?.direction, FinancialCommitmentDirection.outflow);
   });
 
   test('parcelas-filhas evoluem de janeiro a março pelo estado recebido', () {
@@ -440,6 +444,7 @@ void main() {
     expect(fact.economic, isNull);
     expect(fact.cash, isNull);
     expect(fact.commitment?.kind, FinancialCommitmentKind.pending);
+    expect(fact.commitment?.direction, FinancialCommitmentDirection.outflow);
   });
 
   test('competência da parcela independe de liquidação de caixa futura', () {
@@ -533,6 +538,7 @@ void main() {
     );
     expect(virtual.economic, isNull);
     expect(virtual.commitment?.kind, FinancialCommitmentKind.recurring);
+    expect(virtual.commitment?.direction, FinancialCommitmentDirection.outflow);
     expect(virtual.commitment?.dueAt, DateTime(2026, 9, 1));
   });
 
