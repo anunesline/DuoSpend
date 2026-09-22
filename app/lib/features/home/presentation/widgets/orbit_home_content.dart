@@ -60,7 +60,7 @@ class OrbitHomeContent extends StatelessWidget {
             data: data,
             visible: valuesVisible,
             onDetails: onWallet,
-            onBudget: onBudget,
+            onSpending: onHistory,
             onCalendar: onCalendar,
           ),
           const SizedBox(height: OrbitHomeTokens.gap),
@@ -578,13 +578,13 @@ class _SharedSummary extends StatelessWidget {
   final OrbitHomeOverview data;
   final bool visible;
   final VoidCallback onDetails;
-  final VoidCallback onBudget;
+  final VoidCallback onSpending;
   final VoidCallback onCalendar;
   const _SharedSummary({
     required this.data,
     required this.visible,
     required this.onDetails,
-    required this.onBudget,
+    required this.onSpending,
     required this.onCalendar,
   });
   @override
@@ -609,7 +609,7 @@ class _SharedSummary extends StatelessWidget {
             : budget == null
             ? 'Despesas confirmadas'
             : '${budget.usagePercentage.round()}% do orçamento',
-        onTap: onBudget,
+        onTap: onSpending,
       ),
       _Metric(
         label: 'Comprometido',
