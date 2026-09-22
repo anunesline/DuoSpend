@@ -56,7 +56,11 @@ class _OrbitSettingsPageState extends State<OrbitSettingsPage> {
               return _card([
                 _themeTile('Escuro', ThemeMode.dark, current),
                 _themeTile('Claro', ThemeMode.light, current),
-                _themeTile('Usar configuração do sistema', ThemeMode.system, current),
+                _themeTile(
+                  'Usar configuração do sistema',
+                  ThemeMode.system,
+                  current,
+                ),
               ]);
             },
           ),
@@ -129,20 +133,58 @@ class _OrbitSettingsPageState extends State<OrbitSettingsPage> {
     final walletId = widget.sharedWalletId;
     if (walletId == null) return;
 
-    final confirmed = await _confirm(
-      title: 'Zerar dados compartilhados?',
-      body:
-          'MODO DE TESTE: todos os dados compartilhados deste Orbit a Dois serão apagados agora. Não será necessária a confirmação da outra pessoa. A conexão entre vocês será mantida.',
-      action: 'Zerar compartilhados',
-    );
-    if (!confirmed) return;
-
-    await _run(() async {
-      await _resetService.resetSharedDataForTesting(walletId);
-      _message('Dados compartilhados zerados.');
-    });
+    final pending = _pendingRequest;
+    if (pending == null) {
+      final confirmed = await _confirm(
+        title: 'Solicitar reset compartilhado?',
+        body:
+            'Os dados compartilhados só serão apagados após a confirmação dos dois membros. A conexão entre vocês será mantida.',
+        action: 'Solicitar confirmação',
+      );
+      if (!confirmed) return;
+      await _run(() async {
+        await _resetService.requestSharedReset(
+          walletId: walletId,
+          memberIds: widget.sharedMemberIds,
+        );
+        _message('Solicitação enviada. Aguarde a confirmação da outra pessoa.');
+      });
+    } else if (pending.hasConfirmed(_currentUserId)) {
+      final confirmed = await _confirm(
+        title: 'Cancelar solicitação?',
+        body: 'O reset compartilhado ainda não foi confirmado pelos dois.',
+        action: 'Cancelar solicitação',
+      );
+      if (!confirmed) return;
+      await _run(() async {
+        await _resetService.cancelSharedReset(
+          walletId: walletId,
+          requestId: pending.id,
+        );
+        _message('Solicitação de reset cancelada.');
+      });
+    } else {
+      final confirmed = await _confirm(
+        title: 'Confirmar reset compartilhado?',
+        body: 'Ao confirmar, os dados compartilhados serão apagados.',
+        action: 'Confirmar reset',
+      );
+      if (!confirmed) return;
+      await _run(() async {
+        final reset = await _resetService.confirmSharedReset(
+          walletId: walletId,
+          requestId: pending.id,
+          memberIds: widget.sharedMemberIds,
+        );
+        _message(
+          reset ? 'Dados compartilhados zerados.' : 'Confirmação registrada.',
+        );
+      });
+    }
     await _load();
   }
+
+  String get _currentUserId => _resetService.auth.currentUser?.uid ?? '';
 
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
@@ -186,20 +228,20 @@ class _OrbitSettingsPageState extends State<OrbitSettingsPage> {
   }
 
   Widget _sectionTitle(String text) => Text(
-        text,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: DuoColors.textSecondary,
-        ),
-      );
+    text,
+    style: const TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+      color: DuoColors.textSecondary,
+    ),
+  );
 
   Widget _card(List<Widget> children) => DecoratedBox(
-        decoration: BoxDecoration(
-          color: DuoColors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: DuoColors.divider),
-        ),
-        child: Column(children: children),
-      );
+    decoration: BoxDecoration(
+      color: DuoColors.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: DuoColors.divider),
+    ),
+    child: Column(children: children),
+  );
 }

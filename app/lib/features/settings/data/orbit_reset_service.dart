@@ -34,8 +34,8 @@ class OrbitResetService {
   final FirebaseAuth auth;
 
   OrbitResetService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-      : firestore = firestore ?? FirebaseFirestore.instance,
-        auth = auth ?? FirebaseAuth.instance;
+    : firestore = firestore ?? FirebaseFirestore.instance,
+      auth = auth ?? FirebaseAuth.instance;
 
   String get _userId {
     final id = auth.currentUser?.uid.trim();
@@ -96,8 +96,9 @@ class OrbitResetService {
         .where('createdByUserId', isEqualTo: userId)
         .get();
     for (final goal in goals.docs) {
-      final members =
-          List<String>.from(goal.data()['memberIds'] as List? ?? const []);
+      final members = List<String>.from(
+        goal.data()['memberIds'] as List? ?? const [],
+      );
       if (members.length > 1) continue;
       await _deleteCollection(goal.reference.collection('movements'));
       await goal.reference.delete();
@@ -111,8 +112,9 @@ class OrbitResetService {
   Future<void> resetSharedDataForTesting(String walletId) async {
     final userId = _userId;
     final wallet = await firestore.collection('wallets').doc(walletId).get();
-    final members =
-        List<String>.from(wallet.data()?['memberIds'] as List? ?? const []);
+    final members = List<String>.from(
+      wallet.data()?['memberIds'] as List? ?? const [],
+    );
 
     if (!wallet.exists || !members.contains(userId)) {
       throw StateError('Usuário não participa deste Orbit a Dois.');
@@ -122,6 +124,7 @@ class OrbitResetService {
   }
 
   Future<OrbitResetRequest?> getPendingSharedReset(String walletId) async {
+    await _sharedMemberIds(walletId);
     final snapshot = await firestore
         .collection('wallets')
         .doc(walletId)
@@ -138,8 +141,9 @@ class OrbitResetService {
     required List<String> memberIds,
   }) async {
     final userId = _userId;
-    if (memberIds.length < 2 || !memberIds.contains(userId)) {
-      throw StateError('O Orbit a Dois precisa estar conectado.');
+    final authorizedMembers = await _sharedMemberIds(walletId);
+    if (!_sameMembers(memberIds, authorizedMembers)) {
+      throw StateError('Os membros do Orbit a Dois não conferem.');
     }
     final existing = await getPendingSharedReset(walletId);
     if (existing != null) {
@@ -147,7 +151,7 @@ class OrbitResetService {
         await confirmSharedReset(
           walletId: walletId,
           requestId: existing.id,
-          memberIds: memberIds,
+          memberIds: authorizedMembers,
         );
       }
       return;
@@ -160,7 +164,7 @@ class OrbitResetService {
     await reference.set({
       'walletId': walletId,
       'requestedBy': userId,
-      'memberIds': memberIds,
+      'memberIds': authorizedMembers,
       'confirmedBy': [userId],
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
@@ -174,8 +178,9 @@ class OrbitResetService {
     required List<String> memberIds,
   }) async {
     final userId = _userId;
-    if (!memberIds.contains(userId)) {
-      throw StateError('Usuário não participa deste Orbit a Dois.');
+    final authorizedMembers = await _sharedMemberIds(walletId);
+    if (!_sameMembers(memberIds, authorizedMembers)) {
+      throw StateError('Os membros do Orbit a Dois não conferem.');
     }
 
     final request = firestore
@@ -184,16 +189,18 @@ class OrbitResetService {
         .collection('resetRequests')
         .doc(requestId);
 
-    final shouldReset = await firestore.runTransaction<bool>((transaction) async {
+    final shouldReset = await firestore.runTransaction<bool>((
+      transaction,
+    ) async {
       final snapshot = await transaction.get(request);
       if (!snapshot.exists || snapshot.data()?['status'] != 'pending') {
         return false;
       }
-      final confirmed =
-          List<String>.from(snapshot.data()?['confirmedBy'] as List? ?? const []);
+      final confirmed = List<String>.from(
+        snapshot.data()?['confirmedBy'] as List? ?? const [],
+      );
       if (!confirmed.contains(userId)) confirmed.add(userId);
-      final allConfirmed =
-          memberIds.isNotEmpty && memberIds.every(confirmed.contains);
+      final allConfirmed = authorizedMembers.every(confirmed.contains);
       transaction.update(request, {
         'confirmedBy': confirmed,
         'status': allConfirmed ? 'approved' : 'pending',
@@ -216,16 +223,42 @@ class OrbitResetService {
     required String walletId,
     required String requestId,
   }) async {
+    await _sharedMemberIds(walletId);
     await firestore
         .collection('wallets')
         .doc(walletId)
         .collection('resetRequests')
         .doc(requestId)
         .update({
-      'status': 'cancelled',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+          'status': 'cancelled',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
   }
+
+  Future<List<String>> _sharedMemberIds(String walletId) async {
+    final userId = _userId;
+    final wallet = await firestore.collection('wallets').doc(walletId).get();
+    final members =
+        List<String>.from(wallet.data()?['memberIds'] as List? ?? const [])
+            .map((id) => id.trim())
+            .where((id) => id.isNotEmpty)
+            .toSet()
+            .toList(growable: false);
+    if (!wallet.exists || members.length < 2 || !members.contains(userId)) {
+      throw StateError('Usuário não participa deste Orbit a Dois.');
+    }
+    return members;
+  }
+
+  bool _sameMembers(List<String> first, List<String> second) =>
+      first
+          .map((id) => id.trim())
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .containsAll(second) &&
+      second.toSet().containsAll(
+        first.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet(),
+      );
 
   Future<void> _resetSharedData(String walletId) async {
     final wallet = firestore.collection('wallets').doc(walletId);
@@ -256,8 +289,10 @@ class OrbitResetService {
     String field,
     String value,
   ) async {
-    final snapshot =
-        await firestore.collection(collection).where(field, isEqualTo: value).get();
+    final snapshot = await firestore
+        .collection(collection)
+        .where(field, isEqualTo: value)
+        .get();
     await _deleteDocuments(snapshot.docs);
   }
 
