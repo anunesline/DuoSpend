@@ -24,6 +24,36 @@ enum FinancialSignalDirection {
 
 enum FinancialSignalEvidence { initial, comparable, established, currentState }
 
+enum FinancialSignalMetric {
+  realizedExpense,
+  realizedIncome,
+  cashInflow,
+  cashOutflow,
+  cashNet,
+  categorySpending,
+  cardSpending,
+}
+
+class FinancialSignalPeriod {
+  const FinancialSignalPeriod({
+    required this.start,
+    required this.end,
+    required this.completeness,
+  });
+
+  factory FinancialSignalPeriod.fromComparable(
+    FinancialComparablePeriod period,
+  ) => FinancialSignalPeriod(
+    start: period.start,
+    end: period.end,
+    completeness: period.completeness,
+  );
+
+  final DateTime start;
+  final DateTime end;
+  final FinancialPeriodCompleteness completeness;
+}
+
 enum FinancialSignalReason {
   comparisonThresholdMet,
   budgetExceeded,
@@ -52,6 +82,7 @@ class FinancialSignal {
     required this.dedupeKey,
     required this.walletId,
     required this.walletScope,
+    required this.period,
     this.currentValue,
     this.comparisonValue,
     this.absoluteDifference,
@@ -60,6 +91,11 @@ class FinancialSignal {
     this.cardId,
     this.invoiceId,
     this.baseline,
+    this.sourceMetric,
+    this.comparisonPeriod,
+    this.commitmentRangeEnd,
+    this.dueDate,
+    this.referenceAt,
   });
   final FinancialSignalType type;
   final FinancialSignalDirection direction;
@@ -68,36 +104,44 @@ class FinancialSignal {
   final String dedupeKey;
   final String walletId;
   final FinancialWalletScope walletScope;
+  final FinancialSignalPeriod period;
   final double? currentValue,
       comparisonValue,
       absoluteDifference,
       percentageDifference,
       baseline;
   final String? category, cardId, invoiceId;
+  final FinancialSignalMetric? sourceMetric;
+  final FinancialSignalPeriod? comparisonPeriod;
+  final DateTime? commitmentRangeEnd, dueDate, referenceAt;
 }
 
 class FinancialSignalDetector {
   const FinancialSignalDetector();
   List<FinancialSignal> comparative({
     required FinancialSignalType type,
-    required String metric,
+    required FinancialSignalMetric metric,
     required FinancialComparisonValue comparison,
     required FinancialComparablePeriod period,
+    required FinancialComparablePeriod comparisonPeriod,
     required FinancialSignalPolicy policy,
     FinancialBaseline? baseline,
     String? category,
     String? cardId,
   }) {
+    _validateMetric(type, metric);
     if (comparison.availability != FinancialComparisonAvailability.available ||
         comparison.absoluteDifference == null ||
-        comparison.absoluteDifference == 0)
+        comparison.absoluteDifference == 0) {
       return const [];
+    }
     final absolute = comparison.absoluteDifference!.abs();
     final percentage = comparison.percentageDifference?.abs();
     if (absolute < policy.minimumAbsoluteDifference ||
         (percentage == null && !policy.allowBaseZeroByAbsolute) ||
-        (percentage != null && percentage < policy.minimumPercentage))
+        (percentage != null && percentage < policy.minimumPercentage)) {
       return const [];
+    }
     final direction = comparison.absoluteDifference! > 0
         ? FinancialSignalDirection.increase
         : FinancialSignalDirection.decrease;
@@ -107,7 +151,7 @@ class FinancialSignalDetector {
         ? FinancialSignalEvidence.comparable
         : FinancialSignalEvidence.established;
     final key =
-        '${type.name}|$metric|${period.walletId}|${period.start.toIso8601String()}|${category ?? ''}|${cardId ?? ''}';
+        '${type.name}|${_metricToken(metric)}|${period.walletId}|${period.start.toIso8601String()}|${category ?? ''}|${cardId ?? ''}';
     return [
       FinancialSignal(
         type: type,
@@ -117,6 +161,11 @@ class FinancialSignalDetector {
         dedupeKey: key,
         walletId: period.walletId,
         walletScope: period.walletScope,
+        period: FinancialSignalPeriod.fromComparable(period),
+        comparisonPeriod: FinancialSignalPeriod.fromComparable(
+          comparisonPeriod,
+        ),
+        sourceMetric: metric,
         currentValue: comparison.current,
         comparisonValue: comparison.comparison,
         absoluteDifference: comparison.absoluteDifference,
@@ -145,6 +194,7 @@ class FinancialSignalDetector {
             'budgetExceeded|${period.walletId}|${period.start.toIso8601String()}|$category',
         walletId: period.walletId,
         walletScope: period.walletScope,
+        period: FinancialSignalPeriod.fromComparable(period),
         currentValue: consumed,
         comparisonValue: limit,
         absoluteDifference: consumed - limit,
@@ -158,6 +208,7 @@ class FinancialSignalDetector {
     required double inflow,
     required double outflow,
     required int count,
+    required DateTime commitmentRangeEnd,
   }) {
     if (count <= 0) return const [];
     return [
@@ -170,6 +221,8 @@ class FinancialSignalDetector {
             'knownCommitment|${period.walletId}|${period.start.toIso8601String()}',
         walletId: period.walletId,
         walletScope: period.walletScope,
+        period: FinancialSignalPeriod.fromComparable(period),
+        commitmentRangeEnd: commitmentRangeEnd,
         currentValue: outflow - inflow,
         comparisonValue: outflow,
         absoluteDifference: inflow,
@@ -206,8 +259,40 @@ class FinancialSignalDetector {
             '${overdue ? 'invoiceOverdue' : 'invoiceDue'}|${period.walletId}|$invoiceId',
         walletId: period.walletId,
         walletScope: period.walletScope,
+        period: FinancialSignalPeriod.fromComparable(period),
         invoiceId: invoiceId,
+        dueDate: dueDate,
+        referenceAt: referenceAt,
       ),
     ];
   }
+
+  void _validateMetric(FinancialSignalType type, FinancialSignalMetric metric) {
+    final valid = switch (type) {
+      FinancialSignalType.spendingChanged =>
+        metric == FinancialSignalMetric.realizedExpense,
+      FinancialSignalType.incomeChanged =>
+        metric == FinancialSignalMetric.realizedIncome,
+      FinancialSignalType.cashFlowChanged =>
+        metric == FinancialSignalMetric.cashInflow ||
+            metric == FinancialSignalMetric.cashOutflow ||
+            metric == FinancialSignalMetric.cashNet,
+      FinancialSignalType.categorySpendingChanged =>
+        metric == FinancialSignalMetric.categorySpending,
+      FinancialSignalType.cardSpendingChanged =>
+        metric == FinancialSignalMetric.cardSpending,
+      _ => false,
+    };
+    if (!valid) throw ArgumentError.value(metric, 'metric');
+  }
+
+  String _metricToken(FinancialSignalMetric metric) => switch (metric) {
+    FinancialSignalMetric.realizedExpense => 'expense',
+    FinancialSignalMetric.realizedIncome => 'income',
+    FinancialSignalMetric.cashInflow => 'cashInflow',
+    FinancialSignalMetric.cashOutflow => 'cashOutflow',
+    FinancialSignalMetric.cashNet => 'cashNet',
+    FinancialSignalMetric.categorySpending => 'categorySpending',
+    FinancialSignalMetric.cardSpending => 'cardPurchase',
+  };
 }
