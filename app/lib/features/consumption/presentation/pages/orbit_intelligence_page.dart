@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/design_system/duo_card.dart';
-import '../../../../core/design_system/duo_colors.dart';
+import '../../../home/presentation/widgets/orbit_home_primitives.dart';
 import '../../data/repositories/firestore_consumption_event_repository.dart';
 import '../../domain/interactions/consumption_interaction.dart';
 import '../controllers/orbit_intelligence_controller.dart';
 import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../household_routines/data/repositories/firestore_household_list_repository.dart';
 import '../../../household_routines/domain/services/intelligent_shopping_list_service.dart';
+import '../../../orbit_intelligence/domain/orbit_intelligence_item.dart';
+import '../../../financial_intelligence/domain/signals/financial_signals.dart';
 
 class OrbitIntelligencePage extends StatefulWidget {
   const OrbitIntelligencePage({
@@ -56,53 +57,161 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: controller,
     builder: (_, _) => Scaffold(
-      backgroundColor: DuoColors.background,
-      appBar: AppBar(title: const Text('Orbit IA')),
-      body: controller.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : controller.errorMessage != null
-          ? Center(
-              child: ElevatedButton(
-                onPressed: controller.load,
-                child: const Text('Tentar novamente'),
-              ),
-            )
-          : _content(),
+      backgroundColor: OrbitHomeTokens.background,
+      appBar: AppBar(
+        toolbarHeight: 76,
+        titleSpacing: 12,
+        title: const Row(
+          children: [
+            OrbitHomeIcon(
+              icon: Icons.auto_awesome_rounded,
+              color: OrbitHomeTokens.purple,
+              size: 38,
+            ),
+            SizedBox(width: 12),
+            Text('IA'),
+          ],
+        ),
+        backgroundColor: OrbitHomeTokens.background,
+        foregroundColor: OrbitHomeTokens.text,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        titleTextStyle: const TextStyle(
+          color: OrbitHomeTokens.text,
+          fontSize: 30,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      body: DefaultTextStyle.merge(
+        style: const TextStyle(
+          color: OrbitHomeTokens.muted,
+          fontSize: 15,
+          height: 1.45,
+        ),
+        child: Stack(
+          children: [
+            const Positioned.fill(child: _CentralBackdrop()),
+            Positioned.fill(
+              child: controller.isLoading
+                  ? const _StatusCard(
+                      icon: Icons.auto_awesome_rounded,
+                      message: 'O Orbit está reunindo seus aprendizados.',
+                      loading: true,
+                    )
+                  : controller.errorMessage != null
+                  ? _StatusCard(
+                      icon: Icons.cloud_off_rounded,
+                      message: controller.errorMessage!,
+                      action: OutlinedButton(
+                        onPressed: controller.load,
+                        style: _buttonStyle(),
+                        child: const Text('Tentar novamente'),
+                      ),
+                    )
+                  : _content(),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 
   Widget _content() {
-    if (controller.entries.isEmpty ||
-        (controller.actions.isEmpty &&
-            controller.insights.isEmpty &&
-            controller.learned.isEmpty)) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: Text(
-            'O Orbit ainda está aprendendo seu ritmo.\nQuanto mais compras reais forem registradas, mais padrões poderão aparecer aqui.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
       children: [
-        if (controller.actions.isNotEmpty) ...[
-          const _Heading('O que precisa de mim?'),
-          ...controller.actions.map(_actionCard),
-        ],
-        if (controller.insights.isNotEmpty) ...[
-          const _Heading('O que o Orbit percebeu?'),
-          ...controller.insights.map(_insightCard),
-        ],
-        if (controller.learned.isNotEmpty) ...[
-          const _Heading('O que o Orbit aprendeu?'),
-          ...controller.learned.map(_learnedCard),
-        ],
+        const _Introduction(),
+        const _Heading('O que precisa de mim?'),
+        if (controller.centralActions.isEmpty)
+          const _InformativeCard(
+            icon: Icons.inventory_2_outlined,
+            color: OrbitHomeTokens.purple,
+            title: 'Nada por enquanto',
+            message:
+                'Quando o Orbit precisar confirmar algo com você — como se um produto acabou ou se uma compra foi fora do padrão — vai aparecer aqui.',
+          )
+        else
+          ...controller.centralActions.map(_centralCard),
+        const _Heading('O que o Orbit percebeu?'),
+        if (controller.centralInsights.isEmpty)
+          const _InformativeCard(
+            icon: Icons.visibility_outlined,
+            color: OrbitHomeTokens.green,
+            title: 'Ainda observando suas compras',
+            message:
+                'Conforme seu histórico crescer, o Orbit poderá perceber mudanças de preço, oportunidades e compras fora do seu padrão.',
+          )
+        else
+          ...controller.centralInsights.map(_centralCard),
+        const _Heading('O que o Orbit aprendeu?'),
+        if (controller.centralLearned.isEmpty)
+          const _InformativeCard(
+            icon: Icons.repeat_rounded,
+            color: OrbitHomeTokens.cyan,
+            title: 'Construindo sua memória de consumo',
+            message:
+                'Com compras recorrentes, o Orbit começa a entender seu ritmo, frequência e padrões de consumo.',
+          )
+        else
+          ...controller.centralLearned.map(_centralCard),
       ],
     );
+  }
+
+  Widget _centralCard(OrbitIntelligenceItem item) {
+    if (item.domain == OrbitIntelligenceDomain.financial) {
+      return _financialCard(item.source as FinancialSignal);
+    }
+    final entry = item.source as OrbitIntelligenceEntry;
+    return switch (item.kind) {
+      OrbitIntelligenceKind.action => _actionCard(entry),
+      OrbitIntelligenceKind.insight => _insightCard(entry),
+      OrbitIntelligenceKind.learned => _learnedCard(entry),
+    };
+  }
+
+  Widget _financialCard(FinancialSignal signal) => _CentralCard(
+    child: _CardLead(
+      icon: Icons.account_balance_wallet_outlined,
+      color: OrbitHomeTokens.green,
+      title: _financialTitle(signal),
+      child: Text(_financialDetail(signal)),
+    ),
+  );
+
+  String _financialTitle(FinancialSignal signal) => switch (signal.type) {
+    FinancialSignalType.spendingChanged => 'Seus gastos mudaram',
+    FinancialSignalType.incomeChanged => 'Sua renda mudou',
+    FinancialSignalType.cashFlowChanged => 'Seu fluxo de caixa mudou',
+    FinancialSignalType.categorySpendingChanged =>
+      'Gastos por categoria mudaram',
+    FinancialSignalType.cardSpendingChanged => 'Gastos no cartão mudaram',
+    FinancialSignalType.budgetExceeded => 'Orçamento excedido',
+    FinancialSignalType.knownCommitment => 'Compromissos conhecidos',
+    FinancialSignalType.invoiceDue => 'Fatura próxima',
+    FinancialSignalType.invoiceOverdue => 'Fatura vencida',
+  };
+
+  String _financialDetail(FinancialSignal signal) {
+    final value = signal.percentageDifference == null
+        ? signal.absoluteDifference == null
+              ? null
+              : orbitMoney(signal.absoluteDifference!.abs())
+        : '${(signal.percentageDifference!.abs() * 100).toStringAsFixed(1)}%';
+    final context =
+        signal.category ??
+        (signal.cardId == null ? null : 'Cartão ${signal.cardId}') ??
+        signal.invoiceId;
+    final parts = <String>[];
+    if (context != null) parts.add(context);
+    if (value != null) parts.add('Variação: $value');
+    if (signal.dueDate != null) {
+      parts.add(
+        'Vencimento: ${DateFormat('dd/MM/yyyy').format(signal.dueDate!)}',
+      );
+    }
+    if (parts.isEmpty) return 'Informação financeira observada pelo Orbit.';
+    return parts.join('\n');
   }
 
   Widget _actionCard(OrbitIntelligenceEntry entry) {
@@ -117,33 +226,72 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
       ConsumptionInteractionType.acknowledgePriceOpportunity =>
         'O Orbit percebeu uma oportunidade de preço.',
     };
-    return DuoCard(
+    final responses = interaction.allowedResponses.take(3).toList();
+    return _CentralCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            question,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
+          _CardLead(
+            icon: Icons.inventory_2_outlined,
+            color: OrbitHomeTokens.purple,
+            title: question,
+            child: Text(_detail(entry)),
           ),
-          const SizedBox(height: 8),
-          Text(_detail(entry)),
           if (interaction.type ==
-              ConsumptionInteractionType.offerAddToShoppingList)
-            OutlinedButton(
-              onPressed: () => _addToList(entry),
-              child: const Text('Adicionar à lista'),
+              ConsumptionInteractionType.offerAddToShoppingList) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => _addToList(entry),
+                style: _buttonStyle(primary: true),
+                child: const Text(
+                  'Adicionar à lista',
+                  textAlign: TextAlign.center,
+                ),
+              ),
             ),
-          if (interaction.allowedResponses.isNotEmpty)
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final response in interaction.allowedResponses.take(3))
-                  OutlinedButton(
-                    onPressed: () => controller.respond(interaction, response),
-                    child: Text(_responseLabel(response)),
-                  ),
-              ],
+          ],
+          if (responses.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+                final inline =
+                    constraints.maxWidth >= responses.length * 108 * scale;
+                final width = inline
+                    ? (constraints.maxWidth - (responses.length - 1) * 8) /
+                          responses.length
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final response in responses)
+                      SizedBox(
+                        width: width,
+                        child: OutlinedButton(
+                          onPressed: () =>
+                              controller.respond(interaction, response),
+                          style: _buttonStyle(
+                            primary:
+                                response ==
+                                    ConsumptionInteractionResponse.finished ||
+                                response ==
+                                    ConsumptionInteractionResponse
+                                        .confirmExceptionalPurchase,
+                          ),
+                          child: Text(
+                            _responseLabel(response),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
+          ],
         ],
       ),
     );
@@ -172,31 +320,48 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
     );
   }
 
-  Widget _insightCard(OrbitIntelligenceEntry entry) => DuoCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Você pagou menos que o habitual em ${entry.productName}',
-          style: const TextStyle(fontWeight: FontWeight.w700),
+  Widget _insightCard(OrbitIntelligenceEntry entry) {
+    final metrics = entry.result.metrics;
+    return _CentralCard(
+      child: _CardLead(
+        icon: Icons.shopping_cart_outlined,
+        color: OrbitHomeTokens.green,
+        title: 'Você pagou menos que o habitual em ${entry.productName}',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (metrics.lastUnitPrice != null)
+              Text(
+                orbitMoney(metrics.lastUnitPrice!),
+                style: const TextStyle(
+                  color: OrbitHomeTokens.green,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  height: 1.25,
+                ),
+              ),
+            Text(_detail(entry)),
+          ],
         ),
-        const SizedBox(height: 6),
-        Text(_detail(entry)),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 
-  Widget _learnedCard(OrbitIntelligenceEntry entry) => DuoCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          entry.productName,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 6),
-        Text(_detail(entry)),
-      ],
+  Widget _learnedCard(OrbitIntelligenceEntry entry) => _CentralCard(
+    child: _CardLead(
+      icon: Icons.repeat_rounded,
+      color: OrbitHomeTokens.cyan,
+      title: entry.productName,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_detail(entry)),
+          if (entry.result.metrics.lastPurchase != null)
+            Text(
+              'Última compra: ${DateFormat('dd/MM/yyyy').format(entry.result.metrics.lastPurchase!.purchasedAt)}',
+            ),
+        ],
+      ),
     ),
   );
 
@@ -209,7 +374,7 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
     if (days != null) parts.add('Compra normalmente a cada ~$days dias');
     if (price != null) parts.add('Preço habitual: ${currency.format(price)}');
     if (parts.isEmpty) return 'Baseado no histórico registrado pelo Orbit.';
-    return parts.join(' · ');
+    return parts.join('\n');
   }
 
   String _responseLabel(ConsumptionInteractionResponse response) =>
@@ -224,15 +389,212 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
       };
 }
 
+ButtonStyle _buttonStyle({bool primary = false}) => OutlinedButton.styleFrom(
+  foregroundColor: OrbitHomeTokens.text,
+  backgroundColor: primary ? const Color(0xFF782ADD) : Colors.transparent,
+  side: BorderSide(
+    color: primary ? OrbitHomeTokens.purple : const Color(0xFF77689E),
+  ),
+  minimumSize: const Size(48, 48),
+  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+  textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+);
+
+/// Decorative only: full-viewport gradients avoid a cropped network banner.
+class _CentralBackdrop extends StatelessWidget {
+  const _CentralBackdrop();
+  @override
+  Widget build(BuildContext context) => const IgnorePointer(
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment(1, -.85),
+          radius: 1.25,
+          colors: [Color(0xFF282039), OrbitHomeTokens.background],
+          stops: [0, 1],
+        ),
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              OrbitHomeTokens.background,
+              Color(0x00030B17),
+              Color(0x99030B17),
+              OrbitHomeTokens.background,
+            ],
+            stops: [0, .18, .6, 1],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Section-local explanation; never becomes a controller entry or an action.
+class _InformativeCard extends StatelessWidget {
+  const _InformativeCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.message,
+  });
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String message;
+  @override
+  Widget build(BuildContext context) => _CentralCard(
+    child: _CardLead(
+      icon: icon,
+      color: color,
+      title: title,
+      child: Text(message),
+    ),
+  );
+}
+
+class _Introduction extends StatelessWidget {
+  const _Introduction();
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.only(top: 4, bottom: 16),
+    child: Text(
+      'O Orbit aprende com sua rotina e seu dinheiro.',
+      style: TextStyle(
+        color: OrbitHomeTokens.text,
+        fontSize: 18,
+        height: 1.5,
+        fontWeight: FontWeight.w400,
+        letterSpacing: .15,
+      ),
+    ),
+  );
+}
+
 class _Heading extends StatelessWidget {
   const _Heading(this.text);
   final String text;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 12, bottom: 8),
-    child: Text(
-      text,
-      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+    padding: const EdgeInsets.only(top: 16, bottom: 12),
+    child: Semantics(
+      header: true,
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: OrbitHomeTokens.text,
+          fontSize: 21,
+          height: 1.25,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+  );
+}
+
+class _CentralCard extends StatelessWidget {
+  const _CentralCard({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: OrbitHomeSurface(
+      padding: const EdgeInsets.all(16),
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(
+          color: OrbitHomeTokens.muted,
+          fontSize: 15,
+          height: 1.45,
+        ),
+        child: child,
+      ),
+    ),
+  );
+}
+
+class _CardLead extends StatelessWidget {
+  const _CardLead({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.child,
+  });
+  final IconData icon;
+  final Color color;
+  final String title;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      ExcludeSemantics(
+        child: OrbitHomeIcon(icon: icon, color: color, size: 46),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: OrbitHomeTokens.text,
+                fontSize: 17,
+                height: 1.3,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            child,
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _StatusCard extends StatelessWidget {
+  const _StatusCard({
+    required this.icon,
+    required this.message,
+    this.loading = false,
+    this.action,
+  });
+  final IconData icon;
+  final String message;
+  final bool loading;
+  final Widget? action;
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Introduction(),
+        const SizedBox(height: 24),
+        _CentralCard(
+          child: Column(
+            children: [
+              OrbitHomeIcon(
+                icon: icon,
+                color: OrbitHomeTokens.purple,
+                size: 64,
+              ),
+              const SizedBox(height: 20),
+              Text(message, textAlign: TextAlign.center),
+              if (loading) ...[
+                const SizedBox(height: 20),
+                const CircularProgressIndicator(color: OrbitHomeTokens.purple),
+              ],
+              if (action != null) ...[const SizedBox(height: 20), action!],
+            ],
+          ),
+        ),
+      ],
     ),
   );
 }
