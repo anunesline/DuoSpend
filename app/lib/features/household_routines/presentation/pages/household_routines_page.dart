@@ -43,9 +43,7 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     required String scopeId,
     HouseholdTask? task,
   }) {
-    final members = <String>{
-      widget.currentUserId,
-    };
+    final members = <String>{widget.currentUserId};
     if (scope == HouseholdTaskScope.shared) {
       members.addAll(HouseholdScopeId.members(scopeId));
       members.addAll(
@@ -120,6 +118,7 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
       _isOpeningTaskEditor = false;
     }
   }
+
   Future<void> _createTask() => createTask();
   Future<void> _editTask(HouseholdTask task) => _openTaskEditor(task: task);
 
@@ -128,7 +127,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     final titleController = TextEditingController(text: task?.title ?? '');
     final notesController = TextEditingController(text: task?.notes ?? '');
     final repeatController = TextEditingController(
-      text: task?.repeatEveryDays != null &&
+      text:
+          task?.repeatEveryDays != null &&
               task!.repeatEveryDays != 1 &&
               task.repeatEveryDays != 7
           ? task.repeatEveryDays.toString()
@@ -141,8 +141,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
     var recurrence = _recurrenceFromRepeatEveryDays(task?.repeatEveryDays);
     var selectedWeekday = dueAt?.weekday ?? DateTime.now().weekday;
     var taskCategory = task?.taskCategory;
-    var isCustomCategory = taskCategory != null &&
-        !_taskCategoryOptions.contains(taskCategory);
+    var isCustomCategory =
+        taskCategory != null && !_taskCategoryOptions.contains(taskCategory);
     final categoryController = TextEditingController(
       text: isCustomCategory ? taskCategory : '',
     );
@@ -162,7 +162,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
             final now = DateTime.now();
             final selectedTime = dueAt ?? now;
             var daysAhead = weekday - now.weekday;
-            final isTodayAfterSelectedTime = daysAhead == 0 &&
+            final isTodayAfterSelectedTime =
+                daysAhead == 0 &&
                 (selectedTime.hour < now.hour ||
                     (selectedTime.hour == now.hour &&
                         selectedTime.minute <= now.minute));
@@ -219,7 +220,9 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                color: DuoColors.orbitAccent.withValues(alpha: .14),
+                                color: DuoColors.orbitAccent.withValues(
+                                  alpha: .14,
+                                ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(
@@ -240,7 +243,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                             ),
                             IconButton(
                               tooltip: 'Fechar',
-                              onPressed: () => Navigator.pop(dialogContext, false),
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, false),
                               icon: const Icon(Icons.close_rounded),
                             ),
                           ],
@@ -258,7 +262,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                               TextField(
                                 controller: titleController,
                                 autofocus: !isEditing,
-                                textCapitalization: TextCapitalization.sentences,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
                                 decoration: const InputDecoration(
                                   labelText: 'Tarefa',
                                   hintText: 'Ex.: Tirar o lixo',
@@ -268,7 +273,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                               TextField(
                                 controller: notesController,
                                 maxLines: 2,
-                                textCapitalization: TextCapitalization.sentences,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
                                 decoration: const InputDecoration(
                                   labelText: 'Descrição ou nota',
                                   hintText: 'Opcional',
@@ -281,34 +287,41 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                     _EditorSettingRow(
                                       icon: Icons.group_outlined,
                                       label: 'Contexto',
-                                      child: SegmentedButton<HouseholdTaskScope>(
-                                        showSelectedIcon: false,
-                                        style: const ButtonStyle(
-                                          visualDensity: VisualDensity.compact,
-                                        ),
-                                        segments: const [
-                                          ButtonSegment(
-                                            value: HouseholdTaskScope.personal,
-                                            label: Text('Pessoal'),
+                                      child:
+                                          SegmentedButton<HouseholdTaskScope>(
+                                            showSelectedIcon: false,
+                                            style: const ButtonStyle(
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                            ),
+                                            segments: const [
+                                              ButtonSegment(
+                                                value:
+                                                    HouseholdTaskScope.personal,
+                                                label: Text('Pessoal'),
+                                              ),
+                                              ButtonSegment(
+                                                value:
+                                                    HouseholdTaskScope.shared,
+                                                label: Text('Compartilhada'),
+                                              ),
+                                            ],
+                                            selected: {selectedScope},
+                                            onSelectionChanged: (selection) {
+                                              final scope = selection.first;
+                                              setDialogState(() {
+                                                selectedScope = scope;
+                                                selectedScopeId =
+                                                    scope ==
+                                                        HouseholdTaskScope
+                                                            .shared
+                                                    ? widget.sharedScopeId!
+                                                    : widget.scopeId;
+                                                assigneeId =
+                                                    widget.currentUserId;
+                                              });
+                                            },
                                           ),
-                                          ButtonSegment(
-                                            value: HouseholdTaskScope.shared,
-                                            label: Text('Compartilhada'),
-                                          ),
-                                        ],
-                                        selected: {selectedScope},
-                                        onSelectionChanged: (selection) {
-                                          final scope = selection.first;
-                                          setDialogState(() {
-                                            selectedScope = scope;
-                                            selectedScopeId = scope ==
-                                                    HouseholdTaskScope.shared
-                                                ? widget.sharedScopeId!
-                                                : widget.scopeId;
-                                            assigneeId = widget.currentUserId;
-                                          });
-                                        },
-                                      ),
                                     ),
                                   _EditorSettingRow(
                                     icon: Icons.schedule_rounded,
@@ -318,12 +331,17 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                         : _formatDueAt(dueAt!),
                                     onTap: pickDueAt,
                                     trailing: dueAt == null
-                                        ? const Icon(Icons.chevron_right_rounded)
+                                        ? const Icon(
+                                            Icons.chevron_right_rounded,
+                                          )
                                         : IconButton(
                                             tooltip: 'Remover horário',
-                                            onPressed: () =>
-                                                setDialogState(() => dueAt = null),
-                                            icon: const Icon(Icons.close_rounded),
+                                            onPressed: () => setDialogState(
+                                              () => dueAt = null,
+                                            ),
+                                            icon: const Icon(
+                                              Icons.close_rounded,
+                                            ),
                                           ),
                                   ),
                                   _EditorSettingRow(
@@ -357,7 +375,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                           if (value == null) return;
                                           setDialogState(() {
                                             recurrence = value;
-                                            if (value == _TaskRecurrence.weekly) {
+                                            if (value ==
+                                                _TaskRecurrence.weekly) {
                                               setWeeklyDueDate(selectedWeekday);
                                             }
                                           });
@@ -379,7 +398,9 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                             7,
                                             (index) => DropdownMenuItem(
                                               value: index + 1,
-                                              child: Text(_weekdayLabel(index + 1)),
+                                              child: Text(
+                                                _weekdayLabel(index + 1),
+                                              ),
                                             ),
                                           ),
                                           onChanged: (value) {
@@ -402,7 +423,9 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                         textAlign: TextAlign.right,
                                         onChanged: (_) {
                                           if (recurrenceError != null) {
-                                            setDialogState(() => recurrenceError = null);
+                                            setDialogState(
+                                              () => recurrenceError = null,
+                                            );
                                           }
                                         },
                                         decoration: InputDecoration(
@@ -434,20 +457,25 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                             child: Text('Não definido'),
                                           ),
                                           ..._taskCategoryOptions.map(
-                                            (category) => DropdownMenuItem<String?>(
-                                              value: category,
-                                              child: Text(category),
-                                            ),
+                                            (category) =>
+                                                DropdownMenuItem<String?>(
+                                                  value: category,
+                                                  child: Text(category),
+                                                ),
                                           ),
                                           const DropdownMenuItem<String?>(
                                             value: '__custom__',
                                             child: Text('Adicionar opção…'),
                                           ),
                                         ],
-                                        onChanged: (value) => setDialogState(() {
-                                          isCustomCategory = value == '__custom__';
-                                          taskCategory = isCustomCategory ? null : value;
-                                        }),
+                                        onChanged: (value) =>
+                                            setDialogState(() {
+                                              isCustomCategory =
+                                                  value == '__custom__';
+                                              taskCategory = isCustomCategory
+                                                  ? null
+                                                  : value;
+                                            }),
                                       ),
                                     ),
                                   ),
@@ -456,7 +484,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                       padding: const EdgeInsets.only(top: 8),
                                       child: TextField(
                                         controller: categoryController,
-                                        textCapitalization: TextCapitalization.sentences,
+                                        textCapitalization:
+                                            TextCapitalization.sentences,
                                         decoration: const InputDecoration(
                                           labelText: 'Nova classificação',
                                           hintText: 'Ex.: Estudos',
@@ -473,12 +502,26 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                         isExpanded: true,
                                         dropdownColor: DuoColors.orbitSurface,
                                         items: const [
-                                          DropdownMenuItem<int?>(value: null, child: Text('Sem lembrete')),
-                                          DropdownMenuItem<int?>(value: 15, child: Text('15 min antes')),
-                                          DropdownMenuItem<int?>(value: 30, child: Text('30 min antes')),
-                                          DropdownMenuItem<int?>(value: 60, child: Text('1 h antes')),
+                                          DropdownMenuItem<int?>(
+                                            value: null,
+                                            child: Text('Sem lembrete'),
+                                          ),
+                                          DropdownMenuItem<int?>(
+                                            value: 15,
+                                            child: Text('15 min antes'),
+                                          ),
+                                          DropdownMenuItem<int?>(
+                                            value: 30,
+                                            child: Text('30 min antes'),
+                                          ),
+                                          DropdownMenuItem<int?>(
+                                            value: 60,
+                                            child: Text('1 h antes'),
+                                          ),
                                         ],
-                                        onChanged: (value) => setDialogState(() => reminderMinutesBefore = value),
+                                        onChanged: (value) => setDialogState(
+                                          () => reminderMinutesBefore = value,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -496,19 +539,24 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                           dropdownColor: DuoColors.orbitSurface,
                                           items: memberIds
                                               .map(
-                                                (memberId) => DropdownMenuItem<String>(
+                                                (
+                                                  memberId,
+                                                ) => DropdownMenuItem<String>(
                                                   value: memberId,
                                                   child: Text(
-                                                    widget.controller.memberName(
-                                                      memberId,
-                                                      currentUserId: widget.currentUserId,
-                                                    ),
+                                                    widget.controller
+                                                        .memberName(
+                                                          memberId,
+                                                          currentUserId: widget
+                                                              .currentUserId,
+                                                        ),
                                                   ),
                                                 ),
                                               )
                                               .toList(growable: false),
-                                          onChanged: (value) =>
-                                              setDialogState(() => assigneeId = value),
+                                          onChanged: (value) => setDialogState(
+                                            () => assigneeId = value,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -523,7 +571,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                         child: Row(
                           children: [
                             TextButton(
-                              onPressed: () => Navigator.pop(dialogContext, false),
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, false),
                               child: const Text('Cancelar'),
                             ),
                             const Spacer(),
@@ -548,7 +597,9 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                                 foregroundColor: DuoColors.orbitBackground,
                               ),
                               icon: const Icon(Icons.check_rounded, size: 18),
-                              label: Text(isEditing ? 'Salvar' : 'Criar tarefa'),
+                              label: Text(
+                                isEditing ? 'Salvar' : 'Criar tarefa',
+                              ),
                             ),
                           ],
                         ),
@@ -615,7 +666,8 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
   }
 
   Future<void> _remindTask(HouseholdTask task) async {
-    final isPartnerTask = task.scope == HouseholdTaskScope.shared &&
+    final isPartnerTask =
+        task.scope == HouseholdTaskScope.shared &&
         task.assigneeId != null &&
         task.assigneeId != widget.currentUserId;
     DateTime? remindAt;
@@ -709,7 +761,9 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
             )
             .toList();
         final upcoming = pending
-            .where((task) => !todayTasks.contains(task) && !overdue.contains(task))
+            .where(
+              (task) => !todayTasks.contains(task) && !overdue.contains(task),
+            )
             .toList();
         final recentCompleted = completed
             .where((task) => !todayTasks.contains(task))
@@ -747,6 +801,36 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
                             await widget.controller.cancelTask(task.id);
                           }
                         : null,
+                    onDelete: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Excluir tarefa?'),
+                          content: const Text(
+                            'Esta tarefa será removida definitivamente.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, false),
+                              child: const Text('Cancelar'),
+                            ),
+                            FilledButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, true),
+                              child: const Text('Excluir'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        final deleted = await widget.controller.deleteTask(
+                          task: task,
+                          currentUserId: widget.currentUserId,
+                        );
+                        if (deleted && context.mounted) Navigator.pop(context);
+                      }
+                    },
                     onRemind: isPartnerTask
                         ? () async {
                             await _remindTask(task);
@@ -774,78 +858,75 @@ class HouseholdRoutinesPageState extends State<HouseholdRoutinesPage> {
         }
 
         Future<void> openSecondaryContent() => showModalBottomSheet<void>(
-              context: context,
-              backgroundColor: DuoColors.orbitSurface,
-              showDragHandle: true,
-              isScrollControlled: true,
-              builder: (sheetContext) => SafeArea(
-                top: false,
-                child: FractionallySizedBox(
-                  heightFactor: .72,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                    children: [
-                      const Text(
-                        'Organizar tarefas',
-                        style: TextStyle(
-                          color: DuoColors.orbitTextPrimary,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      if (upcoming.isNotEmpty) ...[
-                        const SizedBox(height: 18),
-                        const _SectionTitle('Próximas'),
-                        const SizedBox(height: 8),
-                        _OrbitListCard(
-                          children: [
-                            for (final task in upcoming) taskTile(task),
-                          ],
-                        ),
-                      ],
-                      if (recentCompleted.isNotEmpty) ...[
-                        const SizedBox(height: 18),
-                        const _SectionTitle('Concluídas recentemente'),
-                        const SizedBox(height: 8),
-                        _OrbitListCard(
-                          children: [
-                            for (final task in recentCompleted) taskTile(task),
-                          ],
-                        ),
-                      ],
-                      if (routines.isNotEmpty) ...[
-                        const SizedBox(height: 18),
-                        const _SectionTitle('Sequências'),
-                        const SizedBox(height: 8),
-                        _OrbitListCard(
-                          children: [
-                            for (final routine in routines)
-                              _RoutineTile(
-                                routine: routine,
-                                onEdit: () => _editRoutine(routine),
-                                onStart: () =>
-                                    widget.controller.startRoutine(
-                                  routine: routine,
-                                  scope: widget.scope,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                      if (upcoming.isEmpty &&
-                          recentCompleted.isEmpty &&
-                          routines.isEmpty) ...[
-                        const SizedBox(height: 18),
-                        const _CompactEmptyState(
-                          icon: Icons.inbox_outlined,
-                          message: 'Não há outras tarefas para organizar.',
-                        ),
-                      ],
-                    ],
+          context: context,
+          backgroundColor: DuoColors.orbitSurface,
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (sheetContext) => SafeArea(
+            top: false,
+            child: FractionallySizedBox(
+              heightFactor: .72,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                children: [
+                  const Text(
+                    'Organizar tarefas',
+                    style: TextStyle(
+                      color: DuoColors.orbitTextPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
+                  if (upcoming.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    const _SectionTitle('Próximas'),
+                    const SizedBox(height: 8),
+                    _OrbitListCard(
+                      children: [for (final task in upcoming) taskTile(task)],
+                    ),
+                  ],
+                  if (recentCompleted.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    const _SectionTitle('Concluídas recentemente'),
+                    const SizedBox(height: 8),
+                    _OrbitListCard(
+                      children: [
+                        for (final task in recentCompleted) taskTile(task),
+                      ],
+                    ),
+                  ],
+                  if (routines.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    const _SectionTitle('Sequências'),
+                    const SizedBox(height: 8),
+                    _OrbitListCard(
+                      children: [
+                        for (final routine in routines)
+                          _RoutineTile(
+                            routine: routine,
+                            onEdit: () => _editRoutine(routine),
+                            onStart: () => widget.controller.startRoutine(
+                              routine: routine,
+                              scope: widget.scope,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                  if (upcoming.isEmpty &&
+                      recentCompleted.isEmpty &&
+                      routines.isEmpty) ...[
+                    const SizedBox(height: 18),
+                    const _CompactEmptyState(
+                      icon: Icons.inbox_outlined,
+                      message: 'Não há outras tarefas para organizar.',
+                    ),
+                  ],
+                ],
               ),
-            );
+            ),
+          ),
+        );
 
         return RefreshIndicator(
           color: DuoColors.orbitAccent,
@@ -976,27 +1057,25 @@ class _EditorSettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: DuoColors.orbitSurface.withValues(alpha: .72),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: DuoColors.orbitBorder.withValues(alpha: .42),
-          ),
-        ),
-        child: Column(
-          children: [
-            for (var index = 0; index < children.length; index++) ...[
-              children[index],
-              if (index != children.length - 1)
-                Divider(
-                  height: 1,
-                  indent: 46,
-                  color: DuoColors.orbitBorder.withValues(alpha: .42),
-                ),
-            ],
-          ],
-        ),
-      );
+    decoration: BoxDecoration(
+      color: DuoColors.orbitSurface.withValues(alpha: .72),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .42)),
+    ),
+    child: Column(
+      children: [
+        for (var index = 0; index < children.length; index++) ...[
+          children[index],
+          if (index != children.length - 1)
+            Divider(
+              height: 1,
+              indent: 46,
+              color: DuoColors.orbitBorder.withValues(alpha: .42),
+            ),
+        ],
+      ],
+    ),
+  );
 }
 
 class _EditorSettingRow extends StatelessWidget {
@@ -1018,24 +1097,26 @@ class _EditorSettingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          child: Row(
-            children: [
-              Icon(icon, color: DuoColors.orbitTextSecondary, size: 18),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: DuoColors.orbitTextSecondary,
-                    fontSize: 12,
-                  ),
-                ),
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      child: Row(
+        children: [
+          Icon(icon, color: DuoColors.orbitTextSecondary, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: DuoColors.orbitTextSecondary,
+                fontSize: 12,
               ),
-              Flexible(
-                child: child ?? Text(
+            ),
+          ),
+          Flexible(
+            child:
+                child ??
+                Text(
                   value ?? '',
                   textAlign: TextAlign.right,
                   overflow: TextOverflow.ellipsis,
@@ -1045,15 +1126,12 @@ class _EditorSettingRow extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-              ),
-              if (trailing != null) ...[
-                const SizedBox(width: 4),
-                trailing!,
-              ],
-            ],
           ),
-        ),
-      );
+          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
+        ],
+      ),
+    ),
+  );
 }
 
 class _RoutineSummary extends StatelessWidget {
@@ -1128,9 +1206,7 @@ class _SummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: DuoColors.orbitBorder.withValues(alpha: .42),
-        ),
+        border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .42)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1193,9 +1269,7 @@ class _OrbitListCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: DuoColors.orbitBorder.withValues(alpha: .42),
-        ),
+        border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .42)),
       ),
       child: Column(
         children: [
@@ -1230,10 +1304,7 @@ class _MessageBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: .25)),
       ),
-      child: Text(
-        message,
-        style: TextStyle(color: color, fontSize: 11),
-      ),
+      child: Text(message, style: TextStyle(color: color, fontSize: 11)),
     );
   }
 }
@@ -1288,9 +1359,7 @@ class _EmptyRoutines extends StatelessWidget {
       decoration: BoxDecoration(
         color: DuoColors.orbitCardSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: DuoColors.orbitBorder.withValues(alpha: .5),
-        ),
+        border: Border.all(color: DuoColors.orbitBorder.withValues(alpha: .5)),
       ),
       child: Column(
         children: [
@@ -1349,12 +1418,7 @@ class _SectionTitle extends StatelessWidget {
   final Color? color;
   final VoidCallback? onTrailing;
 
-  const _SectionTitle(
-    this.title, {
-    this.trailing,
-    this.color,
-    this.onTrailing,
-  });
+  const _SectionTitle(this.title, {this.trailing, this.color, this.onTrailing});
 
   @override
   Widget build(BuildContext context) {
@@ -1417,7 +1481,9 @@ class _DaySectionTitle extends StatelessWidget {
       -1 => 'Ontem',
       _ => null,
     };
-    final heading = prefix == null ? _shortDate(day) : '$prefix • ${_shortDate(day)}';
+    final heading = prefix == null
+        ? _shortDate(day)
+        : '$prefix • ${_shortDate(day)}';
     return Row(
       children: [
         _DayNavigationButton(
@@ -1477,13 +1543,13 @@ class _DayNavigationButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkResponse(
-        onTap: onTap,
-        radius: 20,
-        child: Tooltip(
-          message: tooltip,
-          child: Icon(icon, color: DuoColors.orbitTextSecondary, size: 22),
-        ),
-      );
+    onTap: onTap,
+    radius: 20,
+    child: Tooltip(
+      message: tooltip,
+      child: Icon(icon, color: DuoColors.orbitTextSecondary, size: 22),
+    ),
+  );
 }
 
 class _RoutineTile extends StatelessWidget {
@@ -1502,8 +1568,8 @@ class _RoutineTile extends StatelessWidget {
     final repeatLabel = routine.repeatEveryDays == null
         ? null
         : routine.repeatEveryDays == 1
-            ? 'repete diariamente'
-            : 'repete a cada ${routine.repeatEveryDays} dias';
+        ? 'repete diariamente'
+        : 'repete a cada ${routine.repeatEveryDays} dias';
     final subtitleParts = <String>[
       routine.steps.length == 1 ? '1 etapa' : '${routine.steps.length} etapas',
     ];
@@ -1512,45 +1578,45 @@ class _RoutineTile extends StatelessWidget {
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
       leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: DuoColors.orbitAccent.withValues(alpha: .13),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.account_tree_rounded,
-            color: DuoColors.orbitAccent,
-            size: 22,
-          ),
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: DuoColors.orbitAccent.withValues(alpha: .13),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(
+          Icons.account_tree_rounded,
+          color: DuoColors.orbitAccent,
+          size: 22,
+        ),
       ),
       title: Text(routine.name),
       titleTextStyle: const TextStyle(
-          color: DuoColors.orbitTextPrimary,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
+        color: DuoColors.orbitTextPrimary,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
       ),
       subtitle: Text(
-          subtitleParts.join(' • '),
-          style: const TextStyle(
-            color: DuoColors.orbitTextSecondary,
-            fontSize: 10.5,
-          ),
+        subtitleParts.join(' • '),
+        style: const TextStyle(
+          color: DuoColors.orbitTextSecondary,
+          fontSize: 10.5,
+        ),
       ),
       trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              onPressed: onEdit,
-              tooltip: 'Editar rotina',
-              icon: const Icon(Icons.edit_outlined),
-            ),
-            IconButton(
-              onPressed: onStart,
-              tooltip: 'Iniciar rotina',
-              icon: const Icon(Icons.play_arrow_rounded),
-            ),
-          ],
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            onPressed: onEdit,
+            tooltip: 'Editar rotina',
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          IconButton(
+            onPressed: onStart,
+            tooltip: 'Iniciar rotina',
+            icon: const Icon(Icons.play_arrow_rounded),
+          ),
+        ],
       ),
     );
   }
@@ -1606,10 +1672,7 @@ class _TaskTile extends StatelessWidget {
     final assigneeId = task.assigneeId;
     if (task.scope == HouseholdTaskScope.shared && assigneeId != null) {
       subtitleParts.add(
-        controller.memberName(
-          assigneeId,
-          currentUserId: currentUserId,
-        ),
+        controller.memberName(assigneeId, currentUserId: currentUserId),
       );
     }
     if (task.dueAt != null) subtitleParts.add(_taskTime(task.dueAt!));
@@ -1679,7 +1742,8 @@ class _TaskTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: task.dueAt != null &&
+                        color:
+                            task.dueAt != null &&
                                 task.dueAt!.isBefore(DateTime.now()) &&
                                 task.isPending
                             ? DuoColors.error

@@ -66,6 +66,7 @@ HouseholdRoutine _routine({String scopeId = 'shared-home', int? repeatEveryDays,
 class _FakeTaskRepository implements HouseholdTaskRepository {
   final List<HouseholdTask> tasks = [];
   @override Future<void> saveTask(HouseholdTask task) async { final index = tasks.indexWhere((item) => item.id == task.id); if (index == -1) { tasks.add(task); } else { tasks[index] = task; } }
+  @override Future<void> deleteTask(String taskId) async { tasks.removeWhere((task) => task.id == taskId); }
   @override Future<HouseholdTask?> getTaskById(String taskId) async { for (final task in tasks) { if (task.id == taskId) return task; } return null; }
   @override Future<List<HouseholdTask>> getTasksByScope(String scopeId) async => tasks.where((task) => task.scopeId == scopeId).toList();
   @override Future<List<HouseholdTask>> getPendingTasksByScope(String scopeId) async => tasks.where((task) => task.scopeId == scopeId && task.isPending).toList();

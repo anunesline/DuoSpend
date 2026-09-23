@@ -650,6 +650,30 @@ class HouseholdRoutinesController extends ChangeNotifier {
     }
   }
 
+  Future<bool> deleteTask({
+    required HouseholdTask task,
+    required String currentUserId,
+  }) async {
+    final userId = currentUserId.trim();
+    final allowed = task.scope == HouseholdTaskScope.personal
+        ? task.scopeId == HouseholdScopeId.personal(userId)
+        : HouseholdScopeId.members(task.scopeId).contains(userId);
+    if (!allowed) {
+      _setError('Você não pode remover esta tarefa.');
+      return false;
+    }
+    try {
+      _clearMessages();
+      await taskRepository.deleteTask(task.id);
+      _tasks.removeWhere((item) => item.id == task.id);
+      notifyListeners();
+      return true;
+    } catch (_) {
+      _setError('Não foi possível remover a tarefa.');
+      return false;
+    }
+  }
+
   Future<bool> remindTask({
     required HouseholdTask task,
     required String currentUserId,

@@ -236,6 +236,11 @@ class _TaskRepository implements HouseholdTaskRepository {
   }
 
   @override
+  Future<void> deleteTask(String taskId) async {
+    tasks.removeWhere((task) => task.id == taskId);
+  }
+
+  @override
   Future<HouseholdTask?> getTaskById(String taskId) async {
     for (final task in tasks) {
       if (task.id == taskId) return task;

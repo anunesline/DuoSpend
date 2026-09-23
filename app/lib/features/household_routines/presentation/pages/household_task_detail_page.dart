@@ -10,6 +10,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
   final String currentUserId;
   final Future<void> Function()? onEdit;
   final Future<void> Function()? onCancel;
+  final Future<void> Function()? onDelete;
   final Future<void> Function()? onRemind;
 
   const HouseholdTaskDetailPage({
@@ -19,6 +20,7 @@ class HouseholdTaskDetailPage extends StatelessWidget {
     required this.currentUserId,
     this.onEdit,
     this.onCancel,
+    this.onDelete,
     this.onRemind,
   });
 
@@ -82,7 +84,12 @@ class HouseholdTaskDetailPage extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            _DetailHeader(task: task, onEdit: onEdit, onCancel: onCancel),
+            _DetailHeader(
+              task: task,
+              onEdit: onEdit,
+              onCancel: onCancel,
+              onDelete: onDelete,
+            ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(28, 9, 28, 24),
@@ -202,11 +209,13 @@ class _DetailHeader extends StatelessWidget {
   final HouseholdTask task;
   final Future<void> Function()? onEdit;
   final Future<void> Function()? onCancel;
+  final Future<void> Function()? onDelete;
 
   const _DetailHeader({
     required this.task,
     required this.onEdit,
     required this.onCancel,
+    required this.onDelete,
   });
 
   @override
@@ -223,7 +232,8 @@ class _DetailHeader extends StatelessWidget {
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19),
           ),
         ),
-        if (task.isPending && (onEdit != null || onCancel != null))
+        if ((task.isPending || task.isCompleted) &&
+            (onEdit != null || onCancel != null || onDelete != null))
           Positioned(
             top: 26,
             right: 28,
@@ -241,6 +251,7 @@ class _DetailHeader extends StatelessWidget {
                   await onCancel!();
                   if (context.mounted) Navigator.pop(context);
                 }
+                if (value == 'delete' && onDelete != null) await onDelete!();
               },
               itemBuilder: (context) => [
                 if (onEdit != null)
@@ -252,6 +263,11 @@ class _DetailHeader extends StatelessWidget {
                   const PopupMenuItem(
                     value: 'cancel',
                     child: Text('Cancelar tarefa'),
+                  ),
+                if (onDelete != null)
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Excluir tarefa'),
                   ),
               ],
             ),
