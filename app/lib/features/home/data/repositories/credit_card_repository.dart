@@ -238,11 +238,14 @@ class CreditCardRepository {
         .collectionGroup('transactions')
         .where('paymentSourceId', isEqualTo: card.id)
         .get();
-    final result = transactionDocs.docs
-        .where((doc) => ids.contains(doc.id))
-        .map((doc) => TransactionModel.fromMap({...doc.data(), 'id': doc.id}))
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final result =
+        transactionDocs.docs
+            .where((doc) => ids.contains(doc.id))
+            .map(
+              (doc) => TransactionModel.fromMap({...doc.data(), 'id': doc.id}),
+            )
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
     return List<TransactionModel>.unmodifiable(result);
   }
 
@@ -501,6 +504,58 @@ class CreditCardRepository {
     });
   }
 
+  Future<CreditCardInvoiceModel> initializeCurrentInvoice({
+    required String cardId,
+    required double amount,
+    DateTime? referenceDate,
+  }) async {
+    final userId = _requireUserId();
+    if (!amount.isFinite || amount < 0) {
+      throw ArgumentError.value(amount, 'amount', 'Informe um valor válido.');
+    }
+    final cardReference = _cardReference(cardId.trim());
+    final date = referenceDate ?? DateTime.now();
+    return _firestore.runTransaction((transaction) async {
+      final cardDocument = await transaction.get(cardReference);
+      if (!cardDocument.exists || cardDocument.data() == null) {
+        throw StateError('Cartão não encontrado.');
+      }
+      final cardData = Map<String, dynamic>.from(cardDocument.data()!)
+        ..['id'] = cardDocument.id;
+      final card = CreditCardModel.fromMap(cardData);
+      if (card.ownerMemberId != userId || !card.isActive) {
+        throw StateError('Cartão indisponível.');
+      }
+      final invoice = _buildInvoice(card: card, purchaseDate: date);
+      final invoiceReference = cardReference
+          .collection(_invoicesCollection)
+          .doc(invoice.id);
+      final existingDocument = await transaction.get(invoiceReference);
+      final existing =
+          existingDocument.exists && existingDocument.data() != null
+          ? CreditCardInvoiceModel.fromMap(existingDocument.data()!)
+          : invoice;
+      if (existing.isPaid) throw StateError('A fatura já foi paga.');
+      final delta = amount - existing.initialBalance;
+      final updated = _invoiceWithTotal(
+        existing,
+        existing.total + delta,
+        date,
+        initialBalance: amount,
+      );
+      transaction.set(
+        invoiceReference,
+        updated.toMap(),
+        SetOptions(merge: true),
+      );
+      if (delta != 0)
+        transaction.update(cardReference, {
+          'usedLimit': FieldValue.increment(delta),
+        });
+      return updated;
+    });
+  }
+
   Future<CreditCardInvoiceModel> payInvoice({
     required String cardId,
     required String invoiceId,
@@ -667,9 +722,7 @@ class CreditCardRepository {
     final ownerId = rawOwnerId.isEmpty && isLegacyMainWallet
         ? ownerMemberId
         : rawOwnerId;
-    final type = rawType.isEmpty && isLegacyMainWallet
-        ? 'individual'
-        : rawType;
+    final type = rawType.isEmpty && isLegacyMainWallet ? 'individual' : rawType;
 
     if (ownerId != ownerMemberId || type != 'individual') {
       throw StateError(
@@ -757,8 +810,9 @@ class CreditCardRepository {
   CreditCardInvoiceModel _invoiceWithTotal(
     CreditCardInvoiceModel invoice,
     double total,
-    DateTime updatedAt,
-  ) {
+    DateTime updatedAt, {
+    double? initialBalance,
+  }) {
     return CreditCardInvoiceModel(
       id: invoice.id,
       cardId: invoice.cardId,
@@ -768,6 +822,7 @@ class CreditCardRepository {
       closingDate: invoice.closingDate,
       dueDate: invoice.dueDate,
       total: total,
+      initialBalance: initialBalance ?? invoice.initialBalance,
       status: invoice.status,
       paidAt: invoice.paidAt,
       paymentWalletId: invoice.paymentWalletId,
@@ -790,6 +845,7 @@ class CreditCardRepository {
       closingDate: invoice.closingDate,
       dueDate: invoice.dueDate,
       total: invoice.total,
+      initialBalance: invoice.initialBalance,
       status: CreditCardInvoiceModel.paidStatus,
       paidAt: paymentDate,
       paymentWalletId: paymentWalletId,

@@ -806,6 +806,12 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
                           ],
                         ),
                 ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _setInitialInvoice,
+                icon: const Icon(Icons.edit_note_outlined, size: 19),
+                label: const Text('Informar valor atual da fatura'),
+              ),
               if (widget.onNewTransaction != null) ...[
                 const SizedBox(height: 16),
                 FilledButton.icon(
@@ -917,6 +923,57 @@ class _CreditCardDetailPageState extends State<_CreditCardDetailPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _setInitialInvoice() async {
+    final controller = TextEditingController();
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Valor atual da fatura'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            prefixText: r'R$ ',
+            hintText: '0,00',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = double.tryParse(
+                controller.text.trim().replaceAll('.', '').replaceAll(',', '.'),
+              );
+              if (value != null && value >= 0) Navigator.pop(context, value);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (amount == null || !mounted) return;
+    final invoice = await widget.controller.initializeCurrentInvoice(
+      card: _card,
+      amount: amount,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          invoice == null
+              ? (widget.controller.errorMessage ?? 'Não foi possível salvar.')
+              : 'Valor atual da fatura salvo.',
+        ),
+      ),
+    );
+    if (invoice != null) setState(() {});
   }
 }
 

@@ -62,7 +62,10 @@ class CreditCardController extends ChangeNotifier {
     required String cardId,
     required String invoiceId,
   }) {
-    return _repository.getInvoicePurchases(cardId: cardId, invoiceId: invoiceId);
+    return _repository.getInvoicePurchases(
+      cardId: cardId,
+      invoiceId: invoiceId,
+    );
   }
 
   Future<CreditCardModel?> updateCard(CreditCardModel card) async {
@@ -237,6 +240,30 @@ class CreditCardController extends ChangeNotifier {
       return false;
     } finally {
       _setProcessing(processingId, false);
+    }
+  }
+
+  Future<CreditCardInvoiceModel?> initializeCurrentInvoice({
+    required CreditCardModel card,
+    required double amount,
+  }) async {
+    final key = 'initial:${card.id}';
+    if (isProcessing(key)) return null;
+    _setProcessing(key, true);
+    try {
+      final invoice = await _repository.initializeCurrentInvoice(
+        cardId: card.id,
+        amount: amount,
+      );
+      await loadInvoices(card.id);
+      await loadCards();
+      _errorMessage = null;
+      return invoice;
+    } catch (error) {
+      _errorMessage = _formatError(error);
+      return null;
+    } finally {
+      _setProcessing(key, false);
     }
   }
 
