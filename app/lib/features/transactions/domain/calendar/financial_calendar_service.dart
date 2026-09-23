@@ -114,9 +114,9 @@ class FinancialCalendarService {
           transaction.recurringStartDate ?? transaction.date;
       final isOriginalOccurrence = normalizedOccurrence
           .isAtSameMomentAs(_dateOnly(firstOccurrenceDate));
-      final isProjected = normalizedOccurrence.isAfter(referenceDate) ||
-          (isOriginalOccurrence &&
-              transaction.isFinanciallyPending);
+      final isProjected = isOriginalOccurrence
+          ? transaction.isFinanciallyPending
+          : !normalizedOccurrence.isBefore(referenceDate);
 
       entries.add(
         FinancialCalendarEntry(

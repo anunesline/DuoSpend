@@ -109,6 +109,48 @@ void main() {
 
       expect(savedWallet.data()!['balance'], 900);
       expect(secondResult.isFinanciallySettled, isTrue);
+      final visibleTransactions = await repository.getTransactionsByWallet(
+        transactionWallet.id,
+        wallet: transactionWallet,
+      );
+      expect(visibleTransactions, hasLength(1));
+      expect(visibleTransactions.single.isFinanciallySettled, isTrue);
+    });
+
+    test('receita recebida aumenta saldo e permanece em Transações', () async {
+      final firestore = FakeFirebaseFirestore();
+      final financialWallet = wallet(id: 'financial-wallet');
+      final transactionWallet = wallet(id: 'transaction-wallet');
+      final obligation = transaction(
+        id: 'income-1',
+        walletId: transactionWallet.id,
+        type: 'income',
+      );
+      await firestore.collection('wallets').doc(financialWallet.id).set(
+        financialWallet.toMap(),
+      );
+      await firestore
+          .collection('users')
+          .doc(userId)
+          .collection('transactions')
+          .doc(obligation.id)
+          .set(obligation.toMap());
+      final repository = TransactionRepository(
+        firestore: firestore,
+        auth: signedInAuth(),
+      );
+      await repository.settleFinancialObligation(
+        obligation: obligation,
+        transactionWallet: transactionWallet,
+        financialWallet: financialWallet,
+      );
+      final savedWallet = await firestore.collection('wallets').doc(financialWallet.id).get();
+      final visibleTransactions = await repository.getTransactionsByWallet(
+        transactionWallet.id,
+        wallet: transactionWallet,
+      );
+      expect(savedWallet.data()!['balance'], 1100);
+      expect(visibleTransactions.single.isFinanciallySettled, isTrue);
     });
 
     test(
