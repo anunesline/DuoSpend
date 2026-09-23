@@ -87,6 +87,13 @@ void main() {
 
 class _ReminderRepository implements HouseholdTaskReminderRepository {
   @override
+  Future<void> scheduleTaskReminder({
+    required HouseholdTask task,
+    required DateTime remindAt,
+  }) async {}
+  @override
+  Future<void> cancelTaskReminder(String taskId) async {}
+  @override
   Future<HouseholdTaskReminder?> getLatestReminder({
     required String taskId,
     required String senderUserId,

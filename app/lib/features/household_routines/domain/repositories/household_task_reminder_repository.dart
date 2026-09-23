@@ -1,4 +1,5 @@
 import '../models/household_task_reminder.dart';
+import '../models/household_task.dart';
 
 class HouseholdReminderCooldownException implements Exception {
   final Duration retryAfter;
@@ -14,4 +15,11 @@ abstract class HouseholdTaskReminderRepository {
     required String senderUserId,
     required String recipientUserId,
   });
+
+  Future<void> scheduleTaskReminder({
+    required HouseholdTask task,
+    required DateTime remindAt,
+  }) async {}
+
+  Future<void> cancelTaskReminder(String taskId) async {}
 }

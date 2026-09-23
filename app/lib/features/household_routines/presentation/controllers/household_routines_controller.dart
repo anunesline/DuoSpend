@@ -433,6 +433,14 @@ class HouseholdRoutinesController extends ChangeNotifier {
     try {
       _clearMessages();
       await taskRepository.saveTask(task);
+      if (task.dueAt != null) {
+        try {
+          await reminderService.scheduleTaskReminder(
+            task: task,
+            remindAt: task.dueAt!,
+          );
+        } catch (_) {}
+      }
       _tasks.add(task);
       notifyListeners();
       return task;
@@ -497,6 +505,15 @@ class HouseholdRoutinesController extends ChangeNotifier {
     try {
       _clearMessages();
       await taskRepository.saveTask(updated);
+      try {
+        await reminderService.cancelTaskReminder(updated.id);
+        if (updated.dueAt != null) {
+          await reminderService.scheduleTaskReminder(
+            task: updated,
+            remindAt: updated.dueAt!,
+          );
+        }
+      } catch (_) {}
       _replaceTask(updated);
       _successMessage = 'Tarefa atualizada.';
       notifyListeners();
@@ -627,6 +644,13 @@ class HouseholdRoutinesController extends ChangeNotifier {
       final current = await taskRepository.getTaskById(taskId);
       if (current != null) _replaceTask(current);
       if (nextTask != null) _replaceTask(nextTask);
+      await reminderService.cancelTaskReminder(taskId);
+      if (nextTask?.dueAt != null) {
+        await reminderService.scheduleTaskReminder(
+          task: nextTask!,
+          remindAt: nextTask.dueAt!,
+        );
+      }
       notifyListeners();
       return nextTask;
     } catch (_) {
@@ -644,6 +668,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
       );
       final current = await taskRepository.getTaskById(taskId);
       if (current != null) _replaceTask(current);
+      await reminderService.cancelTaskReminder(taskId);
       notifyListeners();
     } catch (_) {
       _setError('Não foi possível cancelar a tarefa.');
@@ -665,6 +690,7 @@ class HouseholdRoutinesController extends ChangeNotifier {
     try {
       _clearMessages();
       await taskRepository.deleteTask(task.id);
+      await reminderService.cancelTaskReminder(task.id);
       _tasks.removeWhere((item) => item.id == task.id);
       notifyListeners();
       return true;

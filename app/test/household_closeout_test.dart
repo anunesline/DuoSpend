@@ -27,10 +27,10 @@ void main() {
   });
 
   test('escopo compartilhado expõe os membros normalizados', () {
-    expect(
-      HouseholdScopeId.members('household:matheus| aline|matheus'),
-      ['aline', 'matheus'],
-    );
+    expect(HouseholdScopeId.members('household:matheus| aline|matheus'), [
+      'aline',
+      'matheus',
+    ]);
     expect(HouseholdScopeId.members('user:aline'), ['aline']);
     expect(HouseholdScopeId.members('wallet:principal'), isEmpty);
   });
@@ -72,76 +72,82 @@ void main() {
     },
   );
 
-  test('concluir tarefa recorrente duas vezes nao duplica ocorrencia', () async {
-    final tasks = _TaskRepository();
-    final routines = _RoutineRepository();
-    final service = HouseholdRoutineService(
-      taskRepository: tasks,
-      routineRepository: routines,
-    );
-    final task = HouseholdTask(
-      id: 'trash-1',
-      scopeId: 'user:aline',
-      scope: HouseholdTaskScope.personal,
-      title: 'Tirar o lixo',
-      status: HouseholdTaskStatus.pending,
-      repeatEveryDays: 7,
-      createdAt: DateTime(2026, 8, 26),
-      updatedAt: DateTime(2026, 8, 26),
-    );
-    await tasks.saveTask(task);
+  test(
+    'concluir tarefa recorrente duas vezes nao duplica ocorrencia',
+    () async {
+      final tasks = _TaskRepository();
+      final routines = _RoutineRepository();
+      final service = HouseholdRoutineService(
+        taskRepository: tasks,
+        routineRepository: routines,
+      );
+      final task = HouseholdTask(
+        id: 'trash-1',
+        scopeId: 'user:aline',
+        scope: HouseholdTaskScope.personal,
+        title: 'Tirar o lixo',
+        status: HouseholdTaskStatus.pending,
+        repeatEveryDays: 7,
+        createdAt: DateTime(2026, 8, 26),
+        updatedAt: DateTime(2026, 8, 26),
+      );
+      await tasks.saveTask(task);
 
-    final first = await service.completeTask(
-      taskId: task.id,
-      completedAt: DateTime(2026, 8, 26, 22),
-    );
-    final second = await service.completeTask(
-      taskId: task.id,
-      completedAt: DateTime(2026, 8, 26, 22, 5),
-    );
+      final first = await service.completeTask(
+        taskId: task.id,
+        completedAt: DateTime(2026, 8, 26, 22),
+      );
+      final second = await service.completeTask(
+        taskId: task.id,
+        completedAt: DateTime(2026, 8, 26, 22, 5),
+      );
 
-    expect(first, isNotNull);
-    expect(second, isNull);
-    expect(
-      tasks.tasks.where((item) => item.previousTaskId == task.id),
-      hasLength(1),
-    );
-  });
+      expect(first, isNotNull);
+      expect(second, isNull);
+      expect(
+        tasks.tasks.where((item) => item.previousTaskId == task.id),
+        hasLength(1),
+      );
+    },
+  );
 
-  test('edicao de tarefa pendente permite limpar horario e recorrencia', () async {
-    final tasks = _TaskRepository();
-    final routines = _RoutineRepository();
-    final controller = _controller(tasks, routines);
-    final task = HouseholdTask(
-      id: 'trash-1',
-      scopeId: 'user:aline',
-      scope: HouseholdTaskScope.personal,
-      title: 'Tirar lixo',
-      notes: 'Antes de dormir',
-      assigneeId: 'aline',
-      status: HouseholdTaskStatus.pending,
-      dueAt: DateTime(2026, 8, 27, 22),
-      repeatEveryDays: 7,
-      createdAt: DateTime(2026, 8, 26),
-      updatedAt: DateTime(2026, 8, 26),
-    );
-    await tasks.saveTask(task);
+  test(
+    'edicao de tarefa pendente permite limpar horario e recorrencia',
+    () async {
+      final tasks = _TaskRepository();
+      final routines = _RoutineRepository();
+      final controller = _controller(tasks, routines);
+      final task = HouseholdTask(
+        id: 'trash-1',
+        scopeId: 'user:aline',
+        scope: HouseholdTaskScope.personal,
+        title: 'Tirar lixo',
+        notes: 'Antes de dormir',
+        assigneeId: 'aline',
+        status: HouseholdTaskStatus.pending,
+        dueAt: DateTime(2026, 8, 27, 22),
+        repeatEveryDays: 7,
+        createdAt: DateTime(2026, 8, 26),
+        updatedAt: DateTime(2026, 8, 26),
+      );
+      await tasks.saveTask(task);
 
-    final updated = await controller.updateTask(
-      task: task,
-      title: 'Tirar o lixo',
-      notes: '',
-      assigneeId: 'aline',
-      dueAt: null,
-      repeatEveryDays: null,
-    );
+      final updated = await controller.updateTask(
+        task: task,
+        title: 'Tirar o lixo',
+        notes: '',
+        assigneeId: 'aline',
+        dueAt: null,
+        repeatEveryDays: null,
+      );
 
-    expect(updated?.title, 'Tirar o lixo');
-    expect(updated?.notes, isNull);
-    expect(updated?.dueAt, isNull);
-    expect(updated?.repeatEveryDays, isNull);
-    expect((await tasks.getTaskById(task.id))?.dueAt, isNull);
-  });
+      expect(updated?.title, 'Tirar o lixo');
+      expect(updated?.notes, isNull);
+      expect(updated?.dueAt, isNull);
+      expect(updated?.repeatEveryDays, isNull);
+      expect((await tasks.getTaskById(task.id))?.dueAt, isNull);
+    },
+  );
 
   test('editar rotina preserva tarefas ja geradas e concluidas', () async {
     final tasks = _TaskRepository();
@@ -302,6 +308,13 @@ class _RoutineRepository implements HouseholdRoutineRepository {
 
 class _ReminderRepository implements HouseholdTaskReminderRepository {
   @override
+  Future<void> scheduleTaskReminder({
+    required HouseholdTask task,
+    required DateTime remindAt,
+  }) async {}
+  @override
+  Future<void> cancelTaskReminder(String taskId) async {}
+  @override
   Future<void> saveReminder(HouseholdTaskReminder reminder) async {}
 
   @override
@@ -309,8 +322,7 @@ class _ReminderRepository implements HouseholdTaskReminderRepository {
     required String taskId,
     required String senderUserId,
     required String recipientUserId,
-  }) async =>
-      null;
+  }) async => null;
 }
 
 class _ListRepository implements HouseholdListRepository {
@@ -321,7 +333,8 @@ class _ListRepository implements HouseholdListRepository {
   @override
   Future<HouseholdList?> getListById(String listId) async => null;
   @override
-  Future<List<HouseholdListItem>> getItemsByList(String listId) async => const [];
+  Future<List<HouseholdListItem>> getItemsByList(String listId) async =>
+      const [];
   @override
   Future<List<HouseholdList>> getListsByScope(
     String scopeId, {

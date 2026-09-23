@@ -41,6 +41,14 @@ class HouseholdTaskReminderService {
     this.uuid = const Uuid(),
   });
 
+  Future<void> scheduleTaskReminder({
+    required HouseholdTask task,
+    required DateTime remindAt,
+  }) => repository.scheduleTaskReminder(task: task, remindAt: remindAt);
+
+  Future<void> cancelTaskReminder(String taskId) =>
+      repository.cancelTaskReminder(taskId);
+
   Future<HouseholdTaskReminderResult> remindAssignee({
     required HouseholdTask task,
     required String senderUserId,
