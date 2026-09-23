@@ -7,6 +7,11 @@ enum FinancialCalendarEntryKind {
   creditCardInvoice,
 }
 
+/// Presentation state is derived from the financial state and the reference
+/// date. It never creates a third persisted financial status: an overdue entry
+/// is still pending until it is settled.
+enum FinancialCalendarEntryStatus { forecast, overdue, settled }
+
 class FinancialCalendarEntry {
   final String id;
   final String title;
@@ -15,6 +20,7 @@ class FinancialCalendarEntry {
   final DateTime date;
   final FinancialCalendarEntryKind kind;
   final bool isProjected;
+  final FinancialCalendarEntryStatus status;
   final TransactionModel? transaction;
   final String? referenceId;
 
@@ -26,6 +32,7 @@ class FinancialCalendarEntry {
     required this.date,
     required this.kind,
     required this.isProjected,
+    this.status = FinancialCalendarEntryStatus.forecast,
     this.transaction,
     this.referenceId,
   });
@@ -43,5 +50,10 @@ class FinancialCalendarEntry {
 
   double get signedValue => isIncome ? value : -value;
 
-  String get financialStatusLabel => isProjected ? 'Prevista' : 'Efetivada';
+  String get financialStatusLabel => switch (status) {
+    FinancialCalendarEntryStatus.forecast =>
+      isProjected ? 'Prevista' : 'Efetivada',
+    FinancialCalendarEntryStatus.overdue => 'Atrasada',
+    FinancialCalendarEntryStatus.settled => 'Efetivada',
+  };
 }

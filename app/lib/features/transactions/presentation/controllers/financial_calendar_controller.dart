@@ -238,7 +238,12 @@ class FinancialCalendarController extends ChangeNotifier {
       rangeEnd: monthEnd,
       now: today,
     );
-    monthEntries = monthProjection.entries;
+    monthEntries = List.unmodifiable(
+      monthProjection.entries.where(
+        (entry) =>
+            !entry.date.isBefore(monthStart) && !entry.date.isAfter(monthEnd),
+      ),
+    );
 
     if (monthEnd.isBefore(todayOnly)) {
       projection = FinancialProjection(

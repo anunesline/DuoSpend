@@ -43,14 +43,28 @@ class FinancialCalendarService {
         continue;
       }
 
-      if (_isInRange(transaction.date, rangeStart, rangeEnd)) {
-        entries.add(_entryFromTransaction(transaction));
+      if (_isInRange(transaction.date, rangeStart, rangeEnd) ||
+          _isOverduePendingOutsideRange(
+            isPending: transaction.isFinanciallyPending,
+            date: transaction.date,
+            rangeStart: rangeStart,
+            rangeEnd: rangeEnd,
+            referenceDate: referenceDate,
+          )) {
+        entries.add(_entryFromTransaction(transaction, referenceDate));
       }
     }
 
     for (final invoice in invoices) {
       if (invoice.isPaid ||
-          !_isInRange(invoice.dueDate, rangeStart, rangeEnd)) {
+          (!_isInRange(invoice.dueDate, rangeStart, rangeEnd) &&
+              !_isOverduePendingOutsideRange(
+                isPending: true,
+                date: invoice.dueDate,
+                rangeStart: rangeStart,
+                rangeEnd: rangeEnd,
+                referenceDate: referenceDate,
+              ))) {
         continue;
       }
 
@@ -63,6 +77,11 @@ class FinancialCalendarService {
           date: invoice.dueDate,
           kind: FinancialCalendarEntryKind.creditCardInvoice,
           isProjected: true,
+          status: _statusFor(
+            date: invoice.dueDate,
+            isProjected: true,
+            referenceDate: referenceDate,
+          ),
           referenceId: invoice.cardId,
         ),
       );
@@ -106,7 +125,10 @@ class FinancialCalendarService {
   }) {
     final occurrences = _recurringService.generateOccurrences(
       transaction: transaction,
-      rangeStart: rangeStart,
+      // Keep every unresolved occurrence available until materialization. The
+      // recurrence generator already caps the result, so an old open series
+      // cannot loop without bound.
+      rangeStart: transaction.recurringStartDate ?? transaction.date,
       rangeEnd: rangeEnd,
     );
 
@@ -124,9 +146,12 @@ class FinancialCalendarService {
       final isOriginalOccurrence = normalizedOccurrence.isAtSameMomentAs(
         _dateOnly(firstOccurrenceDate),
       );
+      // A materialized occurrence is the only proof that a generated
+      // recurrence has already affected the real balance. A missed occurrence
+      // remains pending and becomes overdue; time alone cannot remove it.
       final isProjected = isOriginalOccurrence
           ? transaction.isFinanciallyPending
-          : !normalizedOccurrence.isBefore(referenceDate);
+          : true;
 
       entries.add(
         FinancialCalendarEntry(
@@ -137,6 +162,11 @@ class FinancialCalendarService {
           date: occurrence,
           kind: FinancialCalendarEntryKind.recurring,
           isProjected: isProjected,
+          status: _statusFor(
+            date: occurrence,
+            isProjected: isProjected,
+            referenceDate: referenceDate,
+          ),
           transaction: transaction,
           referenceId: transaction.recurringId ?? transaction.id,
         ),
@@ -161,7 +191,10 @@ class FinancialCalendarService {
     return result;
   }
 
-  FinancialCalendarEntry _entryFromTransaction(TransactionModel transaction) {
+  FinancialCalendarEntry _entryFromTransaction(
+    TransactionModel transaction,
+    DateTime referenceDate,
+  ) {
     final isCreditCard = transaction.paymentMethod == 'creditCard';
     final isProjected = !isCreditCard && transaction.isFinanciallyPending;
 
@@ -175,6 +208,11 @@ class FinancialCalendarService {
           ? FinancialCalendarEntryKind.installment
           : FinancialCalendarEntryKind.transaction,
       isProjected: isProjected,
+      status: _statusFor(
+        date: transaction.date,
+        isProjected: isProjected,
+        referenceDate: referenceDate,
+      ),
       transaction: transaction,
       referenceId: transaction.installmentGroupId,
     );
@@ -184,6 +222,31 @@ class FinancialCalendarService {
     final normalizedDate = _dateOnly(date);
     return !normalizedDate.isBefore(_dateOnly(rangeStart)) &&
         !normalizedDate.isAfter(_dateOnly(rangeEnd));
+  }
+
+  bool _isOverduePendingOutsideRange({
+    required bool isPending,
+    required DateTime date,
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+    required DateTime referenceDate,
+  }) {
+    final normalizedDate = _dateOnly(date);
+    return isPending &&
+        !rangeEnd.isBefore(referenceDate) &&
+        normalizedDate.isBefore(_dateOnly(rangeStart)) &&
+        normalizedDate.isBefore(referenceDate);
+  }
+
+  FinancialCalendarEntryStatus _statusFor({
+    required DateTime date,
+    required bool isProjected,
+    required DateTime referenceDate,
+  }) {
+    if (!isProjected) return FinancialCalendarEntryStatus.settled;
+    return _dateOnly(date).isBefore(referenceDate)
+        ? FinancialCalendarEntryStatus.overdue
+        : FinancialCalendarEntryStatus.forecast;
   }
 
   DateTime _dateOnly(DateTime date) {

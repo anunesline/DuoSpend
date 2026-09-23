@@ -2,10 +2,10 @@ import 'package:app/features/home/data/models/credit_card_invoice_model.dart';
 import 'package:app/features/home/data/models/wallet_model.dart';
 import 'package:app/features/home/domain/services/orbit_home_overview_builder.dart';
 import 'package:app/features/transactions/data/models/transaction_model.dart';
+import 'package:app/features/transactions/domain/calendar/financial_calendar_entry.dart';
 import 'package:app/features/transactions/domain/calendar/financial_calendar_service.dart';
 import 'package:app/features/transactions/domain/calendar/financial_projection.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 
 void main() {
   const service = FinancialCalendarService();
@@ -72,9 +72,9 @@ void main() {
       transactions: transactions,
     );
     final current = projection(now: afterMidnight, transactions: transactions);
-    expect(yesterday.projectedBalance, 1350);
-    expect(current.projectedBalance, 1350);
-    expect(current.entries.where((entry) => entry.isProjected), hasLength(2));
+    expect(yesterday.projectedBalance, 1700);
+    expect(current.projectedBalance, 1700);
+    expect(current.entries.where((entry) => entry.isProjected), hasLength(4));
   });
 
   test('efetivada fica na lista mas não é efeito pendente adicional', () {
@@ -145,13 +145,135 @@ void main() {
     expect(result.projectedBalance, -500);
   });
 
-  test('pendência vencida não entra fora do horizonte atual', () {
+  test(
+    'pendências vencidas permanecem no saldo previsto e ficam atrasadas',
+    () {
+      for (final reference in [afterMidnight, DateTime(2026, 9, 24, 15)]) {
+        final result = projection(
+          now: reference,
+          transactions: [
+            movement('Tokita', 550, date: DateTime(2026, 9, 22)),
+            movement('Vale', 900, type: 'income', date: DateTime(2026, 9, 22)),
+          ],
+        );
+        expect(result.projectedExpense, 550);
+        expect(result.projectedIncome, 900);
+        expect(result.projectedBalance, 1350);
+        expect(
+          result.entries.map((entry) => entry.financialStatusLabel),
+          everyElement('Atrasada'),
+        );
+      }
+    },
+  );
+
+  test('pendência de hoje permanece prevista e efetivada não é somada', () {
     final result = projection(
       now: afterMidnight,
-      transactions: [movement('vencida', 200, date: DateTime(2026, 9, 22))],
+      transactions: [
+        movement('hoje-despesa', 550),
+        movement('hoje-receita', 900, type: 'income'),
+        movement('efetivada', 1500, status: 'settled'),
+      ],
     );
-    expect(result.projectedBalance, 1000);
+    expect(result.projectedExpense, 550);
+    expect(result.projectedIncome, 900);
+    expect(result.projectedBalance, 1350);
+    expect(
+      result.entries
+          .firstWhere((entry) => entry.id == 'hoje-despesa')
+          .financialStatusLabel,
+      'Prevista',
+    );
+    expect(
+      result.entries
+          .firstWhere((entry) => entry.id == 'efetivada')
+          .financialStatusLabel,
+      'Efetivada',
+    );
   });
+
+  test(
+    'recorrência vencida segue projetada até sua ocorrência ser materializada',
+    () {
+      final recurring = movement(
+        'Tokita',
+        550,
+        recurring: true,
+        date: DateTime(2026, 9, 22),
+      ).copyWith(recurringStartDate: DateTime(2026, 9, 22));
+      final result = projection(now: afterMidnight, transactions: [recurring]);
+      final entry = result.entries.single;
+      expect(entry.isProjected, isTrue);
+      expect(entry.financialStatusLabel, 'Atrasada');
+      expect(result.projectedBalance, 450);
+    },
+  );
+
+  test('recorrência vencida em setembro continua pendente em outubro', () {
+    final recurring = movement(
+      'Tokita',
+      550,
+      recurring: true,
+      date: DateTime(2026, 9, 22),
+    ).copyWith(recurringStartDate: DateTime(2026, 9, 22));
+    final result = service.buildProjection(
+      currentBalance: 1000,
+      transactions: [recurring],
+      invoices: const [],
+      rangeStart: DateTime(2026, 10, 1),
+      rangeEnd: DateTime(2026, 10, 31),
+      now: DateTime(2026, 10, 1, 15),
+    );
+    expect(
+      result.entries
+          .firstWhere((entry) => entry.date == DateTime(2026, 9, 22))
+          .financialStatusLabel,
+      'Atrasada',
+    );
+    expect(result.projectedExpense, 1100);
+  });
+
+  test(
+    'fatura vencida não paga permanece projetada sem duplicar compra no crédito',
+    () {
+      final invoice = CreditCardInvoiceModel(
+        id: 'fatura-vencida',
+        cardId: 'cartao',
+        ownerMemberId: 'one',
+        referenceYear: 2026,
+        referenceMonth: 9,
+        closingDate: DateTime(2026, 9, 20),
+        dueDate: DateTime(2026, 9, 22),
+        total: 1500,
+        createdAt: today,
+        updatedAt: today,
+      );
+      final result = projection(
+        now: afterMidnight,
+        transactions: [
+          movement(
+            'compra-no-cartao',
+            1500,
+            status: 'invoice',
+            paymentMethod: 'creditCard',
+          ),
+        ],
+        invoices: [invoice],
+      );
+      expect(result.projectedExpense, 1500);
+      expect(result.projectedBalance, -500);
+      expect(
+        result.entries
+            .firstWhere(
+              (entry) =>
+                  entry.kind == FinancialCalendarEntryKind.creditCardInvoice,
+            )
+            .financialStatusLabel,
+        'Atrasada',
+      );
+    },
+  );
 
   test('Home e Calendário preservam o mesmo resultado após recarga', () {
     final wallet = WalletModel(
@@ -163,8 +285,8 @@ void main() {
       memberIds: const ['one'],
     );
     final transactions = [
-      movement('Vale', 900, type: 'income', recurring: true),
-      movement('Tokita', 550, recurring: true),
+      movement('Vale', 900, type: 'income', date: DateTime(2026, 9, 22)),
+      movement('Tokita', 550, date: DateTime(2026, 9, 22)),
     ];
     final home = const OrbitHomeOverviewBuilder().build(
       wallet: wallet,
