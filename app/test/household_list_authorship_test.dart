@@ -3,6 +3,7 @@ import 'package:app/features/household_routines/data/repositories/firestore_hous
 import 'package:app/features/household_routines/data/repositories/firestore_household_task_repository.dart';
 import 'package:app/features/household_routines/domain/models/household_list.dart';
 import 'package:app/features/household_routines/domain/models/household_list_item.dart';
+import 'package:app/features/household_routines/domain/models/household_task.dart';
 import 'package:app/features/household_routines/domain/models/household_task_reminder.dart';
 import 'package:app/features/household_routines/domain/repositories/household_task_reminder_repository.dart';
 import 'package:app/features/household_routines/domain/services/household_routine_service.dart';
