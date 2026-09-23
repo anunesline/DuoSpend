@@ -20,8 +20,7 @@ class PurchaseController extends ChangeNotifier {
   final BuildPurchaseUseCase _buildPurchaseUseCase;
   final PurchaseFlowService _purchaseFlowService;
   final PurchaseItemMapper _purchaseItemMapper;
-  final ProcessConsumerIntelligenceUseCase?
-      _processConsumerIntelligenceUseCase;
+  final ProcessConsumerIntelligenceUseCase? _processConsumerIntelligenceUseCase;
 
   PurchaseController({
     BuildPurchaseUseCase? buildPurchaseUseCase,
@@ -29,27 +28,27 @@ class PurchaseController extends ChangeNotifier {
     PurchaseItemMapper? purchaseItemMapper,
     PurchaseRepository? purchaseRepository,
     ProcessConsumerIntelligenceUseCase? processConsumerIntelligenceUseCase,
-  })  : _buildPurchaseUseCase =
-            buildPurchaseUseCase ?? const BuildPurchaseUseCase(),
-        _purchaseItemMapper =
-            purchaseItemMapper ?? const PurchaseItemMapper(),
-        _processConsumerIntelligenceUseCase =
-            processConsumerIntelligenceUseCase,
-        _purchaseFlowService = purchaseFlowService ??
-            PurchaseFlowService(
-              completePurchaseUseCase: CompletePurchaseUseCase(
-                analyzePurchaseUseCase: const AnalyzePurchaseUseCase(),
-                savePurchaseUseCase: SavePurchaseToRepositoryUseCase(
-                  purchaseRepository:
-                      purchaseRepository ?? FirebasePurchaseRepository(),
-                ),
-              ),
-            );
+  }) : _buildPurchaseUseCase =
+           buildPurchaseUseCase ?? const BuildPurchaseUseCase(),
+       _purchaseItemMapper = purchaseItemMapper ?? const PurchaseItemMapper(),
+       _processConsumerIntelligenceUseCase = processConsumerIntelligenceUseCase,
+       _purchaseFlowService =
+           purchaseFlowService ??
+           PurchaseFlowService(
+             completePurchaseUseCase: CompletePurchaseUseCase(
+               analyzePurchaseUseCase: const AnalyzePurchaseUseCase(),
+               savePurchaseUseCase: SavePurchaseToRepositoryUseCase(
+                 purchaseRepository:
+                     purchaseRepository ?? FirebasePurchaseRepository(),
+               ),
+             ),
+           );
 
   String? _merchantId;
   String _merchantName = '';
   String _financialCategory = 'Sem categoria';
   String _financialSubcategory = 'Sem subcategoria';
+  double _discount = 0;
 
   final List<PurchaseItemModel> _items = [];
 
@@ -73,13 +72,19 @@ class PurchaseController extends ChangeNotifier {
   int get itemCount => _items.length;
 
   double get subtotal {
-    return _items.fold(
-      0,
-      (sum, item) => sum + item.totalPrice,
-    );
+    return _items.fold(0, (sum, item) => sum + item.totalPrice);
   }
 
-  double get discount => 0;
+  double get discount => _discount;
+
+  void setDiscount(double value) {
+    if (!value.isFinite || value < 0) {
+      throw ArgumentError.value(value, 'value', 'Desconto inválido');
+    }
+    _discount = value;
+    _clearError();
+    notifyListeners();
+  }
 
   double get total => subtotal - discount;
 
@@ -87,10 +92,7 @@ class PurchaseController extends ChangeNotifier {
     return !_isSaving && hasItems && total > 0;
   }
 
-  void setMerchant({
-    String? merchantId,
-    required String merchantName,
-  }) {
+  void setMerchant({String? merchantId, required String merchantName}) {
     _merchantId = merchantId;
     _merchantName = merchantName.trim();
 
@@ -102,8 +104,9 @@ class PurchaseController extends ChangeNotifier {
     required String category,
     required String subcategory,
   }) {
-    _financialCategory =
-        category.trim().isEmpty ? 'Sem categoria' : category.trim();
+    _financialCategory = category.trim().isEmpty
+        ? 'Sem categoria'
+        : category.trim();
 
     _financialSubcategory = subcategory.trim().isEmpty
         ? 'Sem subcategoria'
@@ -133,9 +136,7 @@ class PurchaseController extends ChangeNotifier {
     required String originalItemId,
     required PurchaseItemModel updatedItem,
   }) {
-    final index = _items.indexWhere(
-      (item) => item.id == originalItemId,
-    );
+    final index = _items.indexWhere((item) => item.id == originalItemId);
 
     if (index == -1) {
       return;
@@ -151,22 +152,16 @@ class PurchaseController extends ChangeNotifier {
     required String originalItemId,
     required TransactionItemModel updatedItem,
   }) {
-    final index = _items.indexWhere(
-      (item) => item.id == originalItemId,
-    );
+    final index = _items.indexWhere((item) => item.id == originalItemId);
 
     if (index == -1) {
       return;
     }
 
     final currentItem = _items[index];
-    final mappedItem = _purchaseItemMapper.fromTransactionItem(
-      updatedItem,
-    );
+    final mappedItem = _purchaseItemMapper.fromTransactionItem(updatedItem);
 
-    _items[index] = mappedItem.copyWith(
-      consumptions: currentItem.consumptions,
-    );
+    _items[index] = mappedItem.copyWith(consumptions: currentItem.consumptions);
 
     _clearError();
     notifyListeners();
@@ -180,8 +175,7 @@ class PurchaseController extends ChangeNotifier {
     final normalizedCurrentMemberId = currentMemberId.trim();
     final normalizedPartnerMemberId = partnerMemberId?.trim();
 
-    if (normalizedCurrentMemberId.isEmpty ||
-        item.consumptions.isEmpty) {
+    if (normalizedCurrentMemberId.isEmpty || item.consumptions.isEmpty) {
       return null;
     }
 
@@ -190,8 +184,7 @@ class PurchaseController extends ChangeNotifier {
         .where((consumerId) => consumerId.isNotEmpty)
         .toSet();
 
-    final consumedByCurrent =
-        consumerIds.contains(normalizedCurrentMemberId);
+    final consumedByCurrent = consumerIds.contains(normalizedCurrentMemberId);
 
     final consumedByPartner =
         normalizedPartnerMemberId != null &&
@@ -219,9 +212,7 @@ class PurchaseController extends ChangeNotifier {
     required String selection,
     String? partnerMemberId,
   }) {
-    final index = _items.indexWhere(
-      (item) => item.id == itemId,
-    );
+    final index = _items.indexWhere((item) => item.id == itemId);
 
     if (index == -1) {
       return;
@@ -231,8 +222,7 @@ class PurchaseController extends ChangeNotifier {
     final normalizedPartnerMemberId = partnerMemberId?.trim();
 
     if (normalizedCurrentMemberId.isEmpty) {
-      _errorMessage =
-          'Não foi possível identificar o usuário atual.';
+      _errorMessage = 'Não foi possível identificar o usuário atual.';
       notifyListeners();
       return;
     }
@@ -242,10 +232,7 @@ class PurchaseController extends ChangeNotifier {
     switch (selection) {
       case 'me':
         consumptions.add(
-          ItemConsumption(
-            consumerId: normalizedCurrentMemberId,
-            percentage: 1,
-          ),
+          ItemConsumption(consumerId: normalizedCurrentMemberId, percentage: 1),
         );
         break;
       case 'partner':
@@ -258,10 +245,7 @@ class PurchaseController extends ChangeNotifier {
         }
 
         consumptions.add(
-          ItemConsumption(
-            consumerId: normalizedPartnerMemberId,
-            percentage: 1,
-          ),
+          ItemConsumption(consumerId: normalizedPartnerMemberId, percentage: 1),
         );
         break;
       case 'both':
@@ -302,9 +286,7 @@ class PurchaseController extends ChangeNotifier {
   }
 
   void removeItem(String itemId) {
-    _items.removeWhere(
-      (item) => item.id == itemId,
-    );
+    _items.removeWhere((item) => item.id == itemId);
 
     _clearError();
     notifyListeners();
@@ -318,6 +300,7 @@ class PurchaseController extends ChangeNotifier {
   }
 
   void clearPurchase() {
+    _discount = 0;
     _merchantId = null;
     _merchantName = '';
     _financialCategory = 'Sem categoria';
@@ -332,9 +315,7 @@ class PurchaseController extends ChangeNotifier {
     notifyListeners();
   }
 
-  PurchaseModel buildPurchase(
-    CreatePurchaseCommand command,
-  ) {
+  PurchaseModel buildPurchase(CreatePurchaseCommand command) {
     command.validate();
 
     final purchase = _buildPurchaseUseCase(
@@ -363,9 +344,7 @@ class PurchaseController extends ChangeNotifier {
     return runSaving(() async {
       final purchase = buildPurchase(command);
 
-      final result = await _purchaseFlowService.completePurchase(
-        purchase,
-      );
+      final result = await _purchaseFlowService.completePurchase(purchase);
 
       await _processConsumerIntelligence(
         command: command,
@@ -398,10 +377,7 @@ class PurchaseController extends ChangeNotifier {
           continue;
         }
 
-        final consumerItems = itemsByConsumer.putIfAbsent(
-          consumerId,
-          () => [],
-        );
+        final consumerItems = itemsByConsumer.putIfAbsent(consumerId, () => []);
 
         if (!consumerItems.any((savedItem) => savedItem.id == item.id)) {
           consumerItems.add(item);
@@ -451,9 +427,7 @@ class PurchaseController extends ChangeNotifier {
     );
   }
 
-  Future<T?> runSaving<T>(
-    Future<T> Function() action,
-  ) async {
+  Future<T?> runSaving<T>(Future<T> Function() action) async {
     if (_isSaving) {
       return null;
     }

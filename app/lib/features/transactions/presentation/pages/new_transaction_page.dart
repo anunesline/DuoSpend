@@ -12,6 +12,7 @@ import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../../shared/knowledge/taxonomy/duo_taxonomy.dart';
 import '../../../../shared/knowledge/taxonomy/taxonomy_item.dart';
 import '../../../receipt_scanner/application/receipt_transaction_item_mapper.dart';
+import '../../../receipt_scanner/application/receipt_product_identity_resolver.dart';
 import '../../../receipt_scanner/domain/models/receipt_transaction_draft.dart';
 import '../../../receipt_scanner/presentation/pages/receipt_scanner_page.dart';
 import '../../../consumers/presentation/controllers/consumer_controller.dart';
@@ -146,8 +147,10 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       (total, item) => total + item.totalPrice,
     );
     final canLoadItems =
-        draft.amount == null || (itemsTotal - draft.amount!).abs() < 0.01;
+        draft.amount == null ||
+        (itemsTotal - (draft.discount ?? 0) - draft.amount!).abs() < 0.01;
     if (!canLoadItems) return;
+    purchaseController.setDiscount(draft.discount ?? 0);
     for (final item in items) {
       purchaseController.addTransactionItem(item);
       transactionController.addItem(item);
@@ -629,6 +632,37 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     _syncValueWithPurchaseTotal();
   }
 
+  /// Resolve somente itens confirmados na revisão OCR. A identidade é a do
+  /// produto específico; categoria financeira nunca participa do vínculo.
+  Future<void> _resolveReceiptProducts(String userId) async {
+    final resolver = ReceiptProductIdentityResolver(widget.productRepository);
+    for (final item in List<PurchaseItemModel>.of(purchaseController.items)) {
+      if (item.productId?.trim().isNotEmpty == true) {
+        if (widget.productRepository.findById(item.productId!) == null) {
+          throw StateError('Produto selecionado não está mais disponível.');
+        }
+        continue;
+      }
+      final product = await resolver.resolveConfirmedItem(
+        userId: userId,
+        item: item,
+      );
+      if (product == null) continue;
+      final updated = purchaseController.toTransactionItem(
+        item: item.copyWith(productId: product.id),
+        transactionId: item.purchaseId,
+      );
+      purchaseController.updateTransactionItem(
+        originalItemId: item.id,
+        updatedItem: updated,
+      );
+      transactionController.updateItem(
+        originalItemId: item.id,
+        updatedItem: updated,
+      );
+    }
+  }
+
   void _syncValueWithPurchaseTotal() => valueController.text =
       purchaseController.total.toStringAsFixed(2).replaceAll('.', ',');
   Future<String?> _resolveConsumerId(String walletId) async {
@@ -734,6 +768,9 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
     }
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     try {
+      if (widget.receiptDraft != null) {
+        await _resolveReceiptProducts(user.uid);
+      }
       final consumerId = await _resolveConsumerId(transactionWallet.id);
       PurchaseModel? completedPurchase;
       if (purchaseController.hasItems) {
@@ -743,7 +780,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
             userId: user.uid,
             walletId: transactionWallet.id,
             consumerId: consumerId,
-            purchaseDate: DateTime.now(),
+            purchaseDate: transactionDate,
           ),
         );
         if (purchaseController.errorMessage != null) {
@@ -811,6 +848,8 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
       }
       if (!mounted) return;
       Navigator.pop(context, true);
+    } on StateError catch (error) {
+      _showMessage(error.message);
     } catch (_) {
       _showMessage(
         transactionController.errorMessage ??
@@ -829,9 +868,24 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   }
 
   Future<void> _openReceiptScanner() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        await widget.productRepository.initialize(userId: user.uid);
+      } catch (_) {
+        _showMessage(
+          'Não foi possível carregar os produtos para a conferência.',
+        );
+        return;
+      }
+    }
+    if (!mounted) return;
     final draft = await Navigator.push<ReceiptTransactionDraft>(
       context,
-      MaterialPageRoute(builder: (_) => const ReceiptScannerPage()),
+      MaterialPageRoute(
+        builder: (_) =>
+            ReceiptScannerPage(productRepository: widget.productRepository),
+      ),
     );
     if (!mounted || draft == null) return;
     await Navigator.pushReplacement(

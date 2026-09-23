@@ -74,4 +74,48 @@ PIX
     expect(corrected.totalAmount, 10);
     expect(corrected.hasTotalDivergence, isFalse);
   });
+
+  test('cupom sintético com peso, unidades, desconto e linhas fiscais', () {
+    final result = parser.parse(r'''
+MERCADO EXEMPLO
+CNPJ 00.000.000/0001-00
+EMISSAO 18/09/2026 14:20
+ARROZ BURITI 5KG 2 UN X 12,50 25,00
+BANANA PRATA (Código: 834) 0,750 KG X 8,00 6,00
+TRIBUTOS APROXIMADOS R$ 1,00
+SUBTOTAL R$ 31,00
+DESCONTO R$ 1,00
+VALOR A PAGAR R$ 30,00
+PIX
+''');
+    expect(result.merchant, 'MERCADO EXEMPLO');
+    expect(result.date, DateTime(2026, 9, 18));
+    expect(result.items, hasLength(2));
+    expect(result.items.first.quantity, 2);
+    expect(result.items.first.unit, 'UN');
+    expect(result.items.last.description, 'BANANA PRATA');
+    expect(result.items.last.originalDescription, contains('Código: 834'));
+    expect(result.items.last.quantity, .75);
+    expect(result.items.last.unit, 'KG');
+    expect(result.subtotal, 31);
+    expect(result.discount, 1);
+    expect(result.totalAmount, 30);
+    expect(result.hasTotalDivergence, isFalse);
+  });
+
+  test('linhas adjacentes e campo ausente permanecem revisáveis', () {
+    final result = parser.parse('''
+LOJA EXEMPLO
+LEITE INTEGRAL
+2 UN X 4,50 9,00
+QUEIJO 7,90
+TOTAL R\$ 16,90
+''');
+    expect(result.items, hasLength(2));
+    expect(result.items.first.quantity, 2);
+    expect(result.items.first.unitPrice, 4.5);
+    expect(result.items.last.quantity, isNull);
+    expect(result.items.last.unit, isNull);
+    expect(result.date, isNull);
+  });
 }

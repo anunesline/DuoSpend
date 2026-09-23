@@ -5,6 +5,8 @@ class ReceiptScanResult {
   final String? merchant;
   final DateTime? date;
   final double? totalAmount;
+  final double? subtotal;
+  final double? discount;
   final String? paymentMethodSuggestion;
   final List<ReceiptScanItem> items;
 
@@ -13,6 +15,8 @@ class ReceiptScanResult {
     this.merchant,
     this.date,
     this.totalAmount,
+    this.subtotal,
+    this.discount,
     this.paymentMethodSuggestion,
     this.items = const [],
   });
@@ -22,10 +26,7 @@ class ReceiptScanResult {
       return null;
     }
 
-    return items.fold<double>(
-      0,
-      (total, item) => total + item.totalPrice!,
-    );
+    return items.fold<double>(0, (total, item) => total + item.totalPrice!);
   }
 
   double? get totalDifference {
@@ -35,7 +36,7 @@ class ReceiptScanResult {
       return null;
     }
 
-    return _roundCurrency(scannedItemsTotal - totalAmount!);
+    return _roundCurrency(scannedItemsTotal - (discount ?? 0) - totalAmount!);
   }
 
   bool get hasTotalDivergence {
@@ -44,7 +45,10 @@ class ReceiptScanResult {
   }
 
   bool get hasRecognizedData {
-    return merchant != null || date != null || totalAmount != null || items.isNotEmpty;
+    return merchant != null ||
+        date != null ||
+        totalAmount != null ||
+        items.isNotEmpty;
   }
 
   ReceiptScanResult copyWith({
@@ -52,6 +56,8 @@ class ReceiptScanResult {
     String? merchant,
     DateTime? date,
     double? totalAmount,
+    double? subtotal,
+    double? discount,
     String? paymentMethodSuggestion,
     List<ReceiptScanItem>? items,
     bool clearMerchant = false,
@@ -64,6 +70,8 @@ class ReceiptScanResult {
       merchant: clearMerchant ? null : merchant ?? this.merchant,
       date: clearDate ? null : date ?? this.date,
       totalAmount: clearTotalAmount ? null : totalAmount ?? this.totalAmount,
+      subtotal: subtotal ?? this.subtotal,
+      discount: discount ?? this.discount,
       paymentMethodSuggestion: clearPaymentMethodSuggestion
           ? null
           : paymentMethodSuggestion ?? this.paymentMethodSuggestion,

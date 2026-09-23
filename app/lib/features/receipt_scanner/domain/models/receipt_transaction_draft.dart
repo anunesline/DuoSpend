@@ -10,6 +10,8 @@ class ReceiptTransactionDraft {
   final String description;
   final DateTime? purchaseDate;
   final double? amount;
+  final double? subtotal;
+  final double? discount;
   final String? paymentMethodSuggestion;
   final List<ReceiptScanItem> items;
 
@@ -17,6 +19,8 @@ class ReceiptTransactionDraft {
     required this.description,
     this.purchaseDate,
     this.amount,
+    this.subtotal,
+    this.discount,
     this.paymentMethodSuggestion,
     this.items = const [],
   });
@@ -26,6 +30,8 @@ class ReceiptTransactionDraft {
       description: result.merchant ?? '',
       purchaseDate: result.date,
       amount: result.totalAmount,
+      subtotal: result.subtotal,
+      discount: result.discount,
       paymentMethodSuggestion: result.paymentMethodSuggestion,
       items: List.unmodifiable(result.items),
     );
@@ -33,9 +39,24 @@ class ReceiptTransactionDraft {
 
   bool get canContinueToTransaction {
     return description.trim().isNotEmpty &&
+        purchaseDate != null &&
         amount != null &&
         amount! > 0 &&
-        !hasTotalDivergence;
+        amount!.isFinite &&
+        (discount == null || (discount!.isFinite && discount! >= 0)) &&
+        !hasTotalDivergence &&
+        items.isNotEmpty &&
+        items.every(
+          (item) =>
+              item.description.trim().isNotEmpty &&
+              item.quantity != null &&
+              item.quantity! > 0 &&
+              item.unit?.trim().isNotEmpty == true &&
+              item.unitPrice != null &&
+              item.unitPrice! > 0 &&
+              item.totalPrice != null &&
+              item.totalPrice! > 0,
+        );
   }
 
   /// Total dos itens somente quando todos têm valor total conhecido.
@@ -47,27 +68,27 @@ class ReceiptTransactionDraft {
       return null;
     }
 
-    return items.fold<double>(
-      0,
-      (total, item) => total + item.totalPrice!,
-    );
+    return items.fold<double>(0, (total, item) => total + item.totalPrice!);
   }
 
   bool get hasTotalDivergence {
     final resolvedItemsTotal = itemsTotal;
     return resolvedItemsTotal != null &&
         amount != null &&
-        (resolvedItemsTotal - amount!).abs() >= 0.01;
+        (resolvedItemsTotal - (discount ?? 0) - amount!).abs() >= 0.01;
   }
 
   ReceiptTransactionDraft copyWith({
     String? description,
     DateTime? purchaseDate,
     double? amount,
+    double? subtotal,
+    double? discount,
     String? paymentMethodSuggestion,
     List<ReceiptScanItem>? items,
     bool clearPurchaseDate = false,
     bool clearAmount = false,
+    bool clearDiscount = false,
     bool clearPaymentMethodSuggestion = false,
   }) {
     return ReceiptTransactionDraft(
@@ -76,6 +97,8 @@ class ReceiptTransactionDraft {
           ? null
           : purchaseDate ?? this.purchaseDate,
       amount: clearAmount ? null : amount ?? this.amount,
+      subtotal: subtotal ?? this.subtotal,
+      discount: clearDiscount ? null : discount ?? this.discount,
       paymentMethodSuggestion: clearPaymentMethodSuggestion
           ? null
           : paymentMethodSuggestion ?? this.paymentMethodSuggestion,

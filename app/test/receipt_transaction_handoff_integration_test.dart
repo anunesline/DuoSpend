@@ -14,12 +14,15 @@ import 'package:app/features/receipt_scanner/domain/models/receipt_scan_item.dar
 import 'package:app/features/receipt_scanner/domain/models/receipt_transaction_draft.dart';
 import 'package:app/features/transactions/data/repositories/balance_settlement_repository.dart';
 import 'package:app/features/transactions/data/repositories/transaction_repository.dart';
+import 'package:app/features/transactions/data/repositories/firebase_purchase_repository.dart';
 import 'package:app/features/transactions/data/models/transaction_item_model.dart';
 import 'package:app/features/transactions/data/models/transaction_model.dart';
 import 'package:app/features/transactions/domain/financial_split/financial_split_service.dart';
 import 'package:app/features/transactions/domain/models/payment_method.dart';
 import 'package:app/features/transactions/domain/models/shared_transaction_confirmation_status.dart';
 import 'package:app/features/transactions/domain/purchase/services/balance_settlement_synchronizer.dart';
+import 'package:app/features/transactions/domain/purchase/commands/create_purchase_command.dart';
+import 'package:app/features/transactions/presentation/controllers/purchase_controller.dart';
 import 'package:app/features/transactions/transaction/usecases/create_transaction_usecase.dart';
 import 'package:app/features/transactions/presentation/controllers/transaction_controller.dart';
 
@@ -52,8 +55,7 @@ class _FailingTransactionRepository extends TransactionRepository {
   Future<void> addTransactions(
     List<TransactionModel> transactionModels, {
     WalletModel? wallet,
-  }) =>
-      throw StateError('financial save failed');
+  }) => throw StateError('financial save failed');
 }
 
 class _RecordingShoppingListSynchronizer
@@ -81,15 +83,11 @@ void main() {
   const userId = 'aline';
   const partnerId = 'matheus';
 
-  MockFirebaseAuth auth() => MockFirebaseAuth(
-        mockUser: MockUser(uid: userId),
-        signedIn: true,
-      );
+  MockFirebaseAuth auth() =>
+      MockFirebaseAuth(mockUser: MockUser(uid: userId), signedIn: true);
 
-  WalletModel individualWallet({
-    required String id,
-    double balance = 1000,
-  }) => WalletModel(
+  WalletModel individualWallet({required String id, double balance = 1000}) =>
+      WalletModel(
         id: id,
         name: id,
         balance: balance,
@@ -100,31 +98,31 @@ void main() {
       );
 
   WalletModel sharedWallet() => WalletModel(
-        id: 'casa',
-        name: 'Casa',
-        balance: 0,
-        type: WalletType.shared,
-        ownerId: userId,
-        memberIds: const [userId, partnerId],
-        createdAt: DateTime(2026, 8, 26),
-        updatedAt: DateTime(2026, 8, 26),
-      );
+    id: 'casa',
+    name: 'Casa',
+    balance: 0,
+    type: WalletType.shared,
+    ownerId: userId,
+    memberIds: const [userId, partnerId],
+    createdAt: DateTime(2026, 8, 26),
+    updatedAt: DateTime(2026, 8, 26),
+  );
 
   ReceiptTransactionDraft draft() => ReceiptTransactionDraft(
-        description: 'Mercado Duo',
-        purchaseDate: DateTime(2026, 8, 25),
-        amount: 30,
-        paymentMethodSuggestion: 'pix',
-        items: const [
-          ReceiptScanItem(
-            description: 'Arroz',
-            quantity: 2,
-            unit: 'un',
-            unitPrice: 15,
-            totalPrice: 30,
-          ),
-        ],
-      );
+    description: 'Mercado Duo',
+    purchaseDate: DateTime(2026, 8, 25),
+    amount: 30,
+    paymentMethodSuggestion: 'pix',
+    items: const [
+      ReceiptScanItem(
+        description: 'Arroz',
+        quantity: 2,
+        unit: 'un',
+        unitPrice: 15,
+        totalPrice: 30,
+      ),
+    ],
+  );
 
   Future<CreateTransactionUseCase> useCase({
     required FakeFirebaseFirestore firestore,
@@ -170,6 +168,92 @@ void main() {
       );
 
   group('handoff Scanner Fiscal -> Nova Transação', () {
+    test(
+      'compra OCR confirmada mantém produto, desconto e data no fluxo normal',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        final signedInAuth = auth();
+        final wallet = individualWallet(id: 'compras');
+        final create = await useCase(
+          firestore: firestore,
+          financialWallet: wallet,
+        );
+        final sync = _RecordingShoppingListSynchronizer();
+        final purchases = PurchaseController(
+          purchaseRepository: FirebasePurchaseRepository(
+            firestore: firestore,
+            auth: signedInAuth,
+          ),
+        );
+        final transactions = TransactionController(
+          createTransactionUseCase: create,
+          shoppingListSynchronizer: sync,
+        );
+        final date = DateTime(2026, 9, 18);
+        final mapped = const ReceiptTransactionItemMapper().map(
+          items: const [
+            ReceiptScanItem(
+              description: 'Arroz Buriti 5 kg',
+              brand: 'Buriti',
+              productId: 'buriti',
+              quantity: 2,
+              unit: 'UN',
+              unitPrice: 15,
+              totalPrice: 30,
+            ),
+          ],
+          category: 'Mercado',
+          subcategory: 'Mercado',
+          taxonomyId: 'alimentos',
+          createdAt: DateTime(2026, 9, 23),
+        );
+        purchases.setMerchant(merchantName: 'Mercado Exemplo');
+        purchases.setDiscount(2);
+        purchases.addTransactionItem(mapped.single);
+        transactions.addItem(mapped.single);
+        final completed = await purchases.completePurchase(
+          CreatePurchaseCommand(
+            id: 'ocr-confirmed',
+            userId: userId,
+            walletId: wallet.id,
+            purchaseDate: date,
+          ),
+        );
+        expect(completed?.purchase.purchaseDate, date);
+        expect(completed?.purchase.discount, 2);
+        expect(completed?.purchase.total, 28);
+        expect(completed?.purchase.items.single.productId, 'buriti');
+
+        final financial = await transactions.saveTransaction(
+          transactionId: 'ocr-confirmed',
+          description: 'Mercado Exemplo',
+          value: 28,
+          type: 'expense',
+          walletId: wallet.id,
+          wallet: wallet,
+          category: 'Mercado',
+          subcategory: 'Mercado',
+          paidByMemberId: userId,
+          purchaseFor: 'self',
+          financialWalletId: wallet.id,
+          paymentMethod: PaymentMethod.pix,
+          paymentSourceId: wallet.id,
+          transactionDate: date,
+          householdListScopeId: 'user:$userId',
+        );
+        expect(financial.transaction.date, date);
+        expect(financial.transaction.items.single.productId, 'buriti');
+        expect(sync.calls, 1);
+        final persisted = await firestore
+            .collection('users')
+            .doc(userId)
+            .collection('purchases')
+            .doc('ocr-confirmed')
+            .get();
+        expect(persisted.data()?['discount'], 2);
+        expect(persisted.data()?['purchaseDate'], date.toIso8601String());
+      },
+    );
     test('cancelar ou apenas manter um draft não persiste transação', () async {
       final firestore = FakeFirebaseFirestore();
       final value = draft();
@@ -183,96 +267,104 @@ void main() {
       expect(transactions.docs, isEmpty);
     });
 
-    test('confirma draft em carteira individual pelo fluxo financeiro normal',
-        () async {
-      final firestore = FakeFirebaseFirestore();
-      final financialWallet = individualWallet(id: 'inter');
-      final transactionWallet = individualWallet(id: 'compras');
-      final create = await useCase(
-        firestore: firestore,
-        financialWallet: financialWallet,
-      );
-      final value = draft();
+    test(
+      'confirma draft em carteira individual pelo fluxo financeiro normal',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        final financialWallet = individualWallet(id: 'inter');
+        final transactionWallet = individualWallet(id: 'compras');
+        final create = await useCase(
+          firestore: firestore,
+          financialWallet: financialWallet,
+        );
+        final value = draft();
 
-      final result = await create(
-        transactionId: 'receipt-solo',
-        description: value.description,
-        value: value.amount!,
-        type: 'expense',
-        walletId: transactionWallet.id,
-        wallet: transactionWallet,
-        category: 'Alimentação',
-        subcategory: 'Mercado',
-        paidByMemberId: userId,
-        purchaseFor: 'self',
-        partnerMemberId: null,
-        financialWalletId: financialWallet.id,
-        paymentMethod: PaymentMethod.pix,
-        paymentSourceId: financialWallet.id,
-        transactionDate: value.purchaseDate,
-        items: mapItems(value),
-      );
+        final result = await create(
+          transactionId: 'receipt-solo',
+          description: value.description,
+          value: value.amount!,
+          type: 'expense',
+          walletId: transactionWallet.id,
+          wallet: transactionWallet,
+          category: 'Alimentação',
+          subcategory: 'Mercado',
+          paidByMemberId: userId,
+          purchaseFor: 'self',
+          partnerMemberId: null,
+          financialWalletId: financialWallet.id,
+          paymentMethod: PaymentMethod.pix,
+          paymentSourceId: financialWallet.id,
+          transactionDate: value.purchaseDate,
+          items: mapItems(value),
+        );
 
-      final transactions = await firestore
-          .collection('users')
-          .doc(userId)
-          .collection('transactions')
-          .get();
-      final savedFinancialWallet =
-          await firestore.collection('wallets').doc(financialWallet.id).get();
+        final transactions = await firestore
+            .collection('users')
+            .doc(userId)
+            .collection('transactions')
+            .get();
+        final savedFinancialWallet = await firestore
+            .collection('wallets')
+            .doc(financialWallet.id)
+            .get();
 
-      expect(transactions.docs, hasLength(1));
-      expect(result.transaction.date, value.purchaseDate);
-      expect(result.transaction.items.single.name, 'Arroz');
-      expect(savedFinancialWallet.data()!['balance'], 970);
-    });
+        expect(transactions.docs, hasLength(1));
+        expect(result.transaction.date, value.purchaseDate);
+        expect(result.transaction.items.single.name, 'Arroz');
+        expect(savedFinancialWallet.data()!['balance'], 970);
+      },
+    );
 
-    test('confirma draft compartilhado mantendo confirmação bilateral pendente',
-        () async {
-      final firestore = FakeFirebaseFirestore();
-      final financialWallet = individualWallet(id: 'inter');
-      final transactionWallet = sharedWallet();
-      final create = await useCase(
-        firestore: firestore,
-        financialWallet: financialWallet,
-      );
-      final value = draft();
+    test(
+      'confirma draft compartilhado mantendo confirmação bilateral pendente',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        final financialWallet = individualWallet(id: 'inter');
+        final transactionWallet = sharedWallet();
+        final create = await useCase(
+          firestore: firestore,
+          financialWallet: financialWallet,
+        );
+        final value = draft();
 
-      final result = await create(
-        transactionId: 'receipt-shared',
-        description: value.description,
-        value: value.amount!,
-        type: 'expense',
-        walletId: transactionWallet.id,
-        wallet: transactionWallet,
-        category: 'Alimentação',
-        subcategory: 'Mercado',
-        paidByMemberId: userId,
-        purchaseFor: 'both',
-        partnerMemberId: partnerId,
-        financialWalletId: financialWallet.id,
-        paymentMethod: PaymentMethod.pix,
-        paymentSourceId: financialWallet.id,
-        transactionDate: value.purchaseDate,
-        items: mapItems(value),
-      );
+        final result = await create(
+          transactionId: 'receipt-shared',
+          description: value.description,
+          value: value.amount!,
+          type: 'expense',
+          walletId: transactionWallet.id,
+          wallet: transactionWallet,
+          category: 'Alimentação',
+          subcategory: 'Mercado',
+          paidByMemberId: userId,
+          purchaseFor: 'both',
+          partnerMemberId: partnerId,
+          financialWalletId: financialWallet.id,
+          paymentMethod: PaymentMethod.pix,
+          paymentSourceId: financialWallet.id,
+          transactionDate: value.purchaseDate,
+          items: mapItems(value),
+        );
 
-      final transactions = await firestore
-          .collection('wallets')
-          .doc(transactionWallet.id)
-          .collection('transactions')
-          .get();
-      final savedFinancialWallet =
-          await firestore.collection('wallets').doc(financialWallet.id).get();
+        final transactions = await firestore
+            .collection('wallets')
+            .doc(transactionWallet.id)
+            .collection('transactions')
+            .get();
+        final savedFinancialWallet = await firestore
+            .collection('wallets')
+            .doc(financialWallet.id)
+            .get();
 
-      expect(transactions.docs, hasLength(1));
-      expect(
-        result.transaction.confirmationStatus,
-        SharedTransactionConfirmationStatus.pending,
-      );
-      expect(result.transaction.memberShares, {userId: 15, partnerId: 15});
-      expect(savedFinancialWallet.data()!['balance'], 970);
-    });
+        expect(transactions.docs, hasLength(1));
+        expect(
+          result.transaction.confirmationStatus,
+          SharedTransactionConfirmationStatus.pending,
+        );
+        expect(result.transaction.memberShares, {userId: 15, partnerId: 15});
+        expect(savedFinancialWallet.data()!['balance'], 970);
+      },
+    );
 
     test('confirma draft no cartão uma vez, sem débito imediato', () async {
       final firestore = FakeFirebaseFirestore();
@@ -318,15 +410,16 @@ void main() {
           .doc(card.id)
           .collection('charges')
           .get();
-      final savedFinancialWallet =
-          await firestore.collection('wallets').doc(financialWallet.id).get();
+      final savedFinancialWallet = await firestore
+          .collection('wallets')
+          .doc(financialWallet.id)
+          .get();
 
       expect(charges.docs, hasLength(1));
       expect(savedFinancialWallet.data()!['balance'], 1000);
     });
 
-    test('duplo toque durante a confirmação cria uma única operação',
-        () async {
+    test('duplo toque durante a confirmação cria uma única operação', () async {
       final firestore = FakeFirebaseFirestore();
       final financialWallet = individualWallet(id: 'inter');
       final signedInAuth = auth();
@@ -357,7 +450,9 @@ void main() {
           ),
         ),
       );
-      final controller = TransactionController(createTransactionUseCase: create);
+      final controller = TransactionController(
+        createTransactionUseCase: create,
+      );
       final value = draft();
 
       final firstSave = controller.saveTransaction(
@@ -401,80 +496,84 @@ void main() {
       await firstSave;
     });
 
-    test('falha ao salvar transação não inicia sincronização de lista', () async {
-      final firestore = FakeFirebaseFirestore();
-      final signedInAuth = auth();
-      final financialWallet = individualWallet(id: 'inter');
-      await firestore
-          .collection('wallets')
-          .doc(financialWallet.id)
-          .set(financialWallet.toMap());
-      final repository = _FailingTransactionRepository(
-        firestore: firestore,
-        auth: signedInAuth,
-      );
-      final synchronizer = _RecordingShoppingListSynchronizer();
-      final create = CreateTransactionUseCase(
-        transactionRepository: repository,
-        walletRepository: WalletRepository(
+    test(
+      'falha ao salvar transação não inicia sincronização de lista',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        final signedInAuth = auth();
+        final financialWallet = individualWallet(id: 'inter');
+        await firestore
+            .collection('wallets')
+            .doc(financialWallet.id)
+            .set(financialWallet.toMap());
+        final repository = _FailingTransactionRepository(
           firestore: firestore,
           auth: signedInAuth,
-        ),
-        creditCardRepository: CreditCardRepository(
-          firestore: firestore,
-          auth: signedInAuth,
-        ),
-        financialSplitService: const FinancialSplitService(),
-        settlementSynchronizer: BalanceSettlementSynchronizer(
+        );
+        final synchronizer = _RecordingShoppingListSynchronizer();
+        final create = CreateTransactionUseCase(
           transactionRepository: repository,
-          settlementRepository: BalanceSettlementRepository(
+          walletRepository: WalletRepository(
             firestore: firestore,
             auth: signedInAuth,
           ),
-        ),
-      );
-      final controller = TransactionController(
-        createTransactionUseCase: create,
-        shoppingListSynchronizer: synchronizer,
-      )..addItem(
-          TransactionItemModel(
-            id: 'milk-item',
-            transactionId: 'failed-transaction',
-            name: 'Leite',
-            brand: '',
-            quantity: 1,
-            unit: 'un',
-            unitPrice: 10,
-            totalPrice: 10,
-            taxonomyId: '',
-            category: 'Alimentação',
-            subcategory: 'Mercado',
-            productCategoryId: '',
-            productCategoryName: '',
-            createdAt: DateTime.utc(2026, 9, 5),
+          creditCardRepository: CreditCardRepository(
+            firestore: firestore,
+            auth: signedInAuth,
+          ),
+          financialSplitService: const FinancialSplitService(),
+          settlementSynchronizer: BalanceSettlementSynchronizer(
+            transactionRepository: repository,
+            settlementRepository: BalanceSettlementRepository(
+              firestore: firestore,
+              auth: signedInAuth,
+            ),
           ),
         );
+        final controller =
+            TransactionController(
+              createTransactionUseCase: create,
+              shoppingListSynchronizer: synchronizer,
+            )..addItem(
+              TransactionItemModel(
+                id: 'milk-item',
+                transactionId: 'failed-transaction',
+                name: 'Leite',
+                brand: '',
+                quantity: 1,
+                unit: 'un',
+                unitPrice: 10,
+                totalPrice: 10,
+                taxonomyId: '',
+                category: 'Alimentação',
+                subcategory: 'Mercado',
+                productCategoryId: '',
+                productCategoryName: '',
+                createdAt: DateTime.utc(2026, 9, 5),
+              ),
+            );
 
-      await expectLater(
-        controller.saveTransaction(
-          transactionId: 'failed-transaction',
-          description: 'Mercado',
-          value: 10,
-          type: 'expense',
-          walletId: 'compras',
-          wallet: individualWallet(id: 'compras'),
-          category: 'Alimentação',
-          subcategory: 'Mercado',
-          paidByMemberId: userId,
-          purchaseFor: 'self',
-          financialWalletId: financialWallet.id,
-          paymentMethod: PaymentMethod.pix,
-          paymentSourceId: financialWallet.id,
-          householdListScopeId: 'user:aline',
-        ),
-        throwsStateError,
-      );
-      expect(synchronizer.calls, 0);
-    });
+        await expectLater(
+          controller.saveTransaction(
+            transactionId: 'failed-transaction',
+            description: 'Mercado',
+            value: 10,
+            type: 'expense',
+            walletId: 'compras',
+            wallet: individualWallet(id: 'compras'),
+            category: 'Alimentação',
+            subcategory: 'Mercado',
+            paidByMemberId: userId,
+            purchaseFor: 'self',
+            financialWalletId: financialWallet.id,
+            paymentMethod: PaymentMethod.pix,
+            paymentSourceId: financialWallet.id,
+            householdListScopeId: 'user:aline',
+          ),
+          throwsStateError,
+        );
+        expect(synchronizer.calls, 0);
+      },
+    );
   });
 }
