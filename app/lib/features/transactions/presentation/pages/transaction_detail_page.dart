@@ -11,21 +11,16 @@ class TransactionDetailResult {
   final bool deleted;
 
   const TransactionDetailResult.updated(TransactionModel value)
-      : transaction = value,
-        deleted = false;
+    : transaction = value,
+      deleted = false;
 
-  const TransactionDetailResult.deleted()
-      : transaction = null,
-        deleted = true;
+  const TransactionDetailResult.deleted() : transaction = null, deleted = true;
 }
 
 class TransactionDetailPage extends StatefulWidget {
   final TransactionModel transaction;
 
-  const TransactionDetailPage({
-    super.key,
-    required this.transaction,
-  });
+  const TransactionDetailPage({super.key, required this.transaction});
 
   @override
   State<TransactionDetailPage> createState() => _TransactionDetailPageState();
@@ -74,15 +69,21 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   Future<void> _editTransaction() async {
     if (_processing) return;
 
-    final descriptionController =
-        TextEditingController(text: _transaction.description);
+    final descriptionController = TextEditingController(
+      text: _transaction.description,
+    );
     final valueController = TextEditingController(
       text: _transaction.value.toStringAsFixed(2).replaceAll('.', ','),
     );
-    final categoryController = TextEditingController(text: _transaction.category);
-    final subcategoryController =
-        TextEditingController(text: _transaction.subcategory);
-    final notesController = TextEditingController(text: _transaction.notes ?? '');
+    final categoryController = TextEditingController(
+      text: _transaction.category,
+    );
+    final subcategoryController = TextEditingController(
+      text: _transaction.subcategory,
+    );
+    final notesController = TextEditingController(
+      text: _transaction.notes ?? '',
+    );
     var selectedDate = _transaction.date;
 
     final draft = await showDialog<_TransactionEditDraft>(
@@ -111,8 +112,8 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                     helperText: _transaction.paymentMethod == 'creditCard'
                         ? 'Valor de compra no crédito é controlado pela fatura.'
                         : _transaction.hasFinancialSplit
-                            ? 'Para mudar o valor, refaça a divisão financeira.'
-                            : null,
+                        ? 'Para mudar o valor, refaça a divisão financeira.'
+                        : null,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -156,9 +157,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                   controller: notesController,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Observações',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Observações'),
                 ),
               ],
             ),
@@ -281,10 +280,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DuoColors.background,
-      appBar: AppBar(
-        title: const Text('Detalhes'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Detalhes'), centerTitle: true),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -314,6 +310,14 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                     icon: Icons.swap_vert,
                     label: 'Tipo',
                     value: _isIncome ? 'Receita' : 'Despesa',
+                  ),
+                  const Divider(),
+                  _DetailRow(
+                    icon: _transaction.isFinanciallySettled
+                        ? Icons.check_circle_outline_rounded
+                        : Icons.schedule_rounded,
+                    label: 'Estado financeiro',
+                    value: _transaction.financialStatusLabel,
                   ),
                   const Divider(),
                   _DetailRow(
@@ -391,10 +395,7 @@ class _DetailRow extends StatelessWidget {
         children: [
           Icon(icon, size: 20, color: DuoColors.primaryLight),
           const SizedBox(width: AppSpacing.md),
-          Text(
-            label,
-            style: const TextStyle(color: DuoColors.textSecondary),
-          ),
+          Text(label, style: const TextStyle(color: DuoColors.textSecondary)),
           const SizedBox(width: 16),
           Expanded(
             child: Text(

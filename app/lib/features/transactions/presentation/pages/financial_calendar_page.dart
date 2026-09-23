@@ -18,8 +18,7 @@ class FinancialCalendarPage extends StatefulWidget {
   });
 
   @override
-  State<FinancialCalendarPage> createState() =>
-      _FinancialCalendarPageState();
+  State<FinancialCalendarPage> createState() => _FinancialCalendarPageState();
 }
 
 class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
@@ -30,10 +29,7 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
   void initState() {
     super.initState();
     controller = FinancialCalendarController();
-    controller.load(
-      wallet: widget.wallet,
-      transactions: widget.transactions,
-    );
+    controller.load(wallet: widget.wallet, transactions: widget.transactions);
   }
 
   @override
@@ -161,7 +157,8 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
         final visibleEntries = controller.visibleEntries;
         final dayNet = visibleEntries.fold<double>(
           0,
-          (total, entry) => total + (entry.isIncome ? entry.value : -entry.value),
+          (total, entry) =>
+              total + (entry.isIncome ? entry.value : -entry.value),
         );
 
         return Scaffold(
@@ -224,13 +221,15 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
                   onRefresh: () => controller.load(
                     wallet: widget.wallet,
                     transactions: widget.transactions,
+                    reloadTransactions: true,
                   ),
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(12, 6, 12, 18),
                     children: [
                       _ProjectionCard(
                         currentBalance: controller.projection.currentBalance,
-                        projectedBalance: controller.projection.projectedBalance,
+                        projectedBalance:
+                            controller.projection.projectedBalance,
                         income: controller.projection.projectedIncome,
                         expense: controller.projection.projectedExpense,
                         formatMoney: _formatMoney,
@@ -246,12 +245,10 @@ class _FinancialCalendarPageState extends State<FinancialCalendarPage> {
                         entries: controller.monthEntries,
                         selectedDay: controller.selectedDay,
                         entryColor: _entryColor,
-                        onPrevious: () => controller.previousMonth(
-                          wallet: widget.wallet,
-                        ),
-                        onNext: () => controller.nextMonth(
-                          wallet: widget.wallet,
-                        ),
+                        onPrevious: () =>
+                            controller.previousMonth(wallet: widget.wallet),
+                        onNext: () =>
+                            controller.nextMonth(wallet: widget.wallet),
                         onDaySelected: controller.selectDay,
                       ),
                       const SizedBox(height: 10),
@@ -460,7 +457,8 @@ class _ProjectionTrendPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ProjectionTrendPainter oldDelegate) {
-    return oldDelegate.positive != positive || oldDelegate.magnitude != magnitude;
+    return oldDelegate.positive != positive ||
+        oldDelegate.magnitude != magnitude;
   }
 }
 
@@ -600,17 +598,18 @@ class _CalendarGrid extends StatelessWidget {
             children: List.generate(7, (column) {
               final index = row * 7 + column;
               final relativeDay = index - leading + 1;
-              final isCurrentMonth = relativeDay >= 1 && relativeDay <= daysInMonth;
+              final isCurrentMonth =
+                  relativeDay >= 1 && relativeDay <= daysInMonth;
               final displayDay = relativeDay < 1
                   ? previousMonthDays + relativeDay
                   : relativeDay > daysInMonth
-                      ? relativeDay - daysInMonth
-                      : relativeDay;
+                  ? relativeDay - daysInMonth
+                  : relativeDay;
               final date = relativeDay < 1
                   ? DateTime(month.year, month.month - 1, displayDay)
                   : relativeDay > daysInMonth
-                      ? DateTime(month.year, month.month + 1, displayDay)
-                      : DateTime(month.year, month.month, displayDay);
+                  ? DateTime(month.year, month.month + 1, displayDay)
+                  : DateTime(month.year, month.month, displayDay);
               final dayEntries = entries.where(
                 (entry) =>
                     entry.date.year == date.year &&
@@ -620,9 +619,11 @@ class _CalendarGrid extends StatelessWidget {
               final colors = <Color>[];
               for (final entry in dayEntries) {
                 final color = entryColor(entry);
-                if (!colors.contains(color) && colors.length < 4) colors.add(color);
+                if (!colors.contains(color) && colors.length < 4)
+                  colors.add(color);
               }
-              final selected = selectedDay?.year == date.year &&
+              final selected =
+                  selectedDay?.year == date.year &&
                   selectedDay?.month == date.month &&
                   selectedDay?.day == date.day;
 
@@ -649,7 +650,9 @@ class _CalendarGrid extends StatelessWidget {
                                 ? DuoColors.textPrimary
                                 : DuoColors.textHint.withValues(alpha: .45),
                             fontSize: 12,
-                            fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+                            fontWeight: selected
+                                ? FontWeight.w900
+                                : FontWeight.w600,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -776,7 +779,12 @@ class _DayPanel extends StatelessWidget {
                 icon: entryIcon(entries[i]),
                 formattedValue: formatMoney(entries[i].value),
                 isSettling: isSettling,
-                onSettle: entries[i].transaction?.isFinanciallyPending == true
+                onSettle:
+                    entries[i].isProjected &&
+                        (entries[i].kind ==
+                                FinancialCalendarEntryKind.recurring ||
+                            entries[i].transaction?.isFinanciallyPending ==
+                                true)
                     ? () => onSettle(entries[i])
                     : null,
               ),
@@ -844,10 +852,7 @@ class _EntryRow extends StatelessWidget {
               width: 34,
               child: Text(
                 DateFormat('HH:mm').format(entry.date),
-                style: const TextStyle(
-                  color: DuoColors.textHint,
-                  fontSize: 8,
-                ),
+                style: const TextStyle(color: DuoColors.textHint, fontSize: 8),
               ),
             ),
             Expanded(
@@ -866,7 +871,7 @@ class _EntryRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    entry.isProjected ? 'Previsto' : 'Movimentação confirmada',
+                    entry.financialStatusLabel,
                     style: const TextStyle(
                       color: DuoColors.textSecondary,
                       fontSize: 8,
@@ -880,7 +885,10 @@ class _EntryRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(10),

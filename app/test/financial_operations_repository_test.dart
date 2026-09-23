@@ -11,6 +11,8 @@ import 'package:app/features/home/data/models/wallet_model.dart';
 import 'package:app/features/home/data/repositories/credit_card_repository.dart';
 import 'package:app/features/transactions/data/models/transaction_model.dart';
 import 'package:app/features/transactions/data/repositories/transaction_repository.dart';
+import 'package:app/features/transactions/domain/calendar/financial_calendar_entry.dart';
+import 'package:app/features/transactions/domain/calendar/financial_calendar_service.dart';
 
 void main() {
   const userId = 'user-1';
@@ -57,11 +59,31 @@ void main() {
     );
   }
 
+  TransactionModel recurringTransaction({
+    required String id,
+    required String walletId,
+    required String type,
+  }) => TransactionModel(
+    id: id,
+    description: id,
+    value: 100,
+    type: type,
+    date: DateTime(2026, 8, 10),
+    walletId: walletId,
+    paidByMemberId: userId,
+    paymentMethod: 'pix',
+    paymentSourceId: 'financial-wallet',
+    financialStatus: 'settled',
+    category: 'Outros',
+    subcategory: 'Geral',
+    isRecurring: true,
+    recurringId: 'series-$id',
+    recurringFrequency: 'monthly',
+    recurringStartDate: DateTime(2026, 8, 10),
+  );
+
   MockFirebaseAuth signedInAuth() {
-    return MockFirebaseAuth(
-      mockUser: MockUser(uid: userId),
-      signedIn: true,
-    );
+    return MockFirebaseAuth(mockUser: MockUser(uid: userId), signedIn: true);
   }
 
   group('operações financeiras idempotentes', () {
@@ -95,8 +117,7 @@ void main() {
         transactionWallet: transactionWallet,
         financialWallet: financialWallet,
       );
-      final secondResult =
-          await repository.settleFinancialObligation(
+      final secondResult = await repository.settleFinancialObligation(
         obligation: obligation,
         transactionWallet: transactionWallet,
         financialWallet: financialWallet,
@@ -126,9 +147,10 @@ void main() {
         walletId: transactionWallet.id,
         type: 'income',
       );
-      await firestore.collection('wallets').doc(financialWallet.id).set(
-        financialWallet.toMap(),
-      );
+      await firestore
+          .collection('wallets')
+          .doc(financialWallet.id)
+          .set(financialWallet.toMap());
       await firestore
           .collection('users')
           .doc(userId)
@@ -144,7 +166,10 @@ void main() {
         transactionWallet: transactionWallet,
         financialWallet: financialWallet,
       );
-      final savedWallet = await firestore.collection('wallets').doc(financialWallet.id).get();
+      final savedWallet = await firestore
+          .collection('wallets')
+          .doc(financialWallet.id)
+          .get();
       final visibleTransactions = await repository.getTransactionsByWallet(
         transactionWallet.id,
         wallet: transactionWallet,
@@ -152,6 +177,139 @@ void main() {
       expect(savedWallet.data()!['balance'], 1100);
       expect(visibleTransactions.single.isFinanciallySettled, isTrue);
     });
+
+    test(
+      'ocorrência recorrente de despesa é materializada uma única vez',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        final financialWallet = wallet(id: 'financial-wallet');
+        final transactionWallet = wallet(id: 'transaction-wallet');
+        final template = recurringTransaction(
+          id: 'tokita',
+          walletId: transactionWallet.id,
+          type: 'expense',
+        );
+        final occurrenceDate = DateTime(2026, 9, 10);
+        final occurrenceId = FinancialCalendarEntry.recurringOccurrenceId(
+          templateId: template.id,
+          occurrenceDate: occurrenceDate,
+        );
+        await firestore
+            .collection('wallets')
+            .doc(financialWallet.id)
+            .set(financialWallet.toMap());
+        await firestore
+            .collection('users')
+            .doc(userId)
+            .collection('transactions')
+            .doc(template.id)
+            .set(template.toMap());
+        final repository = TransactionRepository(
+          firestore: firestore,
+          auth: signedInAuth(),
+        );
+
+        final settled = await repository.settleRecurringOccurrence(
+          recurringTemplate: template,
+          occurrenceId: occurrenceId,
+          occurrenceDate: occurrenceDate,
+          transactionWallet: transactionWallet,
+          financialWallet: financialWallet,
+        );
+        await repository.settleRecurringOccurrence(
+          recurringTemplate: template,
+          occurrenceId: occurrenceId,
+          occurrenceDate: occurrenceDate,
+          transactionWallet: transactionWallet,
+          financialWallet: financialWallet,
+        );
+
+        final persisted = await repository.getTransactionsByWallet(
+          transactionWallet.id,
+          wallet: transactionWallet,
+        );
+        final savedWallet = await firestore
+            .collection('wallets')
+            .doc(financialWallet.id)
+            .get();
+        expect(settled.id, occurrenceId);
+        expect(settled.isRecurring, isFalse);
+        expect(settled.isFinanciallySettled, isTrue);
+        expect(savedWallet.data()!['balance'], 900);
+        expect(
+          persisted.where((item) => item.id == occurrenceId),
+          hasLength(1),
+        );
+        const calendar = FinancialCalendarService();
+        final september = calendar.buildProjection(
+          currentBalance: 900,
+          transactions: persisted,
+          invoices: const [],
+          rangeStart: DateTime(2026, 9, 1),
+          rangeEnd: DateTime(2026, 9, 30),
+          now: DateTime(2026, 9, 10, 15),
+        );
+        final october = calendar.buildProjection(
+          currentBalance: 900,
+          transactions: persisted,
+          invoices: const [],
+          rangeStart: DateTime(2026, 10, 1),
+          rangeEnd: DateTime(2026, 10, 31),
+          now: DateTime(2026, 10, 1),
+        );
+        expect(september.entries.where((entry) => entry.isProjected), isEmpty);
+        expect(
+          october.entries.where((entry) => entry.isProjected),
+          hasLength(1),
+        );
+      },
+    );
+
+    test(
+      'ocorrência recorrente de receita materializa e credita uma vez',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        final financialWallet = wallet(id: 'financial-wallet');
+        final transactionWallet = wallet(id: 'transaction-wallet');
+        final template = recurringTransaction(
+          id: 'vale',
+          walletId: transactionWallet.id,
+          type: 'income',
+        );
+        final occurrenceDate = DateTime(2026, 9, 10);
+        final occurrenceId = FinancialCalendarEntry.recurringOccurrenceId(
+          templateId: template.id,
+          occurrenceDate: occurrenceDate,
+        );
+        await firestore
+            .collection('wallets')
+            .doc(financialWallet.id)
+            .set(financialWallet.toMap());
+        await firestore
+            .collection('users')
+            .doc(userId)
+            .collection('transactions')
+            .doc(template.id)
+            .set(template.toMap());
+        final repository = TransactionRepository(
+          firestore: firestore,
+          auth: signedInAuth(),
+        );
+
+        await repository.settleRecurringOccurrence(
+          recurringTemplate: template,
+          occurrenceId: occurrenceId,
+          occurrenceDate: occurrenceDate,
+          transactionWallet: transactionWallet,
+          financialWallet: financialWallet,
+        );
+        final savedWallet = await firestore
+            .collection('wallets')
+            .doc(financialWallet.id)
+            .get();
+        expect(savedWallet.data()!['balance'], 1100);
+      },
+    );
 
     test(
       'settlement rejeita carteira persistida que não pertence ao pagador',
@@ -266,79 +424,73 @@ void main() {
       },
     );
 
-    test(
-      'pagamento duplicado de fatura debita a carteira uma vez',
-      () async {
-        final firestore = FakeFirebaseFirestore();
-        final cardWallet = wallet(id: 'card-wallet');
-        final card = CreditCardModel(
-          id: 'card-1',
-          ownerMemberId: userId,
-          walletId: cardWallet.id,
-          name: 'Cartão',
-          creditLimit: 2000,
-          closingDay: 20,
-          dueDay: 10,
-        );
-        final purchase = transaction(
-          id: 'purchase-1',
-          walletId: cardWallet.id,
-          value: 120,
-          paymentMethod: 'creditCard',
-          paymentSourceId: card.id,
-          financialStatus: 'invoice',
-        );
+    test('pagamento duplicado de fatura debita a carteira uma vez', () async {
+      final firestore = FakeFirebaseFirestore();
+      final cardWallet = wallet(id: 'card-wallet');
+      final card = CreditCardModel(
+        id: 'card-1',
+        ownerMemberId: userId,
+        walletId: cardWallet.id,
+        name: 'Cartão',
+        creditLimit: 2000,
+        closingDay: 20,
+        dueDay: 10,
+      );
+      final purchase = transaction(
+        id: 'purchase-1',
+        walletId: cardWallet.id,
+        value: 120,
+        paymentMethod: 'creditCard',
+        paymentSourceId: card.id,
+        financialStatus: 'invoice',
+      );
 
-        await firestore
-            .collection('wallets')
-            .doc(cardWallet.id)
-            .set(cardWallet.toMap());
-        await firestore
-            .collection('creditCards')
-            .doc(card.id)
-            .set(card.toMap());
+      await firestore
+          .collection('wallets')
+          .doc(cardWallet.id)
+          .set(cardWallet.toMap());
+      await firestore.collection('creditCards').doc(card.id).set(card.toMap());
 
-        final repository = CreditCardRepository(
-          firestore: firestore,
-          auth: signedInAuth(),
-        );
-        final invoice = await repository.registerPurchase(
-          cardId: card.id,
-          transactionModel: purchase,
-          transactionWallet: cardWallet,
-        );
+      final repository = CreditCardRepository(
+        firestore: firestore,
+        auth: signedInAuth(),
+      );
+      final invoice = await repository.registerPurchase(
+        cardId: card.id,
+        transactionModel: purchase,
+        transactionWallet: cardWallet,
+      );
 
-        await repository.payInvoice(
-          cardId: card.id,
-          invoiceId: invoice.id,
-          paidAt: DateTime(2026, 8, 15),
-        );
-        final secondResult = await repository.payInvoice(
-          cardId: card.id,
-          invoiceId: invoice.id,
-          paidAt: DateTime(2026, 8, 16),
-        );
+      await repository.payInvoice(
+        cardId: card.id,
+        invoiceId: invoice.id,
+        paidAt: DateTime(2026, 8, 15),
+      );
+      final secondResult = await repository.payInvoice(
+        cardId: card.id,
+        invoiceId: invoice.id,
+        paidAt: DateTime(2026, 8, 16),
+      );
 
-        final savedWallet = await firestore
-            .collection('wallets')
-            .doc(cardWallet.id)
-            .get();
-        final savedCard = await firestore
-            .collection('creditCards')
-            .doc(card.id)
-            .get();
-        final transactions = await firestore
-            .collection('users')
-            .doc(userId)
-            .collection('transactions')
-            .get();
+      final savedWallet = await firestore
+          .collection('wallets')
+          .doc(cardWallet.id)
+          .get();
+      final savedCard = await firestore
+          .collection('creditCards')
+          .doc(card.id)
+          .get();
+      final transactions = await firestore
+          .collection('users')
+          .doc(userId)
+          .collection('transactions')
+          .get();
 
-        expect(savedWallet.data()!['balance'], 880);
-        expect(savedCard.data()!['usedLimit'], 0);
-        expect(secondResult.isPaid, isTrue);
-        expect(transactions.docs, hasLength(1));
-      },
-    );
+      expect(savedWallet.data()!['balance'], 880);
+      expect(savedCard.data()!['usedLimit'], 0);
+      expect(secondResult.isPaid, isTrue);
+      expect(transactions.docs, hasLength(1));
+    });
 
     test('aporte duplicado usa operationId e debita uma vez', () async {
       final firestore = FakeFirebaseFirestore();
@@ -398,10 +550,7 @@ void main() {
 
     test('retirada duplicada usa operationId e credita uma vez', () async {
       final firestore = FakeFirebaseFirestore();
-      final destinationWallet = wallet(
-        id: 'goal-wallet',
-        balance: 800,
-      );
+      final destinationWallet = wallet(id: 'goal-wallet', balance: 800);
       final goal = SavingsGoal(
         id: 'goal-1',
         name: 'Reserva',
@@ -452,10 +601,7 @@ void main() {
 
     test('aporte com saldo insuficiente não movimenta valores', () async {
       final firestore = FakeFirebaseFirestore();
-      final sourceWallet = wallet(
-        id: 'goal-wallet',
-        balance: 50,
-      );
+      final sourceWallet = wallet(id: 'goal-wallet', balance: 50);
       final goal = SavingsGoal(
         id: 'goal-1',
         name: 'Reserva',
@@ -556,52 +702,54 @@ void main() {
       expect(savedGoal.data()!['savedAmount'], 300);
     });
 
-    test('controller sincroniza carteira com saldo persistido após aporte',
-        () async {
-      final firestore = FakeFirebaseFirestore();
-      final staleWallet = wallet(id: 'goal-wallet', balance: 1000);
-      final persistedWallet = staleWallet.copyWith(balance: 700);
-      final goal = SavingsGoal(
-        id: 'goal-to-sync',
-        name: 'Reserva',
-        targetAmount: 1000,
-        walletId: 'context-wallet',
-        createdByUserId: userId,
-        memberIds: const [userId],
-        createdAt: DateTime(2026, 8, 1),
-        updatedAt: DateTime(2026, 8, 1),
-      );
+    test(
+      'controller sincroniza carteira com saldo persistido após aporte',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        final staleWallet = wallet(id: 'goal-wallet', balance: 1000);
+        final persistedWallet = staleWallet.copyWith(balance: 700);
+        final goal = SavingsGoal(
+          id: 'goal-to-sync',
+          name: 'Reserva',
+          targetAmount: 1000,
+          walletId: 'context-wallet',
+          createdByUserId: userId,
+          memberIds: const [userId],
+          createdAt: DateTime(2026, 8, 1),
+          updatedAt: DateTime(2026, 8, 1),
+        );
 
-      await firestore
-          .collection('wallets')
-          .doc(persistedWallet.id)
-          .set(persistedWallet.toMap());
-      await firestore
-          .collection('savingsGoals')
-          .doc(goal.id)
-          .set(SavingsGoalModel.toMap(goal));
+        await firestore
+            .collection('wallets')
+            .doc(persistedWallet.id)
+            .set(persistedWallet.toMap());
+        await firestore
+            .collection('savingsGoals')
+            .doc(goal.id)
+            .set(SavingsGoalModel.toMap(goal));
 
-      final controller = SavingsGoalsController(
-        contextWallet: wallet(id: 'context-wallet'),
-        financialWallets: [staleWallet],
-        currentUserId: userId,
-        repository: SavingsGoalRepository(
-          firestore: firestore,
-          auth: signedInAuth(),
-        ),
-      );
-      controller.goals = [goal];
+        final controller = SavingsGoalsController(
+          contextWallet: wallet(id: 'context-wallet'),
+          financialWallets: [staleWallet],
+          currentUserId: userId,
+          repository: SavingsGoalRepository(
+            firestore: firestore,
+            auth: signedInAuth(),
+          ),
+        );
+        controller.goals = [goal];
 
-      final updatedGoal = await controller.contribute(
-        goal: goal,
-        sourceWallet: staleWallet,
-        amount: 100,
-      );
+        final updatedGoal = await controller.contribute(
+          goal: goal,
+          sourceWallet: staleWallet,
+          amount: 100,
+        );
 
-      expect(updatedGoal?.savedAmount, 100);
-      expect(controller.financialWallets.single.balance, 600);
-      controller.dispose();
-    });
+        expect(updatedGoal?.savedAmount, 100);
+        expect(controller.financialWallets.single.balance, 600);
+        controller.dispose();
+      },
+    );
 
     test('edição usa saldo persistido e não reduz alvo abaixo dele', () async {
       final firestore = FakeFirebaseFirestore();
@@ -701,9 +849,7 @@ void main() {
       );
 
       await repository.archive(goalId: goal.id);
-      final secondResult = await repository.archive(
-        goalId: goal.id,
-      );
+      final secondResult = await repository.archive(goalId: goal.id);
 
       expect(secondResult.isArchived, isTrue);
     });
@@ -732,10 +878,7 @@ void main() {
         auth: signedInAuth(),
       );
 
-      expect(
-        repository.archive(goalId: goal.id),
-        throwsStateError,
-      );
+      expect(repository.archive(goalId: goal.id), throwsStateError);
 
       final persisted = await firestore
           .collection('savingsGoals')
@@ -760,9 +903,7 @@ void main() {
         updatedAt: DateTime(2026, 8, 20),
       );
 
-      final goalReference = firestore
-          .collection('savingsGoals')
-          .doc(goal.id);
+      final goalReference = firestore.collection('savingsGoals').doc(goal.id);
       await goalReference.set(SavingsGoalModel.toMap(goal));
       await goalReference.collection('movements').doc('older').set({
         'id': 'older',
@@ -787,9 +928,7 @@ void main() {
         firestore: firestore,
         auth: signedInAuth(),
       );
-      final movements = await repository.getMovements(
-        goalId: goal.id,
-      );
+      final movements = await repository.getMovements(goalId: goal.id);
 
       expect(movements, hasLength(2));
       expect(movements.first.id, 'newer');
@@ -821,10 +960,7 @@ void main() {
         auth: signedInAuth(),
       );
 
-      expect(
-        repository.getMovements(goalId: goal.id),
-        throwsStateError,
-      );
+      expect(repository.getMovements(goalId: goal.id), throwsStateError);
     });
   });
 }

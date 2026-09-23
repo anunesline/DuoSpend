@@ -18,21 +18,16 @@ class FinancialCalendarController extends ChangeNotifier {
 
   FinancialCalendarController({
     CreditCardRepository? creditCardRepository,
-    FinancialCalendarService calendarService =
-        const FinancialCalendarService(),
+    FinancialCalendarService calendarService = const FinancialCalendarService(),
     TransactionRepository? transactionRepository,
     WalletRepository? walletRepository,
-  }) : _creditCardRepository =
-           creditCardRepository ?? CreditCardRepository(),
+  }) : _creditCardRepository = creditCardRepository ?? CreditCardRepository(),
        _calendarService = calendarService,
        _transactionRepository =
            transactionRepository ?? TransactionRepository(),
        _walletRepository = walletRepository ?? WalletRepository();
 
-  DateTime selectedMonth = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-  );
+  DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime? selectedDay;
   bool isLoading = false;
   String? errorMessage;
@@ -46,6 +41,7 @@ class FinancialCalendarController extends ChangeNotifier {
   Future<void> load({
     required WalletModel wallet,
     required List<TransactionModel> transactions,
+    bool reloadTransactions = false,
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -53,7 +49,13 @@ class FinancialCalendarController extends ChangeNotifier {
 
     try {
       _currentBalance = wallet.balance;
-      _transactions = List<TransactionModel>.unmodifiable(transactions);
+      final loadedTransactions = reloadTransactions
+          ? await _transactionRepository.getTransactionsByWallet(
+              wallet.id,
+              wallet: wallet,
+            )
+          : transactions;
+      _transactions = List<TransactionModel>.unmodifiable(loadedTransactions);
       _invoices = await _loadWalletInvoices(wallet);
       _recalculate(wallet: wallet);
     } catch (error, stackTrace) {
@@ -68,25 +70,15 @@ class FinancialCalendarController extends ChangeNotifier {
     }
   }
 
-  void previousMonth({
-    required WalletModel wallet,
-  }) {
-    selectedMonth = DateTime(
-      selectedMonth.year,
-      selectedMonth.month - 1,
-    );
+  void previousMonth({required WalletModel wallet}) {
+    selectedMonth = DateTime(selectedMonth.year, selectedMonth.month - 1);
     selectedDay = null;
     _recalculate(wallet: wallet);
     notifyListeners();
   }
 
-  void nextMonth({
-    required WalletModel wallet,
-  }) {
-    selectedMonth = DateTime(
-      selectedMonth.year,
-      selectedMonth.month + 1,
-    );
+  void nextMonth({required WalletModel wallet}) {
+    selectedMonth = DateTime(selectedMonth.year, selectedMonth.month + 1);
     selectedDay = null;
     _recalculate(wallet: wallet);
     notifyListeners();
@@ -107,10 +99,17 @@ class FinancialCalendarController extends ChangeNotifier {
     required WalletModel transactionWallet,
   }) async {
     final obligation = entry.transaction;
+    final isRecurringOccurrence =
+        entry.kind == FinancialCalendarEntryKind.recurring &&
+        obligation?.isRecurring == true &&
+        entry.isProjected;
+    final isOriginalRecurringOccurrence =
+        isRecurringOccurrence &&
+        _isOriginalRecurringOccurrence(entry: entry, template: obligation!);
 
     if (isSettling ||
         obligation == null ||
-        !obligation.isFinanciallyPending) {
+        (!isRecurringOccurrence && !obligation.isFinanciallyPending)) {
       return false;
     }
 
@@ -122,10 +121,10 @@ class FinancialCalendarController extends ChangeNotifier {
       final sourceWalletId = obligation.paymentSourceId?.trim();
       final financialWalletId =
           sourceWalletId != null && sourceWalletId.isNotEmpty
-              ? sourceWalletId
-              : transactionWallet.isIndividual
-                  ? transactionWallet.id
-                  : null;
+          ? sourceWalletId
+          : transactionWallet.isIndividual
+          ? transactionWallet.id
+          : null;
 
       if (financialWalletId == null) {
         throw StateError(
@@ -133,25 +132,30 @@ class FinancialCalendarController extends ChangeNotifier {
         );
       }
 
-      final financialWallet =
-          await _walletRepository.getWalletById(financialWalletId);
+      final financialWallet = await _walletRepository.getWalletById(
+        financialWalletId,
+      );
 
       if (financialWallet == null) {
         throw StateError('Carteira financeira não encontrada.');
       }
 
-      final settled = await _transactionRepository
-          .settleFinancialObligation(
-        obligation: obligation,
-        transactionWallet: transactionWallet,
-        financialWallet: financialWallet,
-      );
+      final settled = isRecurringOccurrence && !isOriginalRecurringOccurrence
+          ? await _transactionRepository.settleRecurringOccurrence(
+              recurringTemplate: obligation,
+              occurrenceId: entry.id,
+              occurrenceDate: entry.date,
+              transactionWallet: transactionWallet,
+              financialWallet: financialWallet,
+            )
+          : await _transactionRepository.settleFinancialObligation(
+              obligation: obligation,
+              transactionWallet: transactionWallet,
+              financialWallet: financialWallet,
+            );
 
       _transactions = List<TransactionModel>.unmodifiable(
-        _transactions.map(
-          (transaction) =>
-              transaction.id == settled.id ? settled : transaction,
-        ),
+        _replaceOrAddTransaction(settled),
       );
 
       if (financialWallet.id == transactionWallet.id) {
@@ -173,6 +177,30 @@ class FinancialCalendarController extends ChangeNotifier {
     }
   }
 
+  bool _isOriginalRecurringOccurrence({
+    required FinancialCalendarEntry entry,
+    required TransactionModel template,
+  }) {
+    final original = template.recurringStartDate ?? template.date;
+    return entry.date.year == original.year &&
+        entry.date.month == original.month &&
+        entry.date.day == original.day;
+  }
+
+  List<TransactionModel> _replaceOrAddTransaction(TransactionModel settled) {
+    final index = _transactions.indexWhere(
+      (transaction) => transaction.id == settled.id,
+    );
+    if (index == -1) {
+      return [..._transactions, settled];
+    }
+    return _transactions
+        .map(
+          (transaction) => transaction.id == settled.id ? settled : transaction,
+        )
+        .toList(growable: false);
+  }
+
   List<FinancialCalendarEntry> get visibleEntries {
     final day = selectedDay;
     if (day == null) {
@@ -189,9 +217,7 @@ class FinancialCalendarController extends ChangeNotifier {
     );
   }
 
-  void _recalculate({
-    required WalletModel wallet,
-  }) {
+  void _recalculate({required WalletModel wallet}) {
     final monthStart = DateTime(selectedMonth.year, selectedMonth.month);
     final monthEnd = DateTime(
       selectedMonth.year,
@@ -258,9 +284,7 @@ class FinancialCalendarController extends ChangeNotifier {
     final invoices = <CreditCardInvoiceModel>[];
 
     for (final card in linkedCards) {
-      invoices.addAll(
-        await _creditCardRepository.getInvoices(cardId: card.id),
-      );
+      invoices.addAll(await _creditCardRepository.getInvoices(cardId: card.id));
     }
 
     return List<CreditCardInvoiceModel>.unmodifiable(invoices);

@@ -26,6 +26,9 @@ class FinancialCalendarService {
 
     final referenceDate = _dateOnly(now ?? DateTime.now());
     final entries = <FinancialCalendarEntry>[];
+    final materializedOccurrences = _materializedRecurringOccurrences(
+      transactions,
+    );
 
     for (final transaction in transactions) {
       if (transaction.isRecurring) {
@@ -35,14 +38,13 @@ class FinancialCalendarService {
           rangeStart: rangeStart,
           rangeEnd: rangeEnd,
           referenceDate: referenceDate,
+          materializedOccurrences: materializedOccurrences,
         );
         continue;
       }
 
       if (_isInRange(transaction.date, rangeStart, rangeEnd)) {
-        entries.add(
-          _entryFromTransaction(transaction),
-        );
+        entries.add(_entryFromTransaction(transaction));
       }
     }
 
@@ -89,8 +91,7 @@ class FinancialCalendarService {
       currentBalance: currentBalance,
       projectedIncome: projectedIncome,
       projectedExpense: projectedExpense,
-      projectedBalance:
-          currentBalance + projectedIncome - projectedExpense,
+      projectedBalance: currentBalance + projectedIncome - projectedExpense,
       entries: List<FinancialCalendarEntry>.unmodifiable(entries),
     );
   }
@@ -101,6 +102,7 @@ class FinancialCalendarService {
     required DateTime rangeStart,
     required DateTime rangeEnd,
     required DateTime referenceDate,
+    required Set<String> materializedOccurrences,
   }) {
     final occurrences = _recurringService.generateOccurrences(
       transaction: transaction,
@@ -109,37 +111,59 @@ class FinancialCalendarService {
     );
 
     for (final occurrence in occurrences) {
+      final occurrenceId = FinancialCalendarEntry.recurringOccurrenceId(
+        templateId: transaction.id,
+        occurrenceDate: occurrence,
+      );
+      if (materializedOccurrences.contains(occurrenceId)) {
+        continue;
+      }
       final normalizedOccurrence = _dateOnly(occurrence);
       final firstOccurrenceDate =
           transaction.recurringStartDate ?? transaction.date;
-      final isOriginalOccurrence = normalizedOccurrence
-          .isAtSameMomentAs(_dateOnly(firstOccurrenceDate));
+      final isOriginalOccurrence = normalizedOccurrence.isAtSameMomentAs(
+        _dateOnly(firstOccurrenceDate),
+      );
       final isProjected = isOriginalOccurrence
           ? transaction.isFinanciallyPending
           : !normalizedOccurrence.isBefore(referenceDate);
 
       entries.add(
         FinancialCalendarEntry(
-          id: '${transaction.id}-${occurrence.toIso8601String()}',
+          id: occurrenceId,
           title: transaction.description,
           value: transaction.value,
           type: transaction.type,
           date: occurrence,
           kind: FinancialCalendarEntryKind.recurring,
           isProjected: isProjected,
-          transaction: isOriginalOccurrence ? transaction : null,
+          transaction: transaction,
           referenceId: transaction.recurringId ?? transaction.id,
         ),
       );
     }
   }
 
-  FinancialCalendarEntry _entryFromTransaction(
-    TransactionModel transaction,
+  Set<String> _materializedRecurringOccurrences(
+    List<TransactionModel> transactions,
   ) {
+    final result = <String>{};
+    for (final transaction in transactions) {
+      if (transaction.isRecurring) {
+        continue;
+      }
+      final recurringId = transaction.recurringId?.trim();
+      if (recurringId == null || recurringId.isEmpty) {
+        continue;
+      }
+      result.add(transaction.id);
+    }
+    return result;
+  }
+
+  FinancialCalendarEntry _entryFromTransaction(TransactionModel transaction) {
     final isCreditCard = transaction.paymentMethod == 'creditCard';
-    final isProjected = !isCreditCard &&
-        transaction.isFinanciallyPending;
+    final isProjected = !isCreditCard && transaction.isFinanciallyPending;
 
     return FinancialCalendarEntry(
       id: transaction.id,
@@ -156,11 +180,7 @@ class FinancialCalendarService {
     );
   }
 
-  bool _isInRange(
-    DateTime date,
-    DateTime rangeStart,
-    DateTime rangeEnd,
-  ) {
+  bool _isInRange(DateTime date, DateTime rangeStart, DateTime rangeEnd) {
     final normalizedDate = _dateOnly(date);
     return !normalizedDate.isBefore(_dateOnly(rangeStart)) &&
         !normalizedDate.isAfter(_dateOnly(rangeEnd));
