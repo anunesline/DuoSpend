@@ -124,11 +124,12 @@ class OrbitHomeOverviewBuilder {
                   (task.isCompleted && isToday(task.completedAt)),
             )
             .toList()
-          ..sort(
-            (a, b) => (a.dueAt ?? a.completedAt ?? a.createdAt).compareTo(
+          ..sort((a, b) {
+            if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+            return (a.dueAt ?? a.completedAt ?? a.createdAt).compareTo(
               b.dueAt ?? b.completedAt ?? b.createdAt,
-            ),
-          );
+            );
+          });
     final summary = const OrbitDashboardSummaryBuilder().build(
       consumptions: consumptions,
       goals: activeGoals,
