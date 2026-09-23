@@ -118,4 +118,52 @@ TOTAL R\$ 16,90
     expect(result.items.last.unit, isNull);
     expect(result.date, isNull);
   });
+
+  test('cupom OCR ruidoso mantém somente itens fiscais e total final', () {
+    final result = parser.parse(r'''
+MERCADO EXEMPLO LTDA
+CNPJ 12.345.678/0001-90
+R RIO SOLIMOES, 967 WEISSOPOLIS PINHAIS PR
+EMISSAO 21/09/2026 12:50
+BISCOITO INTEGRAL
+1 UN X 5,49 5,49
+7891234567890 COOKIES CHOCOLATE 60G
+1 UN X 1,80 1,80
+LEITE UHT
+1 UN X 12,50 12,50
+ARROZ TIPO 1
+1 UN X 12,21 12,21
+QTDE TOTAL DE ITENS 4
+SUBTOTAL R$ 32,00
+DESCONTO R$ 1,52
+VALOR A PAGAR R$ 30,48
+FORMA DE PAGAMENTO CARTAO DE DEBITO
+VALOR PAGO R$ 30,48
+1URL00
+VOCE ECONOMIZOU: R$ 1,52
+QR CODE NFC-E CHAVE DE ACESSO
+''');
+
+    expect(result.merchant, 'MERCADO EXEMPLO LTDA');
+    expect(result.merchant, isNot(contains('RIO SOLIMOES')));
+    expect(result.date, DateTime(2026, 9, 21));
+    expect(result.subtotal, 32);
+    expect(result.discount, 1.52);
+    expect(result.totalAmount, 30.48);
+    expect(result.paymentMethodSuggestion, 'debitCard');
+    expect(result.items, hasLength(4));
+    expect(
+      result.items.map((item) => item.description),
+      contains('COOKIES CHOCOLATE 60G'),
+    );
+    expect(
+      result.items.map((item) => item.description),
+      isNot(contains('1URL00')),
+    );
+    expect(
+      result.items.any((item) => item.description.contains('ECONOMIZOU')),
+      isFalse,
+    );
+    expect(result.hasTotalDivergence, isFalse);
+  });
 }

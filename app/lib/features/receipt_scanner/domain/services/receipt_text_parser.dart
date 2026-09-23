@@ -76,7 +76,7 @@ class ReceiptTextParser {
   double? _labelledMoney(List<String> lines, RegExp label) {
     final trailing = RegExp(r'(\d[\d.,]*[.,]\d{2})\s*$');
     for (final line in lines) {
-      if (!label.hasMatch(line)) continue;
+      if (!label.hasMatch(_normalized(line))) continue;
       final match = trailing.firstMatch(line);
       if (match != null) return _number(match.group(1)!);
     }
@@ -96,6 +96,7 @@ class ReceiptTextParser {
 
   List<ReceiptScanItem> _items(List<String> lines) {
     final result = <ReceiptScanItem>[];
+    var closed = false;
     final detailed = RegExp(
       r'^(.+?)\s+(\d+(?:[.,]\d+)?)\s*(UN|UND|UNID|KG|KGS|G|GR|L|LT|ML)?\s*[Xx]\s*(\d[\d.,]*[.,]\d{2})\s+(\d[\d.,]*[.,]\d{2})$',
       caseSensitive: false,
@@ -107,7 +108,11 @@ class ReceiptTextParser {
     );
     for (var index = 0; index < lines.length; index++) {
       var line = lines[index];
-      if (_irrelevant(line)) continue;
+      if (_endsItems(line)) {
+        closed = true;
+        continue;
+      }
+      if (closed || _irrelevant(line)) continue;
       line = line.replaceFirst(RegExp(r'^\d{1,3}\s+'), '');
       line = line.replaceFirst(
         RegExp(r'^\(?C[ÓO]D(?:IGO)?\s*[:.]?\s*\d+\)?\s*', caseSensitive: false),
@@ -135,9 +140,11 @@ class ReceiptTextParser {
         }
         continue;
       }
-      if (index + 1 < lines.length && !_irrelevant(lines[index + 1])) {
+      if (index + 1 < lines.length &&
+          !_irrelevant(lines[index + 1]) &&
+          !_endsItems(lines[index + 1])) {
         final next = quantityLine.firstMatch(lines[index + 1]);
-        if (next != null && RegExp(r'[A-Za-zÀ-ÿ]{2}').hasMatch(line)) {
+        if (next != null && _plausibleDescription(line)) {
           result.add(
             ReceiptScanItem(
               description: _cleanDescription(line),
@@ -146,7 +153,7 @@ class ReceiptTextParser {
               unit: _unit(next.group(2)),
               unitPrice: _number(next.group(3)!),
               totalPrice: next.group(4) == null
-                  ? null
+                  ? _number(next.group(3)!)
                   : _number(next.group(4)!),
             ),
           );
@@ -155,7 +162,7 @@ class ReceiptTextParser {
         }
       }
       final single = totalOnly.firstMatch(line);
-      if (single != null && !_irrelevant(single.group(1)!)) {
+      if (single != null && _plausibleDescription(single.group(1)!)) {
         result.add(
           ReceiptScanItem(
             description: _cleanDescription(single.group(1)!.trim()),
@@ -169,15 +176,48 @@ class ReceiptTextParser {
   }
 
   bool _irrelevant(String line) => RegExp(
-    r'CNPJ|CPF|CHAVE|ACESSO|PROTOCOLO|EMISS[AÃ]O|DATA\b|TOTAL|VALOR\s+A\s+PAGAR|DESCONTO|TRIBUTO|PAGAMENTO|PIX|DINHEIRO|CR[EÉ]DITO|D[EÉ]BITO|CONSUMIDOR|ENDERE[CÇ]O|RUA\b|AVENIDA\b|DOCUMENTO|FISCAL|NFC|CUPOM|QTDE?\.?\s+TOTAL|^\d{2}[/.-]\d{2}[/.-]\d{2,4}',
+    r'CNPJ|CPF|CHAVE|ACESSO|PROTOCOLO|EMISSAO|DATA\b|TOTAL|VALOR\s+A\s+PAGAR|DESCONTO|TRIBUTO|PAGAMENTO|PIX|DINHEIRO|CREDITO|DEBITO|CONSUMIDOR|ENDERECO|RUA\b|AVENIDA\b|DOCUMENTO|FISCAL|NFC|CUPOM|QTDE?\.?\s+TOTAL|VOCE\s+ECONOMIZOU|OPERADOR|CAIXA|PDV|^\d{2}[/.-]\d{2}[/.-]\d{2,4}',
     caseSensitive: false,
-  ).hasMatch(line);
+  ).hasMatch(_normalized(line));
+
+  bool _endsItems(String line) => RegExp(
+    r'QTDE?\.?\s+TOTAL|SUB\s*TOTAL|VALOR\s+DOS\s+PRODUTOS|DESCONTO|VALOR\s+A\s+PAGAR|VALOR\s+TOTAL|FORMA\s+DE\s+PAGAMENTO|VALOR\s+PAGO|TROCO',
+    caseSensitive: false,
+  ).hasMatch(_normalized(line));
+
+  bool _plausibleDescription(String line) {
+    final normalized = _normalized(line);
+    if (_irrelevant(line) || RegExp(r'^\d{1,14}$').hasMatch(normalized)) {
+      return false;
+    }
+    final letters = RegExp(r'[A-Z]{2}').hasMatch(normalized);
+    final words = RegExp(r'[A-Z]{2}').allMatches(normalized).length;
+    return letters &&
+        words >= 1 &&
+        !RegExp(r'^\d+[A-Z]+\d*$').hasMatch(normalized);
+  }
+
+  String _normalized(String value) => value
+      .toUpperCase()
+      .replaceAll('Á', 'A')
+      .replaceAll('À', 'A')
+      .replaceAll('Ã', 'A')
+      .replaceAll('Â', 'A')
+      .replaceAll('É', 'E')
+      .replaceAll('Ê', 'E')
+      .replaceAll('Í', 'I')
+      .replaceAll('Ó', 'O')
+      .replaceAll('Ô', 'O')
+      .replaceAll('Õ', 'O')
+      .replaceAll('Ú', 'U')
+      .replaceAll('Ç', 'C');
 
   String _cleanDescription(String value) => value
       .replaceAll(
         RegExp(r'\s*\(?C[ÓO]D(?:IGO)?\s*[:.]\s*\d+\)?', caseSensitive: false),
         '',
       )
+      .replaceFirst(RegExp(r'^\d{8,14}\s+'), '')
       .trim();
 
   String? _unit(String? value) {
