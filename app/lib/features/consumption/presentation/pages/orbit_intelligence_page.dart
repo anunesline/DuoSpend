@@ -9,7 +9,6 @@ import '../../../../shared/knowledge/products/product_repository.dart';
 import '../../../household_routines/data/repositories/firestore_household_list_repository.dart';
 import '../../../household_routines/domain/services/intelligent_shopping_list_service.dart';
 import '../../../orbit_intelligence/domain/orbit_intelligence_item.dart';
-import '../../../financial_intelligence/domain/signals/financial_signals.dart';
 
 class OrbitIntelligencePage extends StatefulWidget {
   const OrbitIntelligencePage({
@@ -44,11 +43,27 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
           scopeId: widget.scopeId,
           products: widget.products,
           events: FirestoreConsumptionEventRepository(),
-        )..load());
+        ));
+    controller.addListener(_markPresentedWhenLoaded);
+    if (_ownsController) _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await controller.loadPersonality();
+    await controller.load();
+  }
+
+  void _markPresentedWhenLoaded() {
+    if (!controller.isLoading &&
+        controller.errorMessage == null &&
+        controller.centralItems.isNotEmpty) {
+      controller.markCentralItemsPresented();
+    }
   }
 
   @override
   void dispose() {
+    controller.removeListener(_markPresentedWhenLoaded);
     if (_ownsController) controller.dispose();
     super.dispose();
   }
@@ -160,72 +175,25 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
 
   Widget _centralCard(OrbitIntelligenceItem item) {
     if (item.domain == OrbitIntelligenceDomain.financial) {
-      return _financialCard(item.source as FinancialSignal);
+      return _CentralCard(
+        child: _CardLead(
+          icon: Icons.account_balance_wallet_outlined,
+          color: OrbitHomeTokens.green,
+          title: item.content.title,
+          child: Text(item.content.detail),
+        ),
+      );
     }
     final entry = item.source as OrbitIntelligenceEntry;
     return switch (item.kind) {
-      OrbitIntelligenceKind.action => _actionCard(entry),
-      OrbitIntelligenceKind.insight => _insightCard(entry),
-      OrbitIntelligenceKind.learned => _learnedCard(entry),
+      OrbitIntelligenceKind.action => _actionCard(item, entry),
+      OrbitIntelligenceKind.insight => _insightCard(item, entry),
+      OrbitIntelligenceKind.learned => _learnedCard(item, entry),
     };
   }
 
-  Widget _financialCard(FinancialSignal signal) => _CentralCard(
-    child: _CardLead(
-      icon: Icons.account_balance_wallet_outlined,
-      color: OrbitHomeTokens.green,
-      title: _financialTitle(signal),
-      child: Text(_financialDetail(signal)),
-    ),
-  );
-
-  String _financialTitle(FinancialSignal signal) => switch (signal.type) {
-    FinancialSignalType.spendingChanged => 'Seus gastos mudaram',
-    FinancialSignalType.incomeChanged => 'Sua renda mudou',
-    FinancialSignalType.cashFlowChanged => 'Seu fluxo de caixa mudou',
-    FinancialSignalType.categorySpendingChanged =>
-      'Gastos por categoria mudaram',
-    FinancialSignalType.cardSpendingChanged => 'Gastos no cartão mudaram',
-    FinancialSignalType.budgetExceeded => 'Orçamento excedido',
-    FinancialSignalType.knownCommitment => 'Compromissos conhecidos',
-    FinancialSignalType.invoiceDue => 'Fatura próxima',
-    FinancialSignalType.invoiceOverdue => 'Fatura vencida',
-  };
-
-  String _financialDetail(FinancialSignal signal) {
-    final value = signal.percentageDifference == null
-        ? signal.absoluteDifference == null
-              ? null
-              : orbitMoney(signal.absoluteDifference!.abs())
-        : '${(signal.percentageDifference!.abs() * 100).toStringAsFixed(1)}%';
-    final context =
-        signal.category ??
-        (signal.cardId == null ? null : 'Cartão ${signal.cardId}') ??
-        signal.invoiceId;
-    final parts = <String>[];
-    if (context != null) parts.add(context);
-    if (value != null) parts.add('Variação: $value');
-    if (signal.dueDate != null) {
-      parts.add(
-        'Vencimento: ${DateFormat('dd/MM/yyyy').format(signal.dueDate!)}',
-      );
-    }
-    if (parts.isEmpty) return 'Informação financeira observada pelo Orbit.';
-    return parts.join('\n');
-  }
-
-  Widget _actionCard(OrbitIntelligenceEntry entry) {
+  Widget _actionCard(OrbitIntelligenceItem item, OrbitIntelligenceEntry entry) {
     final interaction = entry.interaction!;
-    final question = switch (interaction.type) {
-      ConsumptionInteractionType.confirmStock =>
-        'Ainda tem ${entry.productName}?',
-      ConsumptionInteractionType.offerAddToShoppingList =>
-        'Quer colocar ${entry.productName} na lista de compras?',
-      ConsumptionInteractionType.confirmExceptionalPurchase =>
-        'Essa compra foi fora do seu padrão?',
-      ConsumptionInteractionType.acknowledgePriceOpportunity =>
-        'O Orbit percebeu uma oportunidade de preço.',
-    };
     final responses = interaction.allowedResponses.take(3).toList();
     return _CentralCard(
       child: Column(
@@ -234,8 +202,8 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
           _CardLead(
             icon: Icons.inventory_2_outlined,
             color: OrbitHomeTokens.purple,
-            title: question,
-            child: Text(_detail(entry)),
+            title: item.content.title,
+            child: Text(item.content.detail),
           ),
           if (interaction.type ==
               ConsumptionInteractionType.offerAddToShoppingList) ...[
@@ -320,13 +288,16 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
     );
   }
 
-  Widget _insightCard(OrbitIntelligenceEntry entry) {
+  Widget _insightCard(
+    OrbitIntelligenceItem item,
+    OrbitIntelligenceEntry entry,
+  ) {
     final metrics = entry.result.metrics;
     return _CentralCard(
       child: _CardLead(
         icon: Icons.shopping_cart_outlined,
         color: OrbitHomeTokens.green,
-        title: 'Você pagou menos que o habitual em ${entry.productName}',
+        title: item.content.title,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -340,22 +311,25 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
                   height: 1.25,
                 ),
               ),
-            Text(_detail(entry)),
+            Text(item.content.detail),
           ],
         ),
       ),
     );
   }
 
-  Widget _learnedCard(OrbitIntelligenceEntry entry) => _CentralCard(
+  Widget _learnedCard(
+    OrbitIntelligenceItem item,
+    OrbitIntelligenceEntry entry,
+  ) => _CentralCard(
     child: _CardLead(
       icon: Icons.repeat_rounded,
       color: OrbitHomeTokens.cyan,
-      title: entry.productName,
+      title: item.content.title,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(_detail(entry)),
+          Text(item.content.detail),
           if (entry.result.metrics.lastPurchase != null)
             Text(
               'Última compra: ${DateFormat('dd/MM/yyyy').format(entry.result.metrics.lastPurchase!.purchasedAt)}',
@@ -364,18 +338,6 @@ class _OrbitIntelligencePageState extends State<OrbitIntelligencePage> {
       ),
     ),
   );
-
-  String _detail(OrbitIntelligenceEntry entry) {
-    final metrics = entry.result.metrics;
-    final days = metrics.averagePurchaseInterval?.inDays;
-    final price = metrics.averageUnitPrice;
-    final currency = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
-    final parts = <String>[];
-    if (days != null) parts.add('Compra normalmente a cada ~$days dias');
-    if (price != null) parts.add('Preço habitual: ${currency.format(price)}');
-    if (parts.isEmpty) return 'Baseado no histórico registrado pelo Orbit.';
-    return parts.join('\n');
-  }
 
   String _responseLabel(ConsumptionInteractionResponse response) =>
       switch (response) {

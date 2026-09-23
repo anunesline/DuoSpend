@@ -8,6 +8,9 @@ import '../../domain/interactions/consumption_interaction_policy.dart';
 import '../../domain/repositories/consumption_event_repository.dart';
 import '../../../financial_intelligence/domain/signals/financial_signals.dart';
 import '../../../orbit_intelligence/domain/orbit_intelligence_item.dart';
+import '../../../orbit_intelligence/domain/orbit_personality.dart';
+import '../../../orbit_intelligence/domain/orbit_personality_renderer.dart';
+import '../../../orbit_intelligence/data/orbit_personality_preferences.dart';
 import '../../../financial_intelligence/domain/services/financial_intelligence_coordinator.dart';
 import '../../../home/data/repositories/wallet_repository.dart';
 import '../../../home/data/models/wallet_model.dart';
@@ -44,12 +47,16 @@ class OrbitIntelligenceController extends ChangeNotifier {
     CreditCardRepository? creditCardRepository,
     this.engine = const ConsumptionIntelligenceEngine(),
     this.policy = const ConsumptionInteractionPolicy(),
+    OrbitPersonalityPreferences? personalityPreferences,
+    this.personalityRenderer = const OrbitPersonalityRenderer(),
   }) : _events = events,
        _walletRepository = walletRepository,
        _transactionRepository = transactionRepository,
        _budgetRepository = budgetRepository,
        _creditCardRepository = creditCardRepository,
-       _feedback = ConsumptionFeedbackService(events);
+       _feedback = ConsumptionFeedbackService(events),
+       _personalityPreferences =
+           personalityPreferences ?? OrbitPersonalityPreferences.instance;
 
   final String userId;
   final String scopeId;
@@ -65,10 +72,16 @@ class OrbitIntelligenceController extends ChangeNotifier {
   final BudgetRepository? _budgetRepository;
   final CreditCardRepository? _creditCardRepository;
   final ConsumptionFeedbackService _feedback;
+  final OrbitPersonalityPreferences _personalityPreferences;
+  final OrbitPersonalityRenderer personalityRenderer;
 
   bool isLoading = false;
   String? errorMessage;
   List<OrbitIntelligenceEntry> entries = const [];
+  OrbitPersonality? personality;
+  List<OrbitIntelligenceItem> _centralItems = const [];
+  final Map<String, OrbitPersonalityRenderResult> _rendered = {};
+  final Set<String> _presented = {};
 
   List<OrbitIntelligenceEntry> get actions =>
       entries
@@ -96,10 +109,10 @@ class OrbitIntelligenceController extends ChangeNotifier {
   OrbitIntelligenceEntry? get priorityAction =>
       actions.isEmpty ? null : actions.first;
 
-  List<OrbitIntelligenceItem> get centralItems => orchestrator.build(
-    consumption: const ConsumptionCentralAdapter().adapt(entries),
-    financial: const FinancialCentralAdapter().adapt(financialSignals),
-  );
+  List<OrbitIntelligenceItem> get centralItems =>
+      _centralItems.isNotEmpty || (entries.isEmpty && financialSignals.isEmpty)
+      ? _centralItems
+      : _sourceItems();
   List<OrbitIntelligenceItem> get centralActions => centralItems
       .where((item) => item.kind == OrbitIntelligenceKind.action)
       .toList(growable: false);
@@ -109,6 +122,88 @@ class OrbitIntelligenceController extends ChangeNotifier {
   List<OrbitIntelligenceItem> get centralLearned => centralItems
       .where((item) => item.kind == OrbitIntelligenceKind.learned)
       .toList(growable: false);
+
+  Future<void> loadPersonality() async {
+    personality = await _personalityPreferences.loadPersonality(userId);
+    await _rebuildCentralItems();
+    notifyListeners();
+  }
+
+  Future<void> setPersonality(OrbitPersonality value) async {
+    personality = value;
+    await _personalityPreferences.savePersonality(userId, value);
+    await _rebuildCentralItems();
+    notifyListeners();
+  }
+
+  /// This explicit lifecycle hook is called by the page after a loaded list is
+  /// logically presented. Rebuilds and getters never write variant history.
+  Future<void> markCentralItemsPresented() async {
+    final selected = personality;
+    if (selected == null) return;
+    for (final item in _centralItems) {
+      final rendered = _rendered[item.id];
+      if (rendered == null || rendered.factType == 'fallback') continue;
+      final key = '${item.id}|${selected.name}|${rendered.variantId}';
+      if (!_presented.add(key)) continue;
+      await _personalityPreferences.recordVariant(
+        userId: userId,
+        personality: selected,
+        factType: rendered.factType,
+        family: rendered.family,
+        variantId: rendered.variantId,
+      );
+    }
+  }
+
+  Future<void> _rebuildCentralItems() async {
+    final sourceItems = _sourceItems();
+    final rendered = <String, OrbitPersonalityRenderResult>{};
+    final output = <OrbitIntelligenceItem>[];
+    for (final item in sourceItems) {
+      final selected = personality;
+      final initial = personalityRenderer.render(
+        item: item,
+        personality: selected,
+      );
+      final recent = selected == null || initial.factType == 'fallback'
+          ? const <String>[]
+          : await _personalityPreferences.recentVariants(
+              userId: userId,
+              personality: selected,
+              factType: initial.factType,
+              family: initial.family,
+            );
+      final result = personalityRenderer.render(
+        item: item,
+        personality: selected,
+        recentVariantIds: recent,
+      );
+      rendered[item.id] = result;
+      output.add(
+        OrbitIntelligenceItem(
+          id: item.id,
+          dedupeKey: item.dedupeKey,
+          domain: item.domain,
+          kind: item.kind,
+          priority: item.priority,
+          scope: item.scope,
+          content: result.content,
+          source: item.source,
+          action: item.action,
+        ),
+      );
+    }
+    _rendered
+      ..clear()
+      ..addAll(rendered);
+    _centralItems = List.unmodifiable(output);
+  }
+
+  List<OrbitIntelligenceItem> _sourceItems() => orchestrator.build(
+    consumption: const ConsumptionCentralAdapter().adapt(entries),
+    financial: const FinancialCentralAdapter().adapt(financialSignals),
+  );
 
   Future<void> load() async {
     isLoading = true;
@@ -132,7 +227,7 @@ class OrbitIntelligenceController extends ChangeNotifier {
           scopeId: scopeId,
           metrics: metrics,
           events: events,
-            referenceAt: referenceAt,
+          referenceAt: referenceAt,
         );
         results.add(
           OrbitIntelligenceEntry(
@@ -181,6 +276,7 @@ class OrbitIntelligenceController extends ChangeNotifier {
       } else {
         financialSignals = const [];
       }
+      await _rebuildCentralItems();
     } catch (_) {
       errorMessage = 'Não foi possível carregar a inteligência do Orbit.';
     } finally {

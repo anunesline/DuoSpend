@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../../core/design_system/duo_colors.dart';
 import '../../application/orbit_appearance_controller.dart';
 import '../../data/orbit_reset_service.dart';
+import '../../../orbit_intelligence/data/orbit_personality_preferences.dart';
+import '../../../orbit_intelligence/domain/orbit_personality.dart';
 
 class OrbitSettingsPage extends StatefulWidget {
   final String? sharedWalletId;
@@ -22,6 +25,7 @@ class _OrbitSettingsPageState extends State<OrbitSettingsPage> {
   final _resetService = OrbitResetService();
   OrbitResetRequest? _pendingRequest;
   bool _busy = false;
+  OrbitPersonality? _personality;
 
   @override
   void initState() {
@@ -31,6 +35,12 @@ class _OrbitSettingsPageState extends State<OrbitSettingsPage> {
 
   Future<void> _load() async {
     await OrbitAppearanceController.instance.loadForCurrentUser();
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      _personality = await OrbitPersonalityPreferences.instance.loadPersonality(
+        userId,
+      );
+    }
     final walletId = widget.sharedWalletId;
     final pending = walletId == null
         ? null
@@ -65,6 +75,21 @@ class _OrbitSettingsPageState extends State<OrbitSettingsPage> {
             },
           ),
           const SizedBox(height: 26),
+          _sectionTitle('Personalidade do Orbit'),
+          const SizedBox(height: 8),
+          _card([
+            for (final personality in OrbitPersonality.values)
+              ListTile(
+                title: Text(personality.label),
+                trailing: Icon(
+                  _personality == personality
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                ),
+                onTap: _busy ? null : () => _selectPersonality(personality),
+              ),
+          ]),
+          const SizedBox(height: 26),
           _sectionTitle('Dados do Orbit'),
           const SizedBox(height: 8),
           _card([
@@ -97,6 +122,16 @@ class _OrbitSettingsPageState extends State<OrbitSettingsPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _selectPersonality(OrbitPersonality personality) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+    await OrbitPersonalityPreferences.instance.savePersonality(
+      userId,
+      personality,
+    );
+    if (mounted) setState(() => _personality = personality);
   }
 
   Widget _themeTile(String title, ThemeMode value, ThemeMode current) {

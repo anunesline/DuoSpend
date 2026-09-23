@@ -2,6 +2,7 @@ import '../../consumption/domain/interactions/consumption_interaction.dart';
 import '../../consumption/presentation/controllers/orbit_intelligence_controller.dart';
 import '../../financial_intelligence/domain/signals/financial_signals.dart';
 import '../../financial_intelligence/domain/facts/financial_facts.dart';
+import 'package:intl/intl.dart';
 
 enum OrbitIntelligenceDomain { consumption, financial }
 
@@ -84,10 +85,7 @@ class ConsumptionCentralAdapter {
               id: interaction.scopeId,
               domain: OrbitIntelligenceDomain.consumption,
             ),
-            content: OrbitIntelligenceContent(
-              title: entry.productName,
-              detail: entry.productName,
-            ),
+            content: _consumptionContent(entry, kind),
             action: kind == OrbitIntelligenceKind.action
                 ? OrbitIntelligenceAction(
                     id: interaction.id,
@@ -110,16 +108,55 @@ class ConsumptionCentralAdapter {
               id: entry.result.scopeId,
               domain: OrbitIntelligenceDomain.consumption,
             ),
-            content: OrbitIntelligenceContent(
-              title: entry.productName,
-              detail: entry.productName,
-            ),
+            content: _consumptionContent(entry, OrbitIntelligenceKind.learned),
             source: entry,
           ),
         );
       }
     }
     return List.unmodifiable(items);
+  }
+
+  OrbitIntelligenceContent _consumptionContent(
+    OrbitIntelligenceEntry entry,
+    OrbitIntelligenceKind kind,
+  ) {
+    final interaction = entry.interaction;
+    final detail = _consumptionDetail(entry);
+    if (kind == OrbitIntelligenceKind.learned) {
+      return OrbitIntelligenceContent(title: entry.productName, detail: detail);
+    }
+    if (kind == OrbitIntelligenceKind.insight) {
+      return OrbitIntelligenceContent(
+        title: 'Você pagou menos que o habitual em ${entry.productName}',
+        detail: detail,
+      );
+    }
+    final title = switch (interaction?.type) {
+      ConsumptionInteractionType.confirmStock =>
+        'Ainda tem ${entry.productName}?',
+      ConsumptionInteractionType.offerAddToShoppingList =>
+        'Quer colocar ${entry.productName} na lista de compras?',
+      ConsumptionInteractionType.confirmExceptionalPurchase =>
+        'Essa compra foi fora do seu padrão?',
+      _ => 'O Orbit precisa da sua confirmação.',
+    };
+    return OrbitIntelligenceContent(title: title, detail: detail);
+  }
+
+  String _consumptionDetail(OrbitIntelligenceEntry entry) {
+    final metrics = entry.result.metrics;
+    final parts = <String>[];
+    final days = metrics.averagePurchaseInterval?.inDays;
+    if (days != null) parts.add('Compra normalmente a cada ~$days dias');
+    if (metrics.averageUnitPrice != null) {
+      parts.add(
+        'Preço habitual: ${NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(metrics.averageUnitPrice)}',
+      );
+    }
+    return parts.isEmpty
+        ? 'Baseado no histórico registrado pelo Orbit.'
+        : parts.join('\n');
   }
 }
 
