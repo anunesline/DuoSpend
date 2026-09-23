@@ -7,6 +7,16 @@ class HouseholdReminderCooldownException implements Exception {
   const HouseholdReminderCooldownException(this.retryAfter);
 }
 
+class HouseholdReminderDeliveryException implements Exception {
+  final int statusCode;
+  final String message;
+
+  const HouseholdReminderDeliveryException(this.statusCode, this.message);
+
+  @override
+  String toString() => message;
+}
+
 abstract class HouseholdTaskReminderRepository {
   Future<void> saveReminder(HouseholdTaskReminder reminder);
 

@@ -11,8 +11,8 @@ function json(status, body) {
 }
 
 function requireString(value, field) {
-  const normalized = String(value || "").trim();
-  if (!normalized) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!normalized || normalized.length > 128 || /[\/\x00-\x1f]/.test(normalized)) {
     throw new HttpError(400, `${field} is required.`);
   }
   return normalized;
@@ -33,8 +33,16 @@ function bearerToken(request) {
   return match[1].trim();
 }
 
+async function upstreamFetch(url, options) {
+  try {
+    return await fetch(url, {...options, signal: AbortSignal.timeout(15000)});
+  } catch (_) {
+    throw new HttpError(503, "Serviço temporariamente indisponível.", {code: "temporary_delivery_error"});
+  }
+}
+
 async function firebaseUserId(idToken, env) {
-  const response = await fetch(
+  const response = await upstreamFetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.FIREBASE_WEB_API_KEY)}`,
     {
       method: "POST",
@@ -43,13 +51,24 @@ async function firebaseUserId(idToken, env) {
     },
   );
 
+  if (response.status >= 500 || response.status === 429) throw new HttpError(503, "Firebase Auth unavailable.");
   if (!response.ok) {
     throw new HttpError(401, "Invalid Firebase session.");
   }
 
   const data = await response.json();
   const uid = data && data.users && data.users[0] && data.users[0].localId;
-  if (!uid) throw new HttpError(401, "Invalid Firebase session.");
+  if (!uid || data.users[0].disabled) throw new HttpError(401, "Invalid Firebase session.");
+  // Signature/session validation above is authoritative. Also bind to this project
+  // and reject expired tokens even if the account lookup still accepts them.
+  let claims;
+  try { claims = JSON.parse(atob(idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); }
+  catch (_) { throw new HttpError(401, "Invalid Firebase token."); }
+  if (!claims || claims.aud !== env.FIREBASE_PROJECT_ID ||
+      claims.iss !== `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}` ||
+      claims.sub !== uid || !Number.isFinite(claims.exp) || claims.exp <= Date.now() / 1000) {
+    throw new HttpError(401, "Invalid or expired Firebase token.");
+  }
   return String(uid);
 }
 
@@ -58,7 +77,7 @@ function firestoreBase(env) {
 }
 
 async function firestoreFetch(url, idToken, options = {}) {
-  const response = await fetch(url, {
+  const response = await upstreamFetch(url, {
     ...options,
     headers: {
       ...(options.headers || {}),
@@ -69,12 +88,11 @@ async function firestoreFetch(url, idToken, options = {}) {
 
   if (response.status === 404) return null;
   if (!response.ok) {
-    const body = await response.text();
     throw new HttpError(
       response.status === 403 ? 403 : 502,
       response.status === 403
         ? "Firestore denied access to this household context."
-        : `Firestore request failed (${response.status}): ${body.slice(0, 200)}`,
+        : "Firestore temporarily unavailable.",
     );
   }
   return response.json();
@@ -119,7 +137,7 @@ async function loadTask(taskId, idToken, env) {
   return document.fields || {};
 }
 
-async function validateConnectedHousehold(senderUserId, recipientUserId, idToken, env) {
+async function validateConnectedHousehold(senderUserId, recipientUserId, scopeId, idToken, env) {
   const body = {
     structuredQuery: {
       from: [{collectionId: "wallets"}],
@@ -143,7 +161,8 @@ async function validateConnectedHousehold(senderUserId, recipientUserId, idToken
     const fields = row && row.document && row.document.fields;
     if (!fields || stringField(fields, "type") !== "shared") return false;
     const members = stringArrayField(fields, "memberIds");
-    return members.includes(senderUserId) && members.includes(recipientUserId);
+    return members.includes(senderUserId) && members.includes(recipientUserId) &&
+      `household:${[...new Set(members)].sort().join("|")}` === scopeId;
   });
 
   if (!connected) {
@@ -206,8 +225,8 @@ async function releaseCooldown(env, key, nowMs) {
     .run();
 }
 
-async function sendOneSignal(recipientUserId, taskId, scopeId, taskTitle, env) {
-  const response = await fetch("https://api.onesignal.com/notifications", {
+async function sendOneSignal(recipientUserId, taskId, scopeId, reminderId, env) {
+  const response = await upstreamFetch("https://api.onesignal.com/notifications", {
     method: "POST",
     headers: {
       authorization: `Key ${env.ONESIGNAL_REST_API_KEY}`,
@@ -215,6 +234,7 @@ async function sendOneSignal(recipientUserId, taskId, scopeId, taskTitle, env) {
     },
     body: JSON.stringify({
       app_id: env.ONESIGNAL_APP_ID,
+      idempotency_key: reminderId,
       include_aliases: {external_id: [recipientUserId]},
       target_channel: "push",
       headings: {
@@ -222,8 +242,8 @@ async function sendOneSignal(recipientUserId, taskId, scopeId, taskTitle, env) {
         pt: "Lembrete da casa",
       },
       contents: {
-        en: `Don't forget: ${taskTitle}`,
-        pt: `Não esqueça: ${taskTitle}`,
+        en: "Your partner sent a reminder about your household task.",
+        pt: "Seu parceiro enviou um lembrete sobre sua tarefa da casa.",
       },
       data: {
         type: "household_task_reminder",
@@ -238,14 +258,19 @@ async function sendOneSignal(recipientUserId, taskId, scopeId, taskTitle, env) {
   let data = {};
   try {
     data = raw ? JSON.parse(raw) : {};
+    if (!data || typeof data !== "object" || Array.isArray(data)) data = {};
   } catch (_) {
     data = {};
   }
 
-  if (!response.ok || !data.id) {
+  if (response.ok && !data.id && data.errors) {
+    throw new HttpError(422, "Destinatário sem assinatura push disponível.", {code: "recipient_unavailable"});
+  }
+  if (!response.ok || typeof data.id !== "string" || !data.id || data.errors) {
     throw new HttpError(
       502,
-      `OneSignal delivery failed (${response.status}).`,
+      "Não foi possível entregar o lembrete ao OneSignal.",
+      {code: "temporary_delivery_error"},
     );
   }
   return String(data.id);
@@ -255,20 +280,11 @@ async function handlePartnerReminder(request, env) {
   const idToken = bearerToken(request);
   const senderUserId = await firebaseUserId(idToken, env);
   const body = await request.json().catch(() => ({}));
-  const reminderId = requireString(body.reminderId, "reminderId");
-  const taskId = requireString(body.taskId, "taskId");
+  const reminderId = requireString(body?.reminderId, "reminderId").toLowerCase();
+  const taskId = requireString(body?.taskId, "taskId");
 
-  const existing = await env.DB.prepare(
-    "SELECT onesignal_message_id FROM partner_reminders WHERE reminder_id = ?",
-  )
-    .bind(reminderId)
-    .first();
-  if (existing) {
-    return json(200, {
-      ok: true,
-      idempotent: true,
-      messageId: existing.onesignal_message_id || null,
-    });
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reminderId)) {
+    throw new HttpError(400, "reminderId must be a UUID v4.");
   }
 
   const task = await loadTask(taskId, idToken, env);
@@ -281,7 +297,7 @@ async function handlePartnerReminder(request, env) {
 
   const scopeId = stringField(task, "scopeId");
   const members = sharedMembers(scopeId);
-  if (!members.includes(senderUserId)) {
+  if (members.length < 2 || `household:${[...new Set(members)].sort().join("|")}` !== scopeId || !members.includes(senderUserId)) {
     throw new HttpError(403, "The sender is not part of this household.");
   }
 
@@ -296,11 +312,33 @@ async function handlePartnerReminder(request, env) {
   await validateConnectedHousehold(
     senderUserId,
     recipientUserId,
+    scopeId,
     idToken,
     env,
   );
 
   const nowMs = Date.now();
+  // Reserve the identifier BEFORE delivery. Binding is immutable, including after
+  // timeouts; never reuse an id for a different task, sender or recipient.
+  await env.DB.prepare(`
+    INSERT INTO partner_reminders
+      (reminder_id, task_id, scope_id, sender_user_id, recipient_user_id, created_at_ms)
+    VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(reminder_id) DO NOTHING
+  `).bind(reminderId, taskId, scopeId, senderUserId, recipientUserId, nowMs).run();
+  const existing = await env.DB.prepare(
+    "SELECT * FROM partner_reminders WHERE reminder_id = ?",
+  ).bind(reminderId).first();
+  if (!existing || existing.task_id !== taskId || existing.scope_id !== scopeId ||
+      existing.sender_user_id !== senderUserId || existing.recipient_user_id !== recipientUserId) {
+    throw new HttpError(409, "Reminder identifier already belongs to another request.");
+  }
+  if (existing.onesignal_message_id) {
+    return json(200, {ok: true, idempotent: true, messageId: existing.onesignal_message_id});
+  }
+  // OneSignal retains keys for 30 days. Never retry an ambiguous older send.
+  if (nowMs - existing.created_at_ms >= 29 * 24 * 60 * 60 * 1000) {
+    throw new HttpError(409, "Reminder retry window expired.");
+  }
   const cooldownKey = `${taskId}|${senderUserId}|${recipientUserId}`;
   await acquireCooldown(
     env,
@@ -312,36 +350,17 @@ async function handlePartnerReminder(request, env) {
   );
 
   try {
-    const taskTitle = stringField(task, "title") || "Tarefa da casa";
     const messageId = await sendOneSignal(
       recipientUserId,
       taskId,
       scopeId,
-      taskTitle,
+      reminderId,
       env,
     );
 
-    await env.DB.prepare(`
-      INSERT INTO partner_reminders (
-        reminder_id,
-        task_id,
-        scope_id,
-        sender_user_id,
-        recipient_user_id,
-        created_at_ms,
-        onesignal_message_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `)
-      .bind(
-        reminderId,
-        taskId,
-        scopeId,
-        senderUserId,
-        recipientUserId,
-        nowMs,
-        messageId,
-      )
-      .run();
+    await env.DB.prepare(
+      "UPDATE partner_reminders SET onesignal_message_id = ? WHERE reminder_id = ?",
+    ).bind(messageId, reminderId).run();
 
     return json(200, {ok: true, messageId});
   } catch (error) {
@@ -382,7 +401,7 @@ export default {
       if (error instanceof HttpError) {
         return json(error.status, {error: error.message, ...error.details});
       }
-      console.error(error);
+      console.error("Unexpected reminder delivery failure.");
       return json(500, {error: "Unexpected reminder delivery failure."});
     }
   },

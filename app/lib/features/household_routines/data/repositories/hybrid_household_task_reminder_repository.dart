@@ -109,10 +109,21 @@ class HybridHouseholdTaskReminderRepository
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final data = _decodeJson(response.body);
       final message = data['error']?.toString().trim();
-      throw StateError(
+      throw HouseholdReminderDeliveryException(
+        response.statusCode,
         message == null || message.isEmpty
             ? 'Não foi possível enviar o lembrete ao responsável.'
             : message,
+      );
+    }
+
+    final data = _decodeJson(response.body);
+    if (data['ok'] != true ||
+        data['messageId'] is! String ||
+        (data['messageId'] as String).trim().isEmpty) {
+      throw const HouseholdReminderDeliveryException(
+        502,
+        'O servidor não confirmou o envio do lembrete.',
       );
     }
   }
