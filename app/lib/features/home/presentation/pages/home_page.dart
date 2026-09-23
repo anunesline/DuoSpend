@@ -1,6 +1,7 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 import '../../../finances/presentation/finances_page.dart';
-import '../../../finances/presentation/finance_widgets.dart' show FinanceScaffold;
+import '../../../finances/presentation/finance_widgets.dart'
+    show FinanceScaffold;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -49,19 +50,34 @@ import '../controllers/orbit_dashboard_controller.dart';
 
 String orbitAiHomeMessage(OrbitIntelligenceEntry entry) {
   return switch (entry.interaction!.type) {
-    ConsumptionInteractionType.confirmStock => 'Orbit IA\nAinda tem ${entry.productName}? Toque para responder.',
-    ConsumptionInteractionType.offerAddToShoppingList => 'Orbit IA\nQuer colocar ${entry.productName} na lista de compras?',
-    ConsumptionInteractionType.confirmExceptionalPurchase => 'Orbit IA\nEssa compra de ${entry.productName} foi fora do seu padrão?',
+    ConsumptionInteractionType.confirmStock =>
+      'Orbit IA\nAinda tem ${entry.productName}? Toque para responder.',
+    ConsumptionInteractionType.offerAddToShoppingList =>
+      'Orbit IA\nQuer colocar ${entry.productName} na lista de compras?',
+    ConsumptionInteractionType.confirmExceptionalPurchase =>
+      'Orbit IA\nEssa compra de ${entry.productName} foi fora do seu padrão?',
     ConsumptionInteractionType.acknowledgePriceOpportunity => '',
   };
 }
+
 class OrbitAiHomeHighlight extends StatelessWidget {
-  const OrbitAiHomeHighlight({super.key, required this.controller, required this.onTap});
+  const OrbitAiHomeHighlight({
+    super.key,
+    required this.controller,
+    required this.onTap,
+  });
   final OrbitIntelligenceController? controller;
   final VoidCallback onTap;
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     final priority = controller?.priorityAction;
-    return priority == null ? const SizedBox.shrink() : OrbitHomeMessage(message: orbitAiHomeMessage(priority), onTap: onTap, icon: Icons.auto_awesome_rounded);
+    return priority == null
+        ? const SizedBox.shrink()
+        : OrbitHomeMessage(
+            message: orbitAiHomeMessage(priority),
+            onTap: onTap,
+            icon: Icons.auto_awesome_rounded,
+          );
   }
 }
 
@@ -136,8 +152,19 @@ class _HomePageState extends State<HomePage> {
     final userId = controller.user?.uid;
     if (wallet != null && userId != null && userId.isNotEmpty) {
       _orbitAiController?.dispose();
-      _orbitAiController = OrbitIntelligenceController(userId: userId, scopeId: HouseholdScopeId.forContext(currentUserId: userId, isShared: wallet.isShared, memberIds: wallet.memberIds), products: widget.productRepository, events: FirestoreConsumptionEventRepository())..load();
-      _orbitAiController!.addListener(() { if (mounted) setState(() {}); });
+      _orbitAiController = OrbitIntelligenceController(
+        userId: userId,
+        scopeId: HouseholdScopeId.forContext(
+          currentUserId: userId,
+          isShared: wallet.isShared,
+          memberIds: wallet.memberIds,
+        ),
+        products: widget.productRepository,
+        events: FirestoreConsumptionEventRepository(),
+      )..load();
+      _orbitAiController!.addListener(() {
+        if (mounted) setState(() {});
+      });
     }
     if (wallet == null || userId == null) {
       orbitController.clear();
@@ -163,7 +190,9 @@ class _HomePageState extends State<HomePage> {
     final shared = wallet?.isShared ?? false;
     final overview = orbitController.overview;
     final partnerId = shared
-        ? wallet?.memberIds.where((id) => id != controller.user?.uid).firstOrNull
+        ? wallet?.memberIds
+              .where((id) => id != controller.user?.uid)
+              .firstOrNull
         : null;
     final partner = overview?.profiles[partnerId];
     final action = await Navigator.push<String>(
@@ -214,14 +243,17 @@ class _HomePageState extends State<HomePage> {
       case 'notifications':
         await _openPendingItems();
       case 'share':
-        _showMessage('O compartilhamento será ativado com o link oficial do Orbit.');
+        _showMessage(
+          'O compartilhamento será ativado com o link oficial do Orbit.',
+        );
       case 'appearance':
         await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => OrbitSettingsPage(
               sharedWalletId: controller.connectedSharedWallet?.id,
-              sharedMemberIds: controller.connectedSharedWallet?.memberIds ?? const [],
+              sharedMemberIds:
+                  controller.connectedSharedWallet?.memberIds ?? const [],
             ),
           ),
         );
@@ -244,8 +276,9 @@ class _HomePageState extends State<HomePage> {
     String? partnerName;
     String? partnerPhotoUrl;
     if (partnerId != null) {
-      final profiles =
-          await UserRepository().getUserProfileSummaries([partnerId]);
+      final profiles = await UserRepository().getUserProfileSummaries([
+        partnerId,
+      ]);
       final profile = profiles[partnerId];
       partnerName = profile?.displayName ?? 'Seu parceiro';
       partnerPhotoUrl = profile?.photoUrl;
@@ -297,7 +330,8 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       if (wallet == null) {
         _showMessage(
-          controller.errorMessage ?? 'Não foi possível preparar o Orbit a Dois.',
+          controller.errorMessage ??
+              'Não foi possível preparar o Orbit a Dois.',
         );
         return;
       }
@@ -375,11 +409,11 @@ class _HomePageState extends State<HomePage> {
           .collection('wallets')
           .doc(sharedWallet.id)
           .update({
-        'memberIds': FieldValue.arrayRemove([
-          sharedWallet.isOwner(currentUserId) ? partnerId : currentUserId,
-        ]),
-        'updatedAt': DateTime.now().toIso8601String(),
-      });
+            'memberIds': FieldValue.arrayRemove([
+              sharedWallet.isOwner(currentUserId) ? partnerId : currentUserId,
+            ]),
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
       if (!mounted) return;
       await _loadHome();
       _showMessage('Orbit a Dois desconectado.');
@@ -510,7 +544,11 @@ class _HomePageState extends State<HomePage> {
     final wallet = controller.wallet;
     final userId = controller.user?.uid;
     if (wallet == null || userId == null || userId.trim().isEmpty) return;
-    final scopeId = HouseholdScopeId.forContext(currentUserId: userId, isShared: wallet.isShared, memberIds: wallet.memberIds);
+    final scopeId = HouseholdScopeId.forContext(
+      currentUserId: userId,
+      isShared: wallet.isShared,
+      memberIds: wallet.memberIds,
+    );
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
@@ -657,11 +695,10 @@ class _HomePageState extends State<HomePage> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            CreditCardsPage(
-              individualWallets: controller.individualWallets,
-              onNewTransaction: () => _openNewTransactionPage(),
-            ),
+        builder: (_) => CreditCardsPage(
+          individualWallets: controller.individualWallets,
+          onNewTransaction: () => _openNewTransactionPage(),
+        ),
       ),
     );
     await _loadHome();
@@ -763,7 +800,10 @@ class _HomePageState extends State<HomePage> {
       );
   }
 
-  Future<void> _openNewTransactionPage({ReceiptTransactionDraft? draft}) async {
+  Future<void> _openNewTransactionPage({
+    ReceiptTransactionDraft? draft,
+    String initialType = 'expense',
+  }) async {
     final wallet = controller.wallet;
     if (wallet == null) return;
 
@@ -777,6 +817,7 @@ class _HomePageState extends State<HomePage> {
           purchaseController: widget.purchaseController,
           productRepository: widget.productRepository,
           receiptDraft: draft,
+          initialType: initialType,
         ),
       ),
     );
@@ -899,10 +940,20 @@ class _HomePageState extends State<HomePage> {
     final wallet = controller.wallet;
     final userId = controller.user?.uid;
     if (wallet == null || userId == null || userId.trim().isEmpty) return;
-    final scopeId = HouseholdScopeId.forContext(currentUserId: userId, isShared: wallet.isShared, memberIds: wallet.memberIds);
+    final scopeId = HouseholdScopeId.forContext(
+      currentUserId: userId,
+      isShared: wallet.isShared,
+      memberIds: wallet.memberIds,
+    );
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => OrbitIntelligencePage(userId: userId, scopeId: scopeId, products: widget.productRepository)),
+      MaterialPageRoute(
+        builder: (_) => OrbitIntelligencePage(
+          userId: userId,
+          scopeId: scopeId,
+          products: widget.productRepository,
+        ),
+      ),
     );
   }
 
@@ -965,27 +1016,41 @@ class _HomePageState extends State<HomePage> {
   bool _financeHubOpen = false;
   Future<void> _openFinanceHub() async {
     if (_financeHubOpen) {
-      Navigator.of(context).popUntil((route) => route.settings.name == '/finances' || route.isFirst);
+      Navigator.of(context).popUntil(
+        (route) => route.settings.name == '/finances' || route.isFirst,
+      );
       return;
     }
     final homeRoute = ModalRoute.of(context);
     _financeHubOpen = true;
     try {
-      await Navigator.push(context, MaterialPageRoute<void>(
-        settings: const RouteSettings(name: '/finances'),
-        builder: (_) => FinancesPage(
-          userName: controller.userName, photoUrl: controller.userPhotoUrl,
-          valuesVisible: _valuesVisible, hasWallet: controller.wallet != null,
-          onProfile: _openProfileMenu, onNotifications: _openPendingItems,
-          hasPendingItems: orbitController.overview?.hasPendingItems ?? false,
-          onHome: () => Navigator.of(context).popUntil((route) => route == homeRoute),
-          onCreate: _showQuickCreateMenu, onRoutines: _openHouseholdRoutinesPage,
-          onAi: _openInsightsPage, onCards: _openCreditCardsPage,
-          onBills: _openBillsPage, onBudgets: _openBudgetsPage,
-          onTransactions: _openHistoryPage, onReports: _openMonthlyReportPage,
-          onGoals: _openSavingsGoalsPage, onAccountsChanged: _loadHome,
+      await Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          settings: const RouteSettings(name: '/finances'),
+          builder: (_) => FinancesPage(
+            userName: controller.userName,
+            photoUrl: controller.userPhotoUrl,
+            valuesVisible: _valuesVisible,
+            hasWallet: controller.wallet != null,
+            onProfile: _openProfileMenu,
+            onNotifications: _openPendingItems,
+            hasPendingItems: orbitController.overview?.hasPendingItems ?? false,
+            onHome: () =>
+                Navigator.of(context).popUntil((route) => route == homeRoute),
+            onCreate: _showQuickCreateMenu,
+            onRoutines: _openHouseholdRoutinesPage,
+            onAi: _openInsightsPage,
+            onCards: _openCreditCardsPage,
+            onBills: _openBillsPage,
+            onBudgets: _openBudgetsPage,
+            onTransactions: _openHistoryPage,
+            onReports: _openMonthlyReportPage,
+            onGoals: _openSavingsGoalsPage,
+            onAccountsChanged: _loadHome,
+          ),
         ),
-      ));
+      );
     } finally {
       _financeHubOpen = false;
       if (mounted) await _loadHome();
@@ -994,17 +1059,31 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openBillsPage() async {
     // Recurring obligations already live in the calendar; no duplicate ledger.
-    await Navigator.push(context, MaterialPageRoute<void>(builder: (pageContext) => FinanceScaffold(
-      title: 'Contas a pagar',
-      child: Padding(padding: const EdgeInsets.all(16), child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const OrbitHomeMessage(message: 'Acompanhe suas despesas, vencimentos e recorrências no calendário financeiro.'),
-          const SizedBox(height: 12),
-          TextButton(onPressed: _openFinancialCalendarPage, child: const Text('Abrir calendário financeiro')),
-        ],
-      )),
-    )));
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (pageContext) => FinanceScaffold(
+          title: 'Contas a pagar',
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const OrbitHomeMessage(
+                  message:
+                      'Acompanhe suas despesas, vencimentos e recorrências no calendário financeiro.',
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: _openFinancialCalendarPage,
+                  child: const Text('Abrir calendário financeiro'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _showQuickCreateMenu() async {
@@ -1031,8 +1110,11 @@ class _HomePageState extends State<HomePage> {
         PopupMenuItem(
           value: 'finance',
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-          child: _QuickCreateMenuItem(icon: Icons.account_balance_wallet_outlined,
-            label: 'Finanças', color: DuoColors.primaryLight),
+          child: _QuickCreateMenuItem(
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Finanças',
+            color: DuoColors.primaryLight,
+          ),
         ),
         PopupMenuItem(
           value: 'transaction',
@@ -1085,8 +1167,10 @@ class _HomePageState extends State<HomePage> {
     if (!mounted || result == null) return;
     if (result == 'finance') {
       await _openFinanceHub();
-    } else if (result == 'transaction' || result == 'income') {
-      await _openNewTransactionPage();
+    } else if (result == 'transaction') {
+      await _openNewTransactionPage(initialType: 'expense');
+    } else if (result == 'income') {
+      await _openNewTransactionPage(initialType: 'income');
     } else if (result == 'scan') {
       await _openReceiptScanner();
     } else if (result == 'goal') {
@@ -1255,7 +1339,10 @@ class _HomePageState extends State<HomePage> {
                             )
                           else if (data != null) ...[
                             if (_orbitAiController?.priorityAction != null) ...[
-                              OrbitAiHomeHighlight(controller: _orbitAiController, onTap: _openInsightsPage),
+                              OrbitAiHomeHighlight(
+                                controller: _orbitAiController,
+                                onTap: _openInsightsPage,
+                              ),
                               const SizedBox(height: 12),
                             ],
                             if (shared && controller.canInvitePartner) ...[
@@ -1553,8 +1640,14 @@ class _OrbitProfilePageState extends State<_OrbitProfilePage> {
           onFieldSubmitted: (value) => Navigator.pop(dialogContext, value),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, draftName), child: const Text('Salvar')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, draftName),
+            child: const Text('Salvar'),
+          ),
         ],
       ),
     );
@@ -1566,43 +1659,76 @@ class _OrbitProfilePageState extends State<_OrbitProfilePage> {
       if (user == null) throw StateError('Usuário não autenticado');
       await user.updateDisplayName(normalized);
       await user.reload();
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
-        {'name': normalized, 'displayName': normalized},
-        SetOptions(merge: true),
-      );
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': normalized,
+        'displayName': normalized,
+      }, SetOptions(merge: true));
       if (!mounted) return;
       setState(() => _name = normalized);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perfil atualizado.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Perfil atualizado.')));
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Não foi possível atualizar o perfil.')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível atualizar o perfil.')),
+        );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _privacy() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => const _OrbitInfoPage(
-      title: 'Privacidade e segurança',
-      icon: Icons.lock_outline_rounded,
-      children: [
-        _OrbitInfoItem(title: 'Sua conta', body: 'O acesso ao Orbit usa a autenticação da sua conta Google.'),
-        _OrbitInfoItem(title: 'Seus dados', body: 'Seus dados financeiros e pessoais ficam vinculados à sua conta autenticada.'),
-        _OrbitInfoItem(title: 'Orbit a Dois', body: 'O compartilhamento com outra pessoa só acontece após convite e aceite.'),
-      ],
-    )));
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const _OrbitInfoPage(
+          title: 'Privacidade e segurança',
+          icon: Icons.lock_outline_rounded,
+          children: [
+            _OrbitInfoItem(
+              title: 'Sua conta',
+              body: 'O acesso ao Orbit usa a autenticação da sua conta Google.',
+            ),
+            _OrbitInfoItem(
+              title: 'Seus dados',
+              body:
+                  'Seus dados financeiros e pessoais ficam vinculados à sua conta autenticada.',
+            ),
+            _OrbitInfoItem(
+              title: 'Orbit a Dois',
+              body:
+                  'O compartilhamento com outra pessoa só acontece após convite e aceite.',
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _help() async {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? 'indisponível';
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => _OrbitInfoPage(
-      title: 'Ajuda e suporte',
-      icon: Icons.help_outline_rounded,
-      children: [
-        const _OrbitInfoItem(title: 'Precisa de ajuda?', body: 'Use esta área para consultar informações da sua conta e identificar o acesso em um atendimento.'),
-        _OrbitInfoItem(title: 'E-mail da conta', body: widget.email.isEmpty ? 'Não informado' : widget.email),
-        _OrbitInfoItem(title: 'ID de diagnóstico', body: uid),
-      ],
-    )));
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _OrbitInfoPage(
+          title: 'Ajuda e suporte',
+          icon: Icons.help_outline_rounded,
+          children: [
+            const _OrbitInfoItem(
+              title: 'Precisa de ajuda?',
+              body:
+                  'Use esta área para consultar informações da sua conta e identificar o acesso em um atendimento.',
+            ),
+            _OrbitInfoItem(
+              title: 'E-mail da conta',
+              body: widget.email.isEmpty ? 'Não informado' : widget.email,
+            ),
+            _OrbitInfoItem(title: 'ID de diagnóstico', body: uid),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _signOut() async {
@@ -1610,10 +1736,18 @@ class _OrbitProfilePageState extends State<_OrbitProfilePage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Sair da conta?'),
-        content: const Text('Você precisará entrar novamente para acessar o Orbit.'),
+        content: const Text(
+          'Você precisará entrar novamente para acessar o Orbit.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Sair')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Sair'),
+          ),
         ],
       ),
     );
@@ -1637,26 +1771,74 @@ class _OrbitProfilePageState extends State<_OrbitProfilePage> {
           const SizedBox(height: 8),
           OrbitHomeAvatar(name: _name, photoUrl: widget.photoUrl, size: 76),
           const SizedBox(height: 14),
-          Text(_name, style: const TextStyle(color: OrbitHomeTokens.text, fontSize: 20, fontWeight: FontWeight.w700)),
+          Text(
+            _name,
+            style: const TextStyle(
+              color: OrbitHomeTokens.text,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 5),
-          Text(widget.email.isEmpty ? 'Sua conta Orbit' : widget.email, style: const TextStyle(color: OrbitHomeTokens.muted, fontSize: 13)),
+          Text(
+            widget.email.isEmpty ? 'Sua conta Orbit' : widget.email,
+            style: const TextStyle(color: OrbitHomeTokens.muted, fontSize: 13),
+          ),
           const SizedBox(height: 18),
-          OutlinedButton(onPressed: _editProfile, child: const Text('Editar perfil')),
+          OutlinedButton(
+            onPressed: _editProfile,
+            child: const Text('Editar perfil'),
+          ),
           const SizedBox(height: 22),
-          _OrbitMenuCard(children: [
-            _OrbitMenuTile(icon: Icons.favorite_border_rounded, title: 'Orbit a Dois', subtitle: widget.connected ? 'Gerencie sua conexão' : 'Convide alguém para compartilhar sua jornada', accent: true, onTap: () => Navigator.pop(context, 'couple')),
-          ]),
+          _OrbitMenuCard(
+            children: [
+              _OrbitMenuTile(
+                icon: Icons.favorite_border_rounded,
+                title: 'Orbit a Dois',
+                subtitle: widget.connected
+                    ? 'Gerencie sua conexão'
+                    : 'Convide alguém para compartilhar sua jornada',
+                accent: true,
+                onTap: () => Navigator.pop(context, 'couple'),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
-          _OrbitMenuCard(children: [
-            _OrbitMenuTile(icon: Icons.notifications_none_rounded, title: 'Notificações', onTap: () => Navigator.pop(context, 'notifications')),
-            _OrbitMenuTile(icon: Icons.settings_outlined, title: 'Configurações', onTap: () => Navigator.pop(context, 'appearance')),
-            _OrbitMenuTile(icon: Icons.lock_outline_rounded, title: 'Privacidade e segurança', onTap: _privacy),
-            _OrbitMenuTile(icon: Icons.help_outline_rounded, title: 'Ajuda e suporte', onTap: _help),
-          ]),
+          _OrbitMenuCard(
+            children: [
+              _OrbitMenuTile(
+                icon: Icons.notifications_none_rounded,
+                title: 'Notificações',
+                onTap: () => Navigator.pop(context, 'notifications'),
+              ),
+              _OrbitMenuTile(
+                icon: Icons.settings_outlined,
+                title: 'Configurações',
+                onTap: () => Navigator.pop(context, 'appearance'),
+              ),
+              _OrbitMenuTile(
+                icon: Icons.lock_outline_rounded,
+                title: 'Privacidade e segurança',
+                onTap: _privacy,
+              ),
+              _OrbitMenuTile(
+                icon: Icons.help_outline_rounded,
+                title: 'Ajuda e suporte',
+                onTap: _help,
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
-          _OrbitMenuCard(children: [
-            _OrbitMenuTile(icon: Icons.logout_rounded, title: 'Sair da conta', danger: true, onTap: _signOut),
-          ]),
+          _OrbitMenuCard(
+            children: [
+              _OrbitMenuTile(
+                icon: Icons.logout_rounded,
+                title: 'Sair da conta',
+                danger: true,
+                onTap: _signOut,
+              ),
+            ],
+          ),
         ],
       ),
     ),
@@ -1667,17 +1849,27 @@ class _OrbitInfoPage extends StatelessWidget {
   final String title;
   final IconData icon;
   final List<Widget> children;
-  const _OrbitInfoPage({required this.title, required this.icon, required this.children});
+  const _OrbitInfoPage({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
 
   @override
   Widget build(BuildContext context) => _OrbitSettingsScaffold(
     title: title,
-    child: Column(children: [
-      const SizedBox(height: 8),
-      CircleAvatar(radius: 30, backgroundColor: DuoColors.orbitAccent.withValues(alpha: .12), child: Icon(icon, color: DuoColors.orbitAccent, size: 30)),
-      const SizedBox(height: 22),
-      _OrbitMenuCard(children: children),
-    ]),
+    child: Column(
+      children: [
+        const SizedBox(height: 8),
+        CircleAvatar(
+          radius: 30,
+          backgroundColor: DuoColors.orbitAccent.withValues(alpha: .12),
+          child: Icon(icon, color: DuoColors.orbitAccent, size: 30),
+        ),
+        const SizedBox(height: 22),
+        _OrbitMenuCard(children: children),
+      ],
+    ),
   );
 }
 
@@ -1688,11 +1880,31 @@ class _OrbitInfoItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-    child: Align(alignment: Alignment.centerLeft, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(title, style: const TextStyle(color: OrbitHomeTokens.text, fontSize: 14, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 5),
-      SelectableText(body, style: const TextStyle(color: OrbitHomeTokens.muted, fontSize: 13, height: 1.4)),
-    ])),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: OrbitHomeTokens.text,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 5),
+          SelectableText(
+            body,
+            style: const TextStyle(
+              color: OrbitHomeTokens.muted,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 }
 
@@ -1915,13 +2127,23 @@ class _OrbitSettingsScaffold extends StatelessWidget {
       foregroundColor: OrbitHomeTokens.text,
       elevation: 0,
       centerTitle: true,
-      title: title == null ? null : Text(title!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+      title: title == null
+          ? null
+          : Text(
+              title!,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
     ),
     body: SafeArea(
       top: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: child)),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: child,
+          ),
+        ),
       ),
     ),
   );
@@ -1932,33 +2154,107 @@ class _OrbitMenuCard extends StatelessWidget {
   const _OrbitMenuCard({required this.children});
   @override
   Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(color: OrbitHomeTokens.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: OrbitHomeTokens.border)),
-    child: Column(children: [for (var i = 0; i < children.length; i++) ...[children[i], if (i != children.length - 1) const Divider(height: 1, indent: 58, color: OrbitHomeTokens.border)]]),
+    decoration: BoxDecoration(
+      color: OrbitHomeTokens.surface,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: OrbitHomeTokens.border),
+    ),
+    child: Column(
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          children[i],
+          if (i != children.length - 1)
+            const Divider(height: 1, indent: 58, color: OrbitHomeTokens.border),
+        ],
+      ],
+    ),
   );
 }
 
 class _OrbitMenuTile extends StatelessWidget {
-  final IconData icon; final String title; final String? subtitle; final VoidCallback onTap; final bool accent; final bool danger;
-  const _OrbitMenuTile({required this.icon, required this.title, required this.onTap, this.subtitle, this.accent = false, this.danger = false});
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool accent;
+  final bool danger;
+  const _OrbitMenuTile({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.accent = false,
+    this.danger = false,
+  });
   @override
   Widget build(BuildContext context) => ListTile(
     onTap: onTap,
     minLeadingWidth: 34,
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-    leading: Container(width: 38, height: 38, decoration: BoxDecoration(color: (accent ? OrbitHomeTokens.purple : OrbitHomeTokens.surface).withValues(alpha: accent ? .18 : 1), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: danger ? Colors.redAccent : accent ? OrbitHomeTokens.purple : OrbitHomeTokens.text, size: 21)),
-    title: Text(title, style: TextStyle(color: danger ? Colors.redAccent : OrbitHomeTokens.text, fontWeight: FontWeight.w500)),
-    subtitle: subtitle == null ? null : Text(subtitle!, style: const TextStyle(color: OrbitHomeTokens.muted, fontSize: 12)),
-    trailing: danger ? null : const Icon(Icons.chevron_right_rounded, color: OrbitHomeTokens.muted),
+    leading: Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: (accent ? OrbitHomeTokens.purple : OrbitHomeTokens.surface)
+            .withValues(alpha: accent ? .18 : 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        icon,
+        color: danger
+            ? Colors.redAccent
+            : accent
+            ? OrbitHomeTokens.purple
+            : OrbitHomeTokens.text,
+        size: 21,
+      ),
+    ),
+    title: Text(
+      title,
+      style: TextStyle(
+        color: danger ? Colors.redAccent : OrbitHomeTokens.text,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+    subtitle: subtitle == null
+        ? null
+        : Text(
+            subtitle!,
+            style: const TextStyle(color: OrbitHomeTokens.muted, fontSize: 12),
+          ),
+    trailing: danger
+        ? null
+        : const Icon(Icons.chevron_right_rounded, color: OrbitHomeTokens.muted),
   );
 }
 
 class _OrbitBenefit extends StatelessWidget {
-  final IconData icon; final String text;
+  final IconData icon;
+  final String text;
   const _OrbitBenefit({required this.icon, required this.text});
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 9),
-    child: Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: OrbitHomeTokens.purple.withValues(alpha: .14), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: OrbitHomeTokens.purple)), const SizedBox(width: 14), Expanded(child: Text(text, style: const TextStyle(color: OrbitHomeTokens.text, height: 1.35)))]),
+    child: Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: OrbitHomeTokens.purple.withValues(alpha: .14),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: OrbitHomeTokens.purple),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: OrbitHomeTokens.text, height: 1.35),
+          ),
+        ),
+      ],
+    ),
   );
 }
 
@@ -1967,11 +2263,50 @@ class _OrbitCoupleArt extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     height: 120,
-    child: Stack(alignment: Alignment.center, children: [
-      Transform.translate(offset: const Offset(-28, -6), child: Container(width: 88, height: 88, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: OrbitHomeTokens.purple, width: 2), boxShadow: [BoxShadow(color: OrbitHomeTokens.purple.withValues(alpha: .25), blurRadius: 28)]))),
-      Transform.translate(offset: const Offset(28, 8), child: Container(width: 88, height: 88, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: OrbitHomeTokens.purple, width: 2), boxShadow: [BoxShadow(color: OrbitHomeTokens.purple.withValues(alpha: .25), blurRadius: 28)]))),
-      const Icon(Icons.favorite_border_rounded, color: OrbitHomeTokens.purple, size: 30),
-    ]),
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        Transform.translate(
+          offset: const Offset(-28, -6),
+          child: Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: OrbitHomeTokens.purple, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: OrbitHomeTokens.purple.withValues(alpha: .25),
+                  blurRadius: 28,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Transform.translate(
+          offset: const Offset(28, 8),
+          child: Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: OrbitHomeTokens.purple, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: OrbitHomeTokens.purple.withValues(alpha: .25),
+                  blurRadius: 28,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Icon(
+          Icons.favorite_border_rounded,
+          color: OrbitHomeTokens.purple,
+          size: 30,
+        ),
+      ],
+    ),
   );
 }
 
@@ -1980,10 +2315,18 @@ class _OrbitConnectedBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-    decoration: BoxDecoration(color: OrbitHomeTokens.green.withValues(alpha: .14), borderRadius: BorderRadius.circular(20), border: Border.all(color: OrbitHomeTokens.green.withValues(alpha: .45))),
-    child: const Text('●  Conectados', style: TextStyle(color: OrbitHomeTokens.green, fontSize: 12, fontWeight: FontWeight.w600)),
+    decoration: BoxDecoration(
+      color: OrbitHomeTokens.green.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: OrbitHomeTokens.green.withValues(alpha: .45)),
+    ),
+    child: const Text(
+      '●  Conectados',
+      style: TextStyle(
+        color: OrbitHomeTokens.green,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
   );
 }
-
-
-

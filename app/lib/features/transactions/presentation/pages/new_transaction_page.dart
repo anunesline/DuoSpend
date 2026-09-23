@@ -44,6 +44,7 @@ class NewTransactionPage extends StatefulWidget {
   final ProductRepository productRepository;
   final WalletContext walletContext;
   final ReceiptTransactionDraft? receiptDraft;
+  final String initialType;
 
   const NewTransactionPage({
     super.key,
@@ -53,6 +54,7 @@ class NewTransactionPage extends StatefulWidget {
     required this.purchaseController,
     required this.productRepository,
     this.receiptDraft,
+    this.initialType = 'expense',
   });
 
   @override
@@ -106,6 +108,7 @@ class _NewTransactionPageState extends State<NewTransactionPage> {
   @override
   void initState() {
     super.initState();
+    type = widget.initialType == 'income' ? 'income' : 'expense';
     purchaseController.clearPurchase();
     selectedOriginWalletId = widget.walletId;
     _syncFinancialCategory();
