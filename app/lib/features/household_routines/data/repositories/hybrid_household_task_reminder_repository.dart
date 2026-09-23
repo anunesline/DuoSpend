@@ -13,6 +13,8 @@ class HybridHouseholdTaskReminderRepository
     implements HouseholdTaskReminderRepository {
   static const _defaultEndpoint = String.fromEnvironment(
     'HOUSEHOLD_REMINDER_ENDPOINT',
+    defaultValue:
+        'https://duospend-household-reminders.saturnlabstech.workers.dev/household/reminders',
   );
 
   final HouseholdTaskRepository taskRepository;

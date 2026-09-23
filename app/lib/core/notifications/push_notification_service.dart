@@ -7,7 +7,7 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 class PushNotificationService {
   static const _appId = String.fromEnvironment(
     'ONESIGNAL_APP_ID',
-    defaultValue: '08277467-a5c9-49e0-81ec-ecdbb671e4c0',
+    defaultValue: '08277467-a5c9-49e0-81ec-ecdb67f1e4c0',
   );
 
   final FirebaseAuth auth;

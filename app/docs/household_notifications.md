@@ -38,7 +38,13 @@ O destinatário não é aceito livremente do cliente: ele é derivado da tarefa 
 
 ## Configuração da build Flutter
 
-A build precisa dos dois valores abaixo:
+`flutter run` e as builds normais já usam os valores públicos do Orbit:
+
+- App ID: `08277467-a5c9-49e0-81ec-ecdb67f1e4c0`.
+- Endpoint: `https://duospend-household-reminders.saturnlabstech.workers.dev/household/reminders`.
+
+Não é necessário passar defines para o ambiente padrão. Para substituir os
+valores em outro ambiente, os overrides continuam disponíveis:
 
 ```bash
 --dart-define=ONESIGNAL_APP_ID=<onesignal-app-id>
@@ -77,5 +83,5 @@ O Firebase continua sendo usado normalmente para autenticação e dados do DuoSp
 - `Lembrar responsável` deve chegar ao outro usuário pelo OneSignal;
 - nova tentativa para a mesma tarefa/remetente/responsável antes de 2 horas deve retornar cooldown;
 - usuário não conectado ao mesmo contexto compartilhado não pode disparar push;
-- build sem `ONESIGNAL_APP_ID` deve continuar abrindo normalmente, apenas com push remoto desabilitado;
-- build sem `HOUSEHOLD_REMINDER_ENDPOINT` deve permitir tarefas e lembretes locais, mas bloquear envio ao responsável com erro controlado.
+- build com `--dart-define=ONESIGNAL_APP_ID=` explicitamente vazio deve continuar abrindo normalmente, apenas com push remoto desabilitado;
+- build com `--dart-define=HOUSEHOLD_REMINDER_ENDPOINT=` explicitamente vazio deve permitir tarefas e lembretes locais, mas bloquear envio ao responsável com erro controlado.
