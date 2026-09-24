@@ -17,11 +17,9 @@ class CreditCardRepository {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
 
-  CreditCardRepository({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _auth = auth ?? FirebaseAuth.instance;
+  CreditCardRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   Future<List<CreditCardModel>> getCards() async {
     final userId = _requireUserId();
@@ -30,16 +28,18 @@ class CreditCardRepository {
         .where('ownerMemberId', isEqualTo: userId)
         .get();
 
-    final cards = snapshot.docs
-        .map((document) {
-          final data = Map<String, dynamic>.from(document.data());
-          data['id'] = document.id;
-          return CreditCardModel.fromMap(data);
-        })
-        .toList(growable: true)
-      ..sort((first, second) => first.name
-          .toLowerCase()
-          .compareTo(second.name.toLowerCase()));
+    final cards =
+        snapshot.docs
+            .map((document) {
+              final data = Map<String, dynamic>.from(document.data());
+              data['id'] = document.id;
+              return CreditCardModel.fromMap(data);
+            })
+            .toList(growable: true)
+          ..sort(
+            (first, second) =>
+                first.name.toLowerCase().compareTo(second.name.toLowerCase()),
+          );
 
     return List<CreditCardModel>.unmodifiable(cards);
   }
@@ -78,7 +78,7 @@ class CreditCardRepository {
 
   Future<CreditCardModel> createCard({
     required String name,
-    required String walletId,
+    String? walletId,
     required double creditLimit,
     required int closingDay,
     required int dueDay,
@@ -86,7 +86,7 @@ class CreditCardRepository {
   }) async {
     final userId = _requireUserId();
     final normalizedName = name.trim();
-    final normalizedWalletId = walletId.trim();
+    final normalizedWalletId = walletId?.trim();
     final normalizedDigits = lastFourDigits?.trim();
 
     if (normalizedName.isEmpty) {
@@ -94,14 +94,6 @@ class CreditCardRepository {
         name,
         'name',
         'O nome do cartão não pode ficar vazio.',
-      );
-    }
-
-    if (normalizedWalletId.isEmpty) {
-      throw ArgumentError.value(
-        walletId,
-        'walletId',
-        'Selecione a carteira vinculada ao cartão.',
       );
     }
 
@@ -126,28 +118,28 @@ class CreditCardRepository {
       );
     }
 
-    final walletReference = _walletReference(
-      userId: userId,
-      walletId: normalizedWalletId,
-    );
-    final walletDocument = await walletReference.get();
+    if (normalizedWalletId != null && normalizedWalletId.isNotEmpty) {
+      final walletReference = _walletReference(
+        userId: userId,
+        walletId: normalizedWalletId,
+      );
+      final walletDocument = await walletReference.get();
 
-    _validateIndividualWallet(
-      document: walletDocument,
-      ownerMemberId: userId,
-    );
+      _validateIndividualWallet(
+        document: walletDocument,
+        ownerMemberId: userId,
+      );
+    }
 
-    final cardDocument =
-        _firestore.collection(_cardsCollection).doc();
+    final cardDocument = _firestore.collection(_cardsCollection).doc();
     final card = CreditCardModel(
       id: cardDocument.id,
       ownerMemberId: userId,
-      walletId: normalizedWalletId,
+      walletId: normalizedWalletId?.isEmpty == true ? null : normalizedWalletId,
       name: normalizedName,
-      lastFourDigits:
-          normalizedDigits == null || normalizedDigits.isEmpty
-              ? null
-              : normalizedDigits,
+      lastFourDigits: normalizedDigits == null || normalizedDigits.isEmpty
+          ? null
+          : normalizedDigits,
       creditLimit: creditLimit,
       closingDay: closingDay,
       dueDay: dueDay,
@@ -156,6 +148,22 @@ class CreditCardRepository {
     await cardDocument.set(card.toMap());
 
     return card;
+  }
+
+  void _validateCardInput({
+    required String name,
+    required double creditLimit,
+    required int closingDay,
+    required int dueDay,
+  }) {
+    if (name.trim().isEmpty) {
+      throw ArgumentError('O nome do cartão não pode ficar vazio.');
+    }
+    if (!creditLimit.isFinite || creditLimit <= 0) {
+      throw ArgumentError('O limite precisa ser maior que zero.');
+    }
+    _validateBillingDay(closingDay, 'closingDay');
+    _validateBillingDay(dueDay, 'dueDay');
   }
 
   Future<List<CreditCardInvoiceModel>> getInvoices({
@@ -167,32 +175,149 @@ class CreditCardRepository {
       throw StateError('Cartão não encontrado.');
     }
 
-    final snapshot = await _cardReference(card.id)
-        .collection(_invoicesCollection)
+    final snapshot = await _cardReference(
+      card.id,
+    ).collection(_invoicesCollection).get();
+    final invoices =
+        snapshot.docs
+            .map((document) => CreditCardInvoiceModel.fromMap(document.data()))
+            .toList(growable: true)
+          ..sort((first, second) {
+            final yearComparison = second.referenceYear.compareTo(
+              first.referenceYear,
+            );
+
+            if (yearComparison != 0) {
+              return yearComparison;
+            }
+
+            return second.referenceMonth.compareTo(first.referenceMonth);
+          });
+
+    return List<CreditCardInvoiceModel>.unmodifiable(invoices);
+  }
+
+  Future<List<TransactionModel>> getCardPurchases({
+    required String cardId,
+  }) async {
+    final card = await getCardById(cardId);
+    if (card == null) return const [];
+    final charges = await _cardReference(
+      card.id,
+    ).collection(_chargesCollection).get();
+    final ids = charges.docs.map((doc) => doc.id).toSet();
+    if (ids.isEmpty) return const [];
+    final transactions = await _firestore
+        .collectionGroup('transactions')
+        .where('paymentSourceId', isEqualTo: card.id)
         .get();
-    final invoices = snapshot.docs
-        .map(
-          (document) => CreditCardInvoiceModel.fromMap(
-            document.data(),
-          ),
-        )
-        .toList(growable: true)
-      ..sort((first, second) {
-        final yearComparison =
-            second.referenceYear.compareTo(first.referenceYear);
+    final result =
+        transactions.docs
+            .where((doc) => ids.contains(doc.id))
+            .map(
+              (doc) => TransactionModel.fromMap({...doc.data(), 'id': doc.id}),
+            )
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+    return List<TransactionModel>.unmodifiable(result);
+  }
 
-        if (yearComparison != 0) {
-          return yearComparison;
-        }
+  Future<List<TransactionModel>> getInvoicePurchases({
+    required String cardId,
+    required String invoiceId,
+  }) async {
+    final card = await getCardById(cardId);
+    if (card == null) return const [];
+    final chargeDocs = await _cardReference(card.id)
+        .collection(_chargesCollection)
+        .where('invoiceId', isEqualTo: invoiceId)
+        .get();
+    final ids = chargeDocs.docs.map((doc) => doc.id).toSet();
+    if (ids.isEmpty) return const [];
+    final transactionDocs = await _firestore
+        .collectionGroup('transactions')
+        .where('paymentSourceId', isEqualTo: card.id)
+        .get();
+    final result =
+        transactionDocs.docs
+            .where((doc) => ids.contains(doc.id))
+            .map(
+              (doc) => TransactionModel.fromMap({...doc.data(), 'id': doc.id}),
+            )
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+    return List<TransactionModel>.unmodifiable(result);
+  }
 
-        return second.referenceMonth.compareTo(
-          first.referenceMonth,
-        );
-      });
-
-    return List<CreditCardInvoiceModel>.unmodifiable(
-      invoices,
+  Future<CreditCardModel> updateCard({required CreditCardModel card}) async {
+    final userId = _requireUserId();
+    if (card.ownerMemberId != userId) {
+      throw StateError('Você não pode editar este cartão.');
+    }
+    _validateCardInput(
+      name: card.name,
+      creditLimit: card.creditLimit,
+      closingDay: card.closingDay,
+      dueDay: card.dueDay,
     );
+    if (card.walletId != null && card.walletId!.isNotEmpty) {
+      final document = await _walletReference(
+        userId: userId,
+        walletId: card.walletId!,
+      ).get();
+      _validateIndividualWallet(document: document, ownerMemberId: userId);
+    }
+    await _cardReference(card.id).set(card.toMap(), SetOptions(merge: true));
+    return card;
+  }
+
+  Future<void> setCardActive({
+    required String cardId,
+    required bool isActive,
+  }) async {
+    final card = await getCardById(cardId);
+    if (card == null) throw StateError('Cartão não encontrado.');
+    await _cardReference(card.id).update({'isActive': isActive});
+  }
+
+  Future<bool> cardHasFinancialHistory(String cardId) async {
+    final reference = _cardReference(cardId);
+    final invoices = await reference
+        .collection(_invoicesCollection)
+        .limit(1)
+        .get();
+    if (invoices.docs.isNotEmpty) return true;
+    final charges = await reference
+        .collection(_chargesCollection)
+        .limit(1)
+        .get();
+    if (charges.docs.isNotEmpty) return true;
+    final userId = _requireUserId();
+    final transactions = await _firestore
+        .collection(_usersCollection)
+        .doc(userId)
+        .collection('transactions')
+        .where('paymentSourceId', isEqualTo: cardId)
+        .limit(1)
+        .get();
+    if (transactions.docs.isNotEmpty) return true;
+    final sharedTransactions = await _firestore
+        .collectionGroup('transactions')
+        .where('paymentSourceId', isEqualTo: cardId)
+        .limit(1)
+        .get();
+    return sharedTransactions.docs.isNotEmpty;
+  }
+
+  Future<void> deleteCard({required String cardId}) async {
+    final card = await getCardById(cardId);
+    if (card == null) throw StateError('Cartão não encontrado.');
+    if (await cardHasFinancialHistory(cardId)) {
+      throw StateError(
+        'Este cartão possui histórico financeiro e deve ser arquivado.',
+      );
+    }
+    await _cardReference(card.id).delete();
   }
 
   Future<CreditCardInvoiceModel> registerPurchase({
@@ -203,16 +328,12 @@ class CreditCardRepository {
     final userId = _requireUserId();
     final normalizedCardId = cardId.trim();
     final normalizedTransactionId = transactionModel.id.trim();
-    final paidByMemberId =
-        transactionModel.paidByMemberId?.trim() ?? '';
+    final paidByMemberId = transactionModel.paidByMemberId?.trim() ?? '';
     final amount = transactionModel.value;
     final purchaseDate = transactionModel.date;
 
-    if (normalizedCardId.isEmpty ||
-        normalizedTransactionId.isEmpty) {
-      throw ArgumentError(
-        'O cartão e a transação precisam ser identificados.',
-      );
+    if (normalizedCardId.isEmpty || normalizedTransactionId.isEmpty) {
+      throw ArgumentError('O cartão e a transação precisam ser identificados.');
     }
 
     if (!amount.isFinite || amount <= 0) {
@@ -236,8 +357,7 @@ class CreditCardRepository {
     }
 
     if (transactionModel.paymentMethod != 'creditCard' ||
-        transactionModel.paymentSourceId?.trim() !=
-            normalizedCardId ||
+        transactionModel.paymentSourceId?.trim() != normalizedCardId ||
         !transactionModel.isSettledByInvoice) {
       throw StateError(
         'A transação não está vinculada a uma fatura do cartão informado.',
@@ -261,14 +381,9 @@ class CreditCardRepository {
     );
 
     return _firestore.runTransaction((firestoreTransaction) async {
-      final cardDocument = await firestoreTransaction.get(
-        cardReference,
-      );
-      final chargeDocument = await firestoreTransaction.get(
-        chargeReference,
-      );
-      final savedTransactionDocument =
-          await firestoreTransaction.get(
+      final cardDocument = await firestoreTransaction.get(cardReference);
+      final chargeDocument = await firestoreTransaction.get(chargeReference);
+      final savedTransactionDocument = await firestoreTransaction.get(
         transactionReference,
       );
 
@@ -276,8 +391,7 @@ class CreditCardRepository {
         throw StateError('Cartão não encontrado.');
       }
 
-      final cardData =
-          Map<String, dynamic>.from(cardDocument.data()!);
+      final cardData = Map<String, dynamic>.from(cardDocument.data()!);
       cardData['id'] = cardDocument.id;
       final card = CreditCardModel.fromMap(cardData);
 
@@ -285,34 +399,24 @@ class CreditCardRepository {
         throw StateError('Cartão indisponível para esta compra.');
       }
 
-      if (chargeDocument.exists &&
-          chargeDocument.data() != null) {
+      if (chargeDocument.exists && chargeDocument.data() != null) {
         final chargeData = chargeDocument.data()!;
-        final invoiceId =
-            chargeData['invoiceId']?.toString().trim() ?? '';
+        final invoiceId = chargeData['invoiceId']?.toString().trim() ?? '';
         final persistedTransactionId =
             chargeData['transactionId']?.toString().trim() ?? '';
-        final persistedAmount = _parseDouble(
-          chargeData['amount'],
-        );
+        final persistedAmount = _parseDouble(chargeData['amount']);
 
         if (invoiceId.isEmpty ||
             persistedTransactionId != normalizedTransactionId ||
             !_amountsMatch(persistedAmount, amount)) {
-          throw StateError(
-            'O transactionId já pertence a outra cobrança.',
-          );
+          throw StateError('O transactionId já pertence a outra cobrança.');
         }
 
-        final invoiceDocument =
-            await firestoreTransaction.get(
-          cardReference
-              .collection(_invoicesCollection)
-              .doc(invoiceId),
+        final invoiceDocument = await firestoreTransaction.get(
+          cardReference.collection(_invoicesCollection).doc(invoiceId),
         );
 
-        if (!invoiceDocument.exists ||
-            invoiceDocument.data() == null) {
+        if (!invoiceDocument.exists || invoiceDocument.data() == null) {
           throw StateError(
             'A cobrança existe, mas sua fatura não foi encontrada.',
           );
@@ -334,17 +438,13 @@ class CreditCardRepository {
           );
         }
 
-        return CreditCardInvoiceModel.fromMap(
-          invoiceDocument.data()!,
-        );
+        return CreditCardInvoiceModel.fromMap(invoiceDocument.data()!);
       }
 
       if (savedTransactionDocument.exists &&
           savedTransactionDocument.data() != null) {
         _validatePersistedCreditPurchase(
-          persisted: TransactionModel.fromMap(
-            savedTransactionDocument.data()!,
-          ),
+          persisted: TransactionModel.fromMap(savedTransactionDocument.data()!),
           requested: transactionModel,
           cardId: normalizedCardId,
         );
@@ -354,24 +454,16 @@ class CreditCardRepository {
         throw StateError('Limite insuficiente no cartão.');
       }
 
-      final invoice = _buildInvoice(
-        card: card,
-        purchaseDate: purchaseDate,
-      );
+      final invoice = _buildInvoice(card: card, purchaseDate: purchaseDate);
       final invoiceReference = cardReference
           .collection(_invoicesCollection)
           .doc(invoice.id);
-      final invoiceDocument =
-          await firestoreTransaction.get(
-        invoiceReference,
-      );
+      final invoiceDocument = await firestoreTransaction.get(invoiceReference);
 
       CreditCardInvoiceModel updatedInvoice;
 
-      if (invoiceDocument.exists &&
-          invoiceDocument.data() != null) {
-        final currentInvoice =
-            CreditCardInvoiceModel.fromMap(
+      if (invoiceDocument.exists && invoiceDocument.data() != null) {
+        final currentInvoice = CreditCardInvoiceModel.fromMap(
           invoiceDocument.data()!,
         );
 
@@ -392,15 +484,8 @@ class CreditCardRepository {
           'updatedAt': purchaseDate.toIso8601String(),
         });
       } else {
-        updatedInvoice = _invoiceWithTotal(
-          invoice,
-          amount,
-          purchaseDate,
-        );
-        firestoreTransaction.set(
-          invoiceReference,
-          updatedInvoice.toMap(),
-        );
+        updatedInvoice = _invoiceWithTotal(invoice, amount, purchaseDate);
+        firestoreTransaction.set(invoiceReference, updatedInvoice.toMap());
       }
 
       firestoreTransaction.update(cardReference, {
@@ -413,12 +498,61 @@ class CreditCardRepository {
         'purchaseDate': purchaseDate.toIso8601String(),
         'createdAt': DateTime.now().toIso8601String(),
       });
-      firestoreTransaction.set(
-        transactionReference,
-        transactionModel.toMap(),
-      );
+      firestoreTransaction.set(transactionReference, transactionModel.toMap());
 
       return updatedInvoice;
+    });
+  }
+
+  Future<CreditCardInvoiceModel> initializeCurrentInvoice({
+    required String cardId,
+    required double amount,
+    DateTime? referenceDate,
+  }) async {
+    final userId = _requireUserId();
+    if (!amount.isFinite || amount < 0) {
+      throw ArgumentError.value(amount, 'amount', 'Informe um valor válido.');
+    }
+    final cardReference = _cardReference(cardId.trim());
+    final date = referenceDate ?? DateTime.now();
+    return _firestore.runTransaction((transaction) async {
+      final cardDocument = await transaction.get(cardReference);
+      if (!cardDocument.exists || cardDocument.data() == null) {
+        throw StateError('Cartão não encontrado.');
+      }
+      final cardData = Map<String, dynamic>.from(cardDocument.data()!)
+        ..['id'] = cardDocument.id;
+      final card = CreditCardModel.fromMap(cardData);
+      if (card.ownerMemberId != userId || !card.isActive) {
+        throw StateError('Cartão indisponível.');
+      }
+      final invoice = _buildInvoice(card: card, purchaseDate: date);
+      final invoiceReference = cardReference
+          .collection(_invoicesCollection)
+          .doc(invoice.id);
+      final existingDocument = await transaction.get(invoiceReference);
+      final existing =
+          existingDocument.exists && existingDocument.data() != null
+          ? CreditCardInvoiceModel.fromMap(existingDocument.data()!)
+          : invoice;
+      if (existing.isPaid) throw StateError('A fatura já foi paga.');
+      final delta = amount - existing.initialBalance;
+      final updated = _invoiceWithTotal(
+        existing,
+        existing.total + delta,
+        date,
+        initialBalance: amount,
+      );
+      transaction.set(
+        invoiceReference,
+        updated.toMap(),
+        SetOptions(merge: true),
+      );
+      if (delta != 0)
+        transaction.update(cardReference, {
+          'usedLimit': FieldValue.increment(delta),
+        });
+      return updated;
     });
   }
 
@@ -432,11 +566,8 @@ class CreditCardRepository {
     final normalizedCardId = cardId.trim();
     final normalizedInvoiceId = invoiceId.trim();
 
-    if (normalizedCardId.isEmpty ||
-        normalizedInvoiceId.isEmpty) {
-      throw ArgumentError(
-        'O cartão e a fatura precisam ser identificados.',
-      );
+    if (normalizedCardId.isEmpty || normalizedInvoiceId.isEmpty) {
+      throw ArgumentError('O cartão e a fatura precisam ser identificados.');
     }
 
     final cardReference = _cardReference(normalizedCardId);
@@ -447,30 +578,22 @@ class CreditCardRepository {
 
     return _firestore.runTransaction((transaction) async {
       final cardDocument = await transaction.get(cardReference);
-      final invoiceDocument = await transaction.get(
-        invoiceReference,
-      );
+      final invoiceDocument = await transaction.get(invoiceReference);
 
-      if (!cardDocument.exists ||
-          cardDocument.data() == null) {
+      if (!cardDocument.exists || cardDocument.data() == null) {
         throw StateError('Cartão não encontrado.');
       }
 
-      if (!invoiceDocument.exists ||
-          invoiceDocument.data() == null) {
+      if (!invoiceDocument.exists || invoiceDocument.data() == null) {
         throw StateError('Fatura não encontrada.');
       }
 
-      final cardData =
-          Map<String, dynamic>.from(cardDocument.data()!);
+      final cardData = Map<String, dynamic>.from(cardDocument.data()!);
       cardData['id'] = cardDocument.id;
       final card = CreditCardModel.fromMap(cardData);
-      final invoice = CreditCardInvoiceModel.fromMap(
-        invoiceDocument.data()!,
-      );
+      final invoice = CreditCardInvoiceModel.fromMap(invoiceDocument.data()!);
 
-      if (card.ownerMemberId != userId ||
-          invoice.ownerMemberId != userId) {
+      if (card.ownerMemberId != userId || invoice.ownerMemberId != userId) {
         throw StateError('Usuário sem acesso a esta fatura.');
       }
 
@@ -478,34 +601,27 @@ class CreditCardRepository {
         return invoice;
       }
 
-      final selectedWalletId =
-          walletId?.trim().isNotEmpty == true
-              ? walletId!.trim()
-              : card.walletId;
+      final selectedWalletId = walletId?.trim().isNotEmpty == true
+          ? walletId!.trim()
+          : card.walletId;
+      if (selectedWalletId == null || selectedWalletId.isEmpty) {
+        throw StateError('Selecione uma carteira para pagar esta fatura.');
+      }
       final walletReference = _walletReference(
         userId: userId,
         walletId: selectedWalletId,
       );
-      final walletDocument = await transaction.get(
-        walletReference,
-      );
+      final walletDocument = await transaction.get(walletReference);
 
       _validateIndividualWallet(
         document: walletDocument,
         ownerMemberId: userId,
       );
 
-      final walletBalance = _parseDouble(
-        walletDocument.data()?['balance'],
-      );
+      final walletBalance = _parseDouble(walletDocument.data()?['balance']);
 
-      if (!_hasSufficientBalance(
-        walletBalance,
-        invoice.total,
-      )) {
-        throw StateError(
-          'Saldo insuficiente para pagar esta fatura.',
-        );
+      if (!_hasSufficientBalance(walletBalance, invoice.total)) {
+        throw StateError('Saldo insuficiente para pagar esta fatura.');
       }
 
       final paidInvoice = _paidInvoice(
@@ -531,8 +647,7 @@ class CreditCardRepository {
     });
   }
 
-  DocumentReference<Map<String, dynamic>>
-      _transactionReference({
+  DocumentReference<Map<String, dynamic>> _transactionReference({
     required String userId,
     required WalletModel wallet,
     required String transactionId,
@@ -558,27 +673,19 @@ class CreditCardRepository {
     required TransactionModel transactionModel,
   }) {
     if (wallet.id.trim() != transactionModel.walletId.trim()) {
-      throw StateError(
-        'A transação não pertence à carteira informada.',
-      );
+      throw StateError('A transação não pertence à carteira informada.');
     }
 
     if (wallet.isShared && !wallet.hasMember(userId)) {
-      throw StateError(
-        'O usuário não participa da carteira compartilhada.',
-      );
+      throw StateError('O usuário não participa da carteira compartilhada.');
     }
 
     if (wallet.isIndividual && !wallet.isOwner(userId)) {
-      throw StateError(
-        'O usuário não é titular da carteira individual.',
-      );
+      throw StateError('O usuário não é titular da carteira individual.');
     }
   }
 
-  DocumentReference<Map<String, dynamic>> _cardReference(
-    String cardId,
-  ) {
+  DocumentReference<Map<String, dynamic>> _cardReference(String cardId) {
     return _firestore.collection(_cardsCollection).doc(cardId);
   }
 
@@ -606,13 +713,16 @@ class CreditCardRepository {
     }
 
     final data = document.data()!;
-    final isLegacyMainWallet = document.reference.path ==
+    final isLegacyMainWallet =
+        document.reference.path ==
         '$_usersCollection/$ownerMemberId/'
-        '$_walletsCollection/$_legacyMainWalletId';
-    final ownerId = data['ownerId']?.toString().trim() ??
-        (isLegacyMainWallet ? ownerMemberId : '');
-    final type = data['type']?.toString().trim() ??
-        (isLegacyMainWallet ? 'individual' : '');
+            '$_walletsCollection/$_legacyMainWalletId';
+    final rawOwnerId = data['ownerId']?.toString().trim() ?? '';
+    final rawType = data['type']?.toString().trim() ?? '';
+    final ownerId = rawOwnerId.isEmpty && isLegacyMainWallet
+        ? ownerMemberId
+        : rawOwnerId;
+    final type = rawType.isEmpty && isLegacyMainWallet ? 'individual' : rawType;
 
     if (ownerId != ownerMemberId || type != 'individual') {
       throw StateError(
@@ -631,12 +741,9 @@ class CreditCardRepository {
         persisted.paymentMethod != 'creditCard' ||
         persisted.paymentSourceId?.trim() != cardId ||
         persisted.walletId.trim() != requested.walletId.trim() ||
-        persisted.paidByMemberId?.trim() !=
-            requested.paidByMemberId?.trim() ||
+        persisted.paidByMemberId?.trim() != requested.paidByMemberId?.trim() ||
         !_amountsMatch(persisted.value, requested.value)) {
-      throw StateError(
-        'O transactionId já pertence a outra compra.',
-      );
+      throw StateError('O transactionId já pertence a outra compra.');
     }
   }
 
@@ -664,10 +771,7 @@ class CreditCardRepository {
     var referenceMonth = purchaseDate.month;
 
     if (purchaseDate.day > card.closingDay) {
-      final nextMonth = DateTime(
-        referenceYear,
-        referenceMonth + 1,
-      );
+      final nextMonth = DateTime(referenceYear, referenceMonth + 1);
       referenceYear = nextMonth.year;
       referenceMonth = nextMonth.month;
     }
@@ -706,8 +810,9 @@ class CreditCardRepository {
   CreditCardInvoiceModel _invoiceWithTotal(
     CreditCardInvoiceModel invoice,
     double total,
-    DateTime updatedAt,
-  ) {
+    DateTime updatedAt, {
+    double? initialBalance,
+  }) {
     return CreditCardInvoiceModel(
       id: invoice.id,
       cardId: invoice.cardId,
@@ -717,6 +822,7 @@ class CreditCardRepository {
       closingDate: invoice.closingDate,
       dueDate: invoice.dueDate,
       total: total,
+      initialBalance: initialBalance ?? invoice.initialBalance,
       status: invoice.status,
       paidAt: invoice.paidAt,
       paymentWalletId: invoice.paymentWalletId,
@@ -739,6 +845,7 @@ class CreditCardRepository {
       closingDate: invoice.closingDate,
       dueDate: invoice.dueDate,
       total: invoice.total,
+      initialBalance: invoice.initialBalance,
       status: CreditCardInvoiceModel.paidStatus,
       paidAt: paymentDate,
       paymentWalletId: paymentWalletId,
@@ -747,11 +854,7 @@ class CreditCardRepository {
     );
   }
 
-  DateTime _dateWithClampedDay(
-    int year,
-    int month,
-    int day,
-  ) {
+  DateTime _dateWithClampedDay(int year, int month, int day) {
     final lastDay = DateTime(year, month + 1, 0).day;
     final safeDay = day > lastDay ? lastDay : day;
     return DateTime(year, month, safeDay);

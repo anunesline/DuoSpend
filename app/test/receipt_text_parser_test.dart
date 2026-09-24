@@ -74,4 +74,96 @@ PIX
     expect(corrected.totalAmount, 10);
     expect(corrected.hasTotalDivergence, isFalse);
   });
+
+  test('cupom sintético com peso, unidades, desconto e linhas fiscais', () {
+    final result = parser.parse(r'''
+MERCADO EXEMPLO
+CNPJ 00.000.000/0001-00
+EMISSAO 18/09/2026 14:20
+ARROZ BURITI 5KG 2 UN X 12,50 25,00
+BANANA PRATA (Código: 834) 0,750 KG X 8,00 6,00
+TRIBUTOS APROXIMADOS R$ 1,00
+SUBTOTAL R$ 31,00
+DESCONTO R$ 1,00
+VALOR A PAGAR R$ 30,00
+PIX
+''');
+    expect(result.merchant, 'MERCADO EXEMPLO');
+    expect(result.date, DateTime(2026, 9, 18));
+    expect(result.items, hasLength(2));
+    expect(result.items.first.quantity, 2);
+    expect(result.items.first.unit, 'UN');
+    expect(result.items.last.description, 'BANANA PRATA');
+    expect(result.items.last.originalDescription, contains('Código: 834'));
+    expect(result.items.last.quantity, .75);
+    expect(result.items.last.unit, 'KG');
+    expect(result.subtotal, 31);
+    expect(result.discount, 1);
+    expect(result.totalAmount, 30);
+    expect(result.hasTotalDivergence, isFalse);
+  });
+
+  test('linhas adjacentes e campo ausente permanecem revisáveis', () {
+    final result = parser.parse('''
+LOJA EXEMPLO
+LEITE INTEGRAL
+2 UN X 4,50 9,00
+QUEIJO 7,90
+TOTAL R\$ 16,90
+''');
+    expect(result.items, hasLength(2));
+    expect(result.items.first.quantity, 2);
+    expect(result.items.first.unitPrice, 4.5);
+    expect(result.items.last.quantity, isNull);
+    expect(result.items.last.unit, isNull);
+    expect(result.date, isNull);
+  });
+
+  test('cupom OCR ruidoso mantém somente itens fiscais e total final', () {
+    final result = parser.parse(r'''
+MERCADO EXEMPLO LTDA
+CNPJ 12.345.678/0001-90
+R RIO SOLIMOES, 967 WEISSOPOLIS PINHAIS PR
+EMISSAO 21/09/2026 12:50
+BISCOITO INTEGRAL
+1 UN X 5,49 5,49
+7891234567890 COOKIES CHOCOLATE 60G
+1 UN X 1,80 1,80
+LEITE UHT
+1 UN X 12,50 12,50
+ARROZ TIPO 1
+1 UN X 12,21 12,21
+QTDE TOTAL DE ITENS 4
+SUBTOTAL R$ 32,00
+DESCONTO R$ 1,52
+VALOR A PAGAR R$ 30,48
+FORMA DE PAGAMENTO CARTAO DE DEBITO
+VALOR PAGO R$ 30,48
+1URL00
+VOCE ECONOMIZOU: R$ 1,52
+QR CODE NFC-E CHAVE DE ACESSO
+''');
+
+    expect(result.merchant, 'MERCADO EXEMPLO LTDA');
+    expect(result.merchant, isNot(contains('RIO SOLIMOES')));
+    expect(result.date, DateTime(2026, 9, 21));
+    expect(result.subtotal, 32);
+    expect(result.discount, 1.52);
+    expect(result.totalAmount, 30.48);
+    expect(result.paymentMethodSuggestion, 'debitCard');
+    expect(result.items, hasLength(4));
+    expect(
+      result.items.map((item) => item.description),
+      contains('COOKIES CHOCOLATE 60G'),
+    );
+    expect(
+      result.items.map((item) => item.description),
+      isNot(contains('1URL00')),
+    );
+    expect(
+      result.items.any((item) => item.description.contains('ECONOMIZOU')),
+      isFalse,
+    );
+    expect(result.hasTotalDivergence, isFalse);
+  });
 }

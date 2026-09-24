@@ -11,6 +11,7 @@ class CreditCardInvoiceModel {
   final DateTime closingDate;
   final DateTime dueDate;
   final double total;
+  final double initialBalance;
   final String status;
   final DateTime? paidAt;
   final String? paymentWalletId;
@@ -26,6 +27,7 @@ class CreditCardInvoiceModel {
     required this.closingDate,
     required this.dueDate,
     this.total = 0,
+    this.initialBalance = 0,
     this.status = openStatus,
     this.paidAt,
     this.paymentWalletId,
@@ -47,6 +49,7 @@ class CreditCardInvoiceModel {
       'closingDate': closingDate.toIso8601String(),
       'dueDate': dueDate.toIso8601String(),
       'total': total,
+      'initialBalance': initialBalance,
       'status': status,
       'paidAt': paidAt?.toIso8601String(),
       'paymentWalletId': paymentWalletId,
@@ -55,9 +58,7 @@ class CreditCardInvoiceModel {
     };
   }
 
-  factory CreditCardInvoiceModel.fromMap(
-    Map<String, dynamic> map,
-  ) {
+  factory CreditCardInvoiceModel.fromMap(Map<String, dynamic> map) {
     final now = DateTime.now();
 
     return CreditCardInvoiceModel(
@@ -69,10 +70,10 @@ class CreditCardInvoiceModel {
       closingDate: _parseDateTime(map['closingDate']) ?? now,
       dueDate: _parseDateTime(map['dueDate']) ?? now,
       total: _parseDouble(map['total']),
+      initialBalance: _parseDouble(map['initialBalance']),
       status: map['status']?.toString() ?? openStatus,
       paidAt: _parseDateTime(map['paidAt']),
-      paymentWalletId:
-          _parseNullableString(map['paymentWalletId']),
+      paymentWalletId: _parseNullableString(map['paymentWalletId']),
       createdAt: _parseDateTime(map['createdAt']) ?? now,
       updatedAt: _parseDateTime(map['updatedAt']) ?? now,
     );
@@ -80,9 +81,7 @@ class CreditCardInvoiceModel {
 
   static String? _parseNullableString(dynamic value) {
     final normalized = value?.toString().trim();
-    return normalized == null || normalized.isEmpty
-        ? null
-        : normalized;
+    return normalized == null || normalized.isEmpty ? null : normalized;
   }
 
   static int _parseInt(dynamic value) {

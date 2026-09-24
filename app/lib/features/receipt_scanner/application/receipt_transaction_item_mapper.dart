@@ -18,9 +18,12 @@ class ReceiptTransactionItemMapper {
     for (var index = 0; index < items.length; index++) {
       final item = items[index];
       final name = item.description.trim();
-      final quantity = item.quantity != null && item.quantity! > 0
-          ? item.quantity!
-          : 1.0;
+      final quantity = item.quantity;
+      if (quantity == null ||
+          quantity <= 0 ||
+          item.unit?.trim().isNotEmpty != true ||
+          item.unitPrice == null)
+        continue;
       final totalPrice = _resolveTotalPrice(item, quantity);
       if (name.isEmpty || totalPrice == null || totalPrice <= 0) continue;
 
@@ -31,10 +34,11 @@ class ReceiptTransactionItemMapper {
         TransactionItemModel(
           id: '${createdAt.microsecondsSinceEpoch}-$index',
           transactionId: '',
+          productId: item.productId,
           name: name,
-          brand: '',
+          brand: item.brand ?? '',
           quantity: quantity,
-          unit: item.unit?.trim().isNotEmpty == true ? item.unit! : 'un',
+          unit: item.unit!.trim(),
           unitPrice: unitPrice,
           totalPrice: totalPrice,
           taxonomyId: taxonomyId,

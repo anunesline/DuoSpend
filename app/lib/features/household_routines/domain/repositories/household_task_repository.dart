@@ -2,6 +2,7 @@ import '../models/household_task.dart';
 
 abstract class HouseholdTaskRepository {
   Future<void> saveTask(HouseholdTask task);
+  Future<void> deleteTask(String taskId) => throw UnimplementedError();
 
   Future<HouseholdTask?> getTaskById(String taskId);
 

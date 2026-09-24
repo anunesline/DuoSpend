@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/knowledge/products/product_repository.dart';
 
 import '../../data/providers/google_mlkit_receipt_text_recognition_provider.dart';
 import '../../data/providers/image_picker_receipt_image_capture_provider.dart';
@@ -13,7 +14,8 @@ import 'fiscal_qr_scanner_page.dart';
 import 'receipt_scan_review_page.dart';
 
 class ReceiptScannerPage extends StatefulWidget {
-  const ReceiptScannerPage({super.key});
+  final ProductRepository? productRepository;
+  const ReceiptScannerPage({super.key, this.productRepository});
 
   @override
   State<ReceiptScannerPage> createState() => _ReceiptScannerPageState();
@@ -66,13 +68,20 @@ class _ReceiptScannerPageState extends State<ReceiptScannerPage> {
     final message = lookup.status == FiscalQrLookupStatus.invalid
         ? 'Este QR não parece ser uma nota fiscal consultável.'
         : 'Não há consulta estruturada disponível para este QR. Use uma foto da nota.';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _review(ReceiptTransactionDraft draft) async {
     final reviewedDraft = await Navigator.push<ReceiptTransactionDraft>(
       context,
-      MaterialPageRoute(builder: (_) => ReceiptScanReviewPage(draft: draft)),
+      MaterialPageRoute(
+        builder: (_) => ReceiptScanReviewPage(
+          draft: draft,
+          productRepository: widget.productRepository,
+        ),
+      ),
     );
     if (!mounted || reviewedDraft == null) return;
     Navigator.pop(context, reviewedDraft);
@@ -85,7 +94,8 @@ class _ReceiptScannerPageState extends State<ReceiptScannerPage> {
       body: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
-          final isLoading = _controller.state == ReceiptScannerState.capturing ||
+          final isLoading =
+              _controller.state == ReceiptScannerState.capturing ||
               _controller.state == ReceiptScannerState.recognizing;
           return Padding(
             padding: const EdgeInsets.all(24),

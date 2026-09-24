@@ -1,3 +1,23 @@
+/// Financial kind is independent of the individual/shared ownership scope.
+enum AccountKind {
+  bank,
+  digital,
+  cash,
+  other;
+
+  String get label => switch (this) {
+    bank => 'Conta bancária',
+    digital => 'Carteira digital',
+    cash => 'Carteira física',
+    other => 'Outro',
+  };
+
+  static AccountKind parse(Object? value) => AccountKind.values.firstWhere(
+    (kind) => kind.name == value,
+    orElse: () => AccountKind.other,
+  );
+}
+
 enum WalletType {
   individual,
   shared;
@@ -18,6 +38,11 @@ class WalletModel {
   final String id;
   final String name;
   final double balance;
+  final AccountKind accountKind;
+  final String bank;
+  final String holder;
+  final String pix;
+  final bool isArchived;
 
   /// Define se a carteira pertence somente a um usuário
   /// ou se é compartilhada.
@@ -42,15 +67,17 @@ class WalletModel {
     required this.id,
     required this.name,
     required this.balance,
+    this.accountKind = AccountKind.other,
+    this.bank = '',
+    this.holder = '',
+    this.pix = '',
+    this.isArchived = false,
     this.type = WalletType.individual,
     this.ownerId = '',
     List<String> memberIds = const [],
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) : memberIds = _normalizeMemberIds(
-         memberIds,
-         ownerId: ownerId,
-       ),
+  }) : memberIds = _normalizeMemberIds(memberIds, ownerId: ownerId),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now();
 
@@ -120,10 +147,7 @@ class WalletModel {
     }
 
     return copyWith(
-      memberIds: [
-        ...memberIds,
-        normalizedUserId,
-      ],
+      memberIds: [...memberIds, normalizedUserId],
       updatedAt: DateTime.now(),
     );
   }
@@ -139,9 +163,7 @@ class WalletModel {
 
     return copyWith(
       memberIds: memberIds
-          .where(
-            (memberId) => memberId != normalizedUserId,
-          )
+          .where((memberId) => memberId != normalizedUserId)
           .toList(),
       updatedAt: DateTime.now(),
     );
@@ -152,10 +174,7 @@ class WalletModel {
       return this;
     }
 
-    return copyWith(
-      type: WalletType.shared,
-      updatedAt: DateTime.now(),
-    );
+    return copyWith(type: WalletType.shared, updatedAt: DateTime.now());
   }
 
   WalletModel asIndividual() {
@@ -174,6 +193,11 @@ class WalletModel {
     String? id,
     String? name,
     double? balance,
+    AccountKind? accountKind,
+    String? bank,
+    String? holder,
+    String? pix,
+    bool? isArchived,
     WalletType? type,
     String? ownerId,
     List<String>? memberIds,
@@ -184,6 +208,11 @@ class WalletModel {
       id: id ?? this.id,
       name: name ?? this.name,
       balance: balance ?? this.balance,
+      accountKind: accountKind ?? this.accountKind,
+      bank: bank ?? this.bank,
+      holder: holder ?? this.holder,
+      pix: pix ?? this.pix,
+      isArchived: isArchived ?? this.isArchived,
       type: type ?? this.type,
       ownerId: ownerId ?? this.ownerId,
       memberIds: memberIds ?? this.memberIds,
@@ -197,6 +226,11 @@ class WalletModel {
       'id': id,
       'name': name,
       'balance': balance,
+      'accountKind': accountKind.name,
+      'bank': bank,
+      'holder': holder,
+      'pix': pix,
+      'isArchived': isArchived,
       'type': type.value,
       'ownerId': ownerId,
       'memberIds': memberIds,
@@ -212,6 +246,11 @@ class WalletModel {
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
       balance: _parseDouble(map['balance']),
+      accountKind: AccountKind.parse(map['accountKind']),
+      bank: map['bank']?.toString() ?? '',
+      holder: map['holder']?.toString() ?? '',
+      pix: map['pix']?.toString() ?? '',
+      isArchived: map['isArchived'] == true,
       type: WalletType.fromValue(map['type']?.toString()),
       ownerId: ownerId,
       memberIds: _parseMemberIds(map['memberIds']),
@@ -246,12 +285,8 @@ class WalletModel {
     }
 
     return value
-        .map(
-          (memberId) => memberId.toString().trim(),
-        )
-        .where(
-          (memberId) => memberId.isNotEmpty,
-        )
+        .map((memberId) => memberId.toString().trim())
+        .where((memberId) => memberId.isNotEmpty)
         .toList();
   }
 
@@ -280,4 +315,20 @@ class WalletModel {
 
     return List<String>.unmodifiable(normalizedMemberIds);
   }
+}
+
+/// Deterministic fallback: oldest active personal account, then document ID.
+WalletModel? resolvePrimaryAccount(
+  List<WalletModel> wallets,
+  String? preferredId,
+) {
+  final active = wallets.where((w) => w.isIndividual && !w.isArchived).toList()
+    ..sort((a, b) {
+      final date = a.createdAt.compareTo(b.createdAt);
+      return date == 0 ? a.id.compareTo(b.id) : date;
+    });
+  for (final wallet in active) {
+    if (wallet.id == preferredId) return wallet;
+  }
+  return active.isEmpty ? null : active.first;
 }

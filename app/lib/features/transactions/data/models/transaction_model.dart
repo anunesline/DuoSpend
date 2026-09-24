@@ -194,8 +194,7 @@ class TransactionModel {
     this.purchaseFor = 'self',
     this.splitType = 'none',
     this.memberShares = const {},
-    this.confirmationStatus =
-        SharedTransactionConfirmationStatus.accepted,
+    this.confirmationStatus = SharedTransactionConfirmationStatus.accepted,
     this.confirmationRequestedAt,
     this.confirmationResolvedAt,
     this.confirmationRespondedByMemberId,
@@ -227,6 +226,12 @@ class TransactionModel {
 
   bool get isSettledByInvoice => financialStatus == 'invoice';
 
+  String get financialStatusLabel => isFinanciallySettled
+      ? 'Efetivada'
+      : isFinanciallyPending
+      ? 'Prevista'
+      : 'Em fatura';
+
   /// Retorna verdadeiro quando a transação possui
   /// algum tipo de divisão entre membros.
   bool get hasFinancialSplit {
@@ -242,10 +247,7 @@ class TransactionModel {
   /// Retorna verdadeiro quando a transação representa
   /// uma despesa compartilhada entre membros.
   bool get isSharedExpense {
-    return type == 'expense' &&
-        !isSettlement &&
-        hasFinancialSplit &&
-        isForBoth;
+    return type == 'expense' && !isSettlement && hasFinancialSplit && isForBoth;
   }
 
   /// Indica que a despesa compartilhada ainda aguarda
@@ -332,21 +334,16 @@ class TransactionModel {
       'splitType': splitType,
       'memberShares': memberShares,
       'confirmationStatus': confirmationStatus.value,
-      'confirmationRequestedAt':
-          confirmationRequestedAt?.toIso8601String(),
-      'confirmationResolvedAt':
-          confirmationResolvedAt?.toIso8601String(),
-      'confirmationRespondedByMemberId':
-          confirmationRespondedByMemberId,
+      'confirmationRequestedAt': confirmationRequestedAt?.toIso8601String(),
+      'confirmationResolvedAt': confirmationResolvedAt?.toIso8601String(),
+      'confirmationRespondedByMemberId': confirmationRespondedByMemberId,
       'isSettlement': isSettlement,
       'settlementId': settlementId,
       'isRecurring': isRecurring,
       'recurringId': recurringId,
       'recurringFrequency': recurringFrequency,
-      'recurringStartDate':
-          recurringStartDate?.toIso8601String(),
-      'recurringEndDate':
-          recurringEndDate?.toIso8601String(),
+      'recurringStartDate': recurringStartDate?.toIso8601String(),
+      'recurringEndDate': recurringEndDate?.toIso8601String(),
       'recurringNeverEnds': recurringNeverEnds,
       'paymentMethod': paymentMethod,
       'isInstallment': isInstallment,
@@ -363,9 +360,7 @@ class TransactionModel {
     };
   }
 
-  factory TransactionModel.fromMap(
-    Map<String, dynamic> map,
-  ) {
+  factory TransactionModel.fromMap(Map<String, dynamic> map) {
     final rawItems = map['items'];
     final rawMemberShares = map['memberShares'];
 
@@ -381,53 +376,39 @@ class TransactionModel {
       purchaseFor: map['purchaseFor']?.toString() ?? 'self',
       splitType: map['splitType']?.toString() ?? 'none',
       memberShares: _parseMemberShares(rawMemberShares),
-      confirmationStatus:
-          SharedTransactionConfirmationStatus.fromValue(
+      confirmationStatus: SharedTransactionConfirmationStatus.fromValue(
         map['confirmationStatus'],
       ),
-      confirmationRequestedAt:
-          _parseDateTime(map['confirmationRequestedAt']),
-      confirmationResolvedAt:
-          _parseDateTime(map['confirmationResolvedAt']),
-      confirmationRespondedByMemberId:
-          map['confirmationRespondedByMemberId']?.toString(),
+      confirmationRequestedAt: _parseDateTime(map['confirmationRequestedAt']),
+      confirmationResolvedAt: _parseDateTime(map['confirmationResolvedAt']),
+      confirmationRespondedByMemberId: map['confirmationRespondedByMemberId']
+          ?.toString(),
       isSettlement: _parseBool(map['isSettlement']),
       settlementId: map['settlementId']?.toString(),
       isRecurring: _parseBool(map['isRecurring']),
       recurringId: map['recurringId']?.toString(),
-      recurringFrequency:
-          map['recurringFrequency']?.toString(),
-      recurringStartDate:
-          _parseDateTime(map['recurringStartDate']),
-      recurringEndDate:
-          _parseDateTime(map['recurringEndDate']),
-      recurringNeverEnds:
-          map['recurringNeverEnds'] == null
-              ? true
-              : _parseBool(map['recurringNeverEnds']),
-      paymentMethod:
-          _parseNullableString(map['paymentMethod']),
+      recurringFrequency: map['recurringFrequency']?.toString(),
+      recurringStartDate: _parseDateTime(map['recurringStartDate']),
+      recurringEndDate: _parseDateTime(map['recurringEndDate']),
+      recurringNeverEnds: map['recurringNeverEnds'] == null
+          ? true
+          : _parseBool(map['recurringNeverEnds']),
+      paymentMethod: _parseNullableString(map['paymentMethod']),
       isInstallment: _parseBool(map['isInstallment']),
-      installmentCount:
-          _parseNullableInt(map['installmentCount']),
-      installmentNumber:
-          _parseNullableInt(map['installmentNumber']),
-      installmentGroupId:
-          _parseNullableString(map['installmentGroupId']),
-      paymentSourceId:
-          _parseNullableString(map['paymentSourceId']),
+      installmentCount: _parseNullableInt(map['installmentCount']),
+      installmentNumber: _parseNullableInt(map['installmentNumber']),
+      installmentGroupId: _parseNullableString(map['installmentGroupId']),
+      paymentSourceId: _parseNullableString(map['paymentSourceId']),
       financialStatus: _parseFinancialStatus(map),
-      financialSettledAt:
-          _parseDateTime(map['financialSettledAt']),
+      financialSettledAt: _parseDateTime(map['financialSettledAt']),
       category: map['category']?.toString() ?? 'Sem categoria',
-      subcategory:
-          map['subcategory']?.toString() ?? 'Sem subcategoria',
+      subcategory: map['subcategory']?.toString() ?? 'Sem subcategoria',
       notes: _parseNullableString(map['notes']),
       items: rawItems is List
           ? rawItems
-              .whereType<Map<String, dynamic>>()
-              .map(TransactionItemModel.fromMap)
-              .toList()
+                .whereType<Map<String, dynamic>>()
+                .map(TransactionItemModel.fromMap)
+                .toList()
           : const [],
     );
   }
@@ -489,33 +470,28 @@ class TransactionModel {
       purchaseFor: purchaseFor ?? this.purchaseFor,
       splitType: splitType ?? this.splitType,
       memberShares: memberShares ?? this.memberShares,
-      confirmationStatus:
-          confirmationStatus ?? this.confirmationStatus,
+      confirmationStatus: confirmationStatus ?? this.confirmationStatus,
       confirmationRequestedAt:
           confirmationRequestedAt ?? this.confirmationRequestedAt,
       confirmationResolvedAt:
           confirmationResolvedAt ?? this.confirmationResolvedAt,
       confirmationRespondedByMemberId:
           confirmationRespondedByMemberId ??
-              this.confirmationRespondedByMemberId,
+          this.confirmationRespondedByMemberId,
       isSettlement: isSettlement ?? this.isSettlement,
       settlementId: settlementId ?? this.settlementId,
       isRecurring: isRecurring ?? this.isRecurring,
       recurringId: recurringId ?? this.recurringId,
-      recurringFrequency:
-          recurringFrequency ?? this.recurringFrequency,
-      recurringStartDate:
-          recurringStartDate ?? this.recurringStartDate,
+      recurringFrequency: recurringFrequency ?? this.recurringFrequency,
+      recurringStartDate: recurringStartDate ?? this.recurringStartDate,
       recurringEndDate: clearRecurringEndDate
           ? null
           : recurringEndDate ?? this.recurringEndDate,
-      recurringNeverEnds:
-          recurringNeverEnds ?? this.recurringNeverEnds,
+      recurringNeverEnds: recurringNeverEnds ?? this.recurringNeverEnds,
       paymentMethod: clearPaymentMethod
           ? null
           : paymentMethod ?? this.paymentMethod,
-      isInstallment:
-          isInstallment ?? this.isInstallment,
+      isInstallment: isInstallment ?? this.isInstallment,
       installmentCount: clearInstallmentCount
           ? null
           : installmentCount ?? this.installmentCount,
@@ -542,16 +518,12 @@ class TransactionModel {
   static String _parseFinancialStatus(Map<String, dynamic> map) {
     final status = map['financialStatus']?.toString().trim();
 
-    if (status == 'pending' ||
-        status == 'settled' ||
-        status == 'invoice') {
+    if (status == 'pending' || status == 'settled' || status == 'invoice') {
       return status!;
     }
 
     final paymentMethod = map['paymentMethod']?.toString();
-    final installmentNumber = _parseNullableInt(
-      map['installmentNumber'],
-    );
+    final installmentNumber = _parseNullableInt(map['installmentNumber']);
 
     if (paymentMethod == 'creditCard') {
       return 'invoice';
@@ -559,8 +531,7 @@ class TransactionModel {
 
     if (paymentMethod == 'boleto' ||
         paymentMethod == 'carne' ||
-        ((_parseBool(map['isInstallment'])) &&
-            (installmentNumber ?? 1) > 1)) {
+        ((_parseBool(map['isInstallment'])) && (installmentNumber ?? 1) > 1)) {
       return 'pending';
     }
 

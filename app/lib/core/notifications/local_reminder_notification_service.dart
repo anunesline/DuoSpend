@@ -14,7 +14,7 @@ class LocalReminderNotificationService {
   bool _initialized = false;
 
   LocalReminderNotificationService({FlutterLocalNotificationsPlugin? plugin})
-      : plugin = plugin ?? FlutterLocalNotificationsPlugin();
+    : plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   Future<void> initialize() async {
     if (_initialized || kIsWeb) return;
@@ -57,13 +57,17 @@ class LocalReminderNotificationService {
       );
     }
 
-    final android = plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await android?.requestNotificationsPermission();
     await android?.requestExactAlarmsPermission();
 
     final ios = plugin
-        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
     await ios?.requestPermissions(alert: true, badge: true, sound: true);
 
     final scheduledDate = tz.TZDateTime.from(remindAt, tz.local);
@@ -90,5 +94,10 @@ class LocalReminderNotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       payload: 'household_task:$taskId',
     );
+  }
+
+  Future<void> cancel(String reminderId) async {
+    await initialize();
+    await plugin.cancel(id: reminderId.hashCode & 0x7fffffff);
   }
 }

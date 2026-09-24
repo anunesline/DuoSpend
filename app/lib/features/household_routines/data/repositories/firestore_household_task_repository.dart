@@ -7,7 +7,7 @@ class FirestoreHouseholdTaskRepository implements HouseholdTaskRepository {
   final FirebaseFirestore firestore;
 
   FirestoreHouseholdTaskRepository({FirebaseFirestore? firestore})
-      : firestore = firestore ?? FirebaseFirestore.instance;
+    : firestore = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _collection =>
       firestore.collection('household_tasks');
@@ -16,6 +16,9 @@ class FirestoreHouseholdTaskRepository implements HouseholdTaskRepository {
   Future<void> saveTask(HouseholdTask task) async {
     await _collection.doc(task.id).set(task.toMap());
   }
+
+  @override
+  Future<void> deleteTask(String taskId) => _collection.doc(taskId).delete();
 
   @override
   Future<HouseholdTask?> getTaskById(String taskId) async {
@@ -31,7 +34,9 @@ class FirestoreHouseholdTaskRepository implements HouseholdTaskRepository {
 
   @override
   Future<List<HouseholdTask>> getTasksByScope(String scopeId) async {
-    final snapshot = await _collection.where('scopeId', isEqualTo: scopeId).get();
+    final snapshot = await _collection
+        .where('scopeId', isEqualTo: scopeId)
+        .get();
     final tasks = snapshot.docs
         .map((doc) => HouseholdTask.fromMap(doc.data()))
         .toList();

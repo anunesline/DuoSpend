@@ -1,6 +1,17 @@
 import 'taxonomy_item.dart';
 
 class DuoTaxonomy {
+  static String canonicalCategory(String value) {
+    var normalized = value.trim().toLowerCase();
+    const replacements = {'á':'a','à':'a','â':'a','ã':'a','ä':'a','é':'e','è':'e','ê':'e','ë':'e','í':'i','ì':'i','î':'i','ï':'i','ó':'o','ò':'o','ô':'o','õ':'o','ö':'o','ú':'u','ù':'u','û':'u','ü':'u','ç':'c'};
+    for (final entry in replacements.entries) { normalized = normalized.replaceAll(entry.key, entry.value); }
+    if (normalized == 'casa') return 'Moradia';
+    if (normalized == 'mercado') return 'Alimentação';
+    if (normalized == 'pet') return 'Pets';
+    if (normalized == 'contas' || normalized == 'servicos') return 'Contas e serviços';
+    return value.trim();
+  }
+
   static const List<TaxonomyItem> items = [
     TaxonomyItem(
       id: 'food',
@@ -93,7 +104,7 @@ class DuoTaxonomy {
     ),
     TaxonomyItem(
       id: 'home',
-      name: 'Casa',
+      name: 'Moradia',
       icon: '🏠',
       children: [
         TaxonomyItem(

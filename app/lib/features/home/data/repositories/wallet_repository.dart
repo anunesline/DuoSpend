@@ -35,7 +35,13 @@ class WalletRepository {
     return _getLegacyMainWallet(userId);
   }
 
-  Future<List<WalletModel>> getUserWallets() async {
+  Future<List<WalletModel>> getUserWallets() async =>
+      (await getAllUserWallets())
+          .where((wallet) => !wallet.isArchived)
+          .toList();
+
+  /// Includes archived records for history and account management.
+  Future<List<WalletModel>> getAllUserWallets() async {
     final userId = currentUserId;
 
     if (userId == null) {
@@ -63,6 +69,28 @@ class WalletRepository {
     return List<WalletModel>.unmodifiable(wallets);
   }
 
+  /// Home preference must never change the meaning of the legacy ID principal.
+  Future<WalletModel?> getHomeWallet() async {
+    final userId = currentUserId;
+    if (userId == null) return null;
+    final wallets = await getUserWallets();
+    final profile = await _firestore
+        .collection(_usersCollection)
+        .doc(userId)
+        .get();
+    return resolveHomeWallet(
+      wallets.where((w) => w.isOwner(userId)).toList(),
+      profile.data()?['primaryWalletId']?.toString(),
+    );
+  }
+
+  static WalletModel? resolveHomeWallet(
+    List<WalletModel> wallets,
+    String? preferredId,
+  ) {
+    return resolvePrimaryAccount(wallets, preferredId);
+  }
+
   Future<List<WalletModel>> getIndividualWallets() async {
     final wallets = await getUserWallets();
 
@@ -88,7 +116,8 @@ class WalletRepository {
     }
 
     if (normalizedWalletId == _mainWalletId) {
-      final mainWallet = await getMainWallet();
+      final mainWallet =
+          await _getLegacyMainWallet(userId) ?? await getMainWallet();
 
       if (mainWallet != null && mainWallet.hasMember(userId)) {
         return mainWallet;
@@ -115,9 +144,7 @@ class WalletRepository {
     return wallet;
   }
 
-  Future<WalletModel?> getFinancialWalletForMember(
-    String memberId,
-  ) async {
+  Future<WalletModel?> getFinancialWalletForMember(String memberId) async {
     _requireAuthenticatedUserId();
 
     final normalizedMemberId = memberId.trim();
@@ -130,9 +157,7 @@ class WalletRepository {
       );
     }
 
-    final modernWallet = await _getModernMainWallet(
-      normalizedMemberId,
-    );
+    final modernWallet = await _getModernMainWallet(normalizedMemberId);
 
     if (modernWallet != null) {
       return modernWallet;
@@ -208,9 +233,8 @@ class WalletRepository {
     );
 
     if (_isLegacyMainWallet(normalizedWallet)) {
-      await _legacyMainWalletReference(
-        userId,
-      ).set(normalizedWallet.toMap(), SetOptions(merge: true));
+      await _legacyMainWalletReference(userId)
+          .set(normalizedWallet.toMap(), SetOptions(merge: true));
 
       return;
     }
@@ -261,10 +285,7 @@ class WalletRepository {
   }) async {
     _validateBalanceAmount(amount);
 
-    await _changeBalanceAtomically(
-      amount: amount,
-      walletId: walletId,
-    );
+    await _changeBalanceAtomically(amount: amount, walletId: walletId);
   }
 
   Future<void> decrementBalance(
@@ -273,10 +294,7 @@ class WalletRepository {
   }) async {
     _validateBalanceAmount(amount);
 
-    await _changeBalanceAtomically(
-      amount: -amount,
-      walletId: walletId,
-    );
+    await _changeBalanceAtomically(amount: -amount, walletId: walletId);
   }
 
   Future<void> addMember({
@@ -397,6 +415,11 @@ class WalletRepository {
       return _firestore.collection(_walletsCollection).doc(walletId);
     }
 
+    // principal is an actual legacy account when that document exists.
+    if (await _getLegacyMainWallet(userId) != null) {
+      return _legacyMainWalletReference(userId);
+    }
+
     final modernWallet = await _getModernMainWallet(userId);
 
     if (modernWallet != null) {
@@ -489,6 +512,8 @@ class WalletRepository {
         ? data['id']
         : _mainWalletId;
 
+    data['createdAt'] ??= DateTime.fromMillisecondsSinceEpoch(0)
+        .toIso8601String();
     data['type'] = WalletType.individual.value;
     data['ownerId'] = data['ownerId']?.toString().trim().isNotEmpty == true
         ? data['ownerId']
@@ -521,6 +546,8 @@ class WalletRepository {
       data['id'] = document.id;
     }
 
+    data['createdAt'] ??= DateTime.fromMillisecondsSinceEpoch(0)
+        .toIso8601String();
     return WalletModel.fromMap(data);
   }
 

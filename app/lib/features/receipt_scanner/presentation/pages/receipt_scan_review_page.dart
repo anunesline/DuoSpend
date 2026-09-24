@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/knowledge/products/product_repository.dart';
+import '../../../transactions/data/models/product_model.dart';
+import '../../application/receipt_product_identity_resolver.dart';
 import '../../domain/models/receipt_scan_item.dart';
 import '../../domain/models/receipt_transaction_draft.dart';
 
@@ -8,20 +11,22 @@ import '../../domain/models/receipt_transaction_draft.dart';
 /// carteiras ou controllers financeiros: ela apenas devolve um rascunho.
 class ReceiptScanReviewPage extends StatefulWidget {
   final ReceiptTransactionDraft draft;
+  final ProductRepository? productRepository;
 
   const ReceiptScanReviewPage({
     super.key,
     required this.draft,
+    this.productRepository,
   });
 
   @override
-  State<ReceiptScanReviewPage> createState() =>
-      _ReceiptScanReviewPageState();
+  State<ReceiptScanReviewPage> createState() => _ReceiptScanReviewPageState();
 }
 
 class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _amountController;
+  late final TextEditingController _discountController;
   late DateTime? _purchaseDate;
   late String? _paymentMethodSuggestion;
   late List<ReceiptScanItem> _items;
@@ -35,6 +40,9 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
     _amountController = TextEditingController(
       text: _formatAmount(widget.draft.amount),
     );
+    _discountController = TextEditingController(
+      text: _formatAmount(widget.draft.discount),
+    );
     _purchaseDate = widget.draft.purchaseDate;
     _paymentMethodSuggestion = widget.draft.paymentMethodSuggestion;
     _items = List.of(widget.draft.items);
@@ -44,6 +52,7 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
   void dispose() {
     _descriptionController.dispose();
     _amountController.dispose();
+    _discountController.dispose();
     super.dispose();
   }
 
@@ -58,6 +67,8 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
   ReceiptTransactionDraft get _draft => widget.draft.copyWith(
     description: _descriptionController.text.trim(),
     amount: _amount,
+    discount: _parseNumber(_discountController.text),
+    clearDiscount: _discountController.text.trim().isEmpty,
     purchaseDate: _purchaseDate,
     paymentMethodSuggestion: _paymentMethodSuggestion,
     items: List.unmodifiable(_items),
@@ -76,14 +87,28 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
   }
 
   void _continue() {
-    final draft = _draft;
+    final draft = _draft.copyWith(
+      items: List.unmodifiable(
+        _items.map((item) {
+          final repository = widget.productRepository;
+          final resolved = repository == null
+              ? null
+              : ReceiptProductIdentityResolver(
+                  repository,
+                ).existingForScan(item);
+          return item.productId == null && resolved != null
+              ? item.copyWith(productId: resolved.id)
+              : item;
+        }),
+      ),
+    );
     if (!draft.canContinueToTransaction) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             draft.hasTotalDivergence
                 ? 'Revise a divergência entre itens e total antes de continuar.'
-                : 'Informe estabelecimento e valor antes de continuar.',
+                : 'Revise estabelecimento, itens, quantidade, unidade e preços antes de continuar.',
           ),
         ),
       );
@@ -117,11 +142,69 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
     setState(() => _items[index] = item);
   }
 
+  Future<void> _selectProduct(int index) async {
+    final repository = widget.productRepository;
+    if (repository == null) return;
+    var query = '';
+    final selected = await showModalBottomSheet<ProductModel>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) {
+          final matches = repository.search(query).take(60).toList();
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.65,
+              child: Column(
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Buscar produto específico',
+                    ),
+                    onChanged: (value) => update(() => query = value),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: matches.length,
+                      itemBuilder: (context, position) {
+                        final product = matches[position];
+                        return ListTile(
+                          title: Text(product.name),
+                          subtitle: Text(
+                            [
+                              product.brand,
+                              product.defaultUnit,
+                            ].where((part) => part.isNotEmpty).join(' · '),
+                          ),
+                          onTap: () => Navigator.pop(context, product),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (selected == null || !mounted) return;
+    _updateItem(
+      index,
+      _items[index].copyWith(productId: selected.id, brand: selected.brand),
+    );
+  }
+
   Widget _buildItem(int index) {
     final item = _items[index];
     return ExpansionTile(
       key: ValueKey('receipt-item-$index-${item.description}'),
-      title: Text(item.description.isEmpty ? 'Item sem descrição' : item.description),
+      title: Text(
+        item.description.isEmpty ? 'Item sem descrição' : item.description,
+      ),
       childrenPadding: const EdgeInsets.only(bottom: AppSpacing.md),
       children: [
         TextFormField(
@@ -129,7 +212,28 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
           decoration: const InputDecoration(labelText: 'Descrição'),
           onChanged: (value) => _updateItem(
             index,
-            item.copyWith(description: value),
+            item.copyWith(description: value, clearProductId: true),
+          ),
+        ),
+        if (item.originalDescription != null &&
+            item.originalDescription != item.description)
+          Text('Texto lido: ${item.originalDescription}'),
+        TextFormField(
+          initialValue: item.brand ?? '',
+          decoration: const InputDecoration(labelText: 'Marca, se conhecida'),
+          onChanged: (value) => _updateItem(
+            index,
+            item.copyWith(brand: value, clearProductId: true),
+          ),
+        ),
+        TextButton(
+          onPressed: widget.productRepository == null
+              ? null
+              : () => _selectProduct(index),
+          child: Text(
+            item.productId == null
+                ? 'Vincular produto existente'
+                : 'Produto: ${widget.productRepository?.findById(item.productId!)?.name ?? item.productId}',
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -140,7 +244,9 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
                 initialValue: item.quantity == null
                     ? ''
                     : _formatAmount(item.quantity),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(labelText: 'Quantidade'),
                 onChanged: (value) => _updateItem(
                   index,
@@ -154,11 +260,11 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: TextFormField(
-                initialValue: item.unit ?? 'un',
+                initialValue: item.unit ?? '',
                 decoration: const InputDecoration(labelText: 'Unidade'),
                 onChanged: (value) => _updateItem(
                   index,
-                  item.copyWith(unit: value),
+                  item.copyWith(unit: value, clearProductId: true),
                 ),
               ),
             ),
@@ -189,6 +295,11 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
               clearTotalPrice: value.trim().isEmpty,
             ),
           ),
+        ),
+        TextButton.icon(
+          onPressed: () => setState(() => _items.removeAt(index)),
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('Remover item'),
         ),
       ],
     );
@@ -227,6 +338,18 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
                 prefixText: 'R\$ ',
                 prefixIcon: Icon(Icons.payments_outlined),
               ),
+              onChanged: (_) => setState(() {}),
+            ),
+            if (widget.draft.subtotal != null)
+              Text(
+                'Subtotal reconhecido: ${_formatAmount(widget.draft.subtotal)}',
+              ),
+            TextField(
+              controller: _discountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Desconto total'),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -270,6 +393,13 @@ class _ReceiptScanReviewPageState extends State<ReceiptScanReviewPage> {
               const SizedBox(height: AppSpacing.sm),
               ...List.generate(_items.length, _buildItem),
             ],
+            TextButton.icon(
+              onPressed: () => setState(
+                () => _items.add(const ReceiptScanItem(description: '')),
+              ),
+              icon: const Icon(Icons.add),
+              label: const Text('Adicionar item'),
+            ),
             if (_draft.hasTotalDivergence) ...[
               const SizedBox(height: AppSpacing.md),
               const Card(

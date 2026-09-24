@@ -9,6 +9,7 @@ class ProductSearchField extends StatefulWidget {
   final List<ProductModel> suggestions;
   final ValueChanged<String> onSearch;
   final ValueChanged<ProductModel> onSelected;
+  final VoidCallback? onCreateRequested;
 
   const ProductSearchField({
     super.key,
@@ -16,6 +17,7 @@ class ProductSearchField extends StatefulWidget {
     required this.suggestions,
     required this.onSearch,
     required this.onSelected,
+    this.onCreateRequested,
   });
 
   @override
@@ -89,6 +91,17 @@ class _ProductSearchFieldState extends State<ProductSearchField> {
                   onTap: () => _selectProduct(product),
                 );
               },
+            ),
+          ),
+        if (widget.suggestions.isEmpty &&
+            widget.controller.text.trim().isNotEmpty &&
+            widget.onCreateRequested != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: widget.onCreateRequested,
+              icon: const Icon(Icons.add),
+              label: Text('Cadastrar “${widget.controller.text.trim()}” como novo item'),
             ),
           ),
       ],

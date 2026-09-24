@@ -40,4 +40,56 @@ void main() {
     expect(service.calculate(budget: budget, transactions: [movedMonth]).spentAmount, 0);
     expect(service.calculate(budget: budget, transactions: const []).spentAmount, 0);
   });
+  test('associa Moradia a Casa histórica sem considerar a subcategoria', () {
+    final housingBudget = budget.copyWith(category: 'Moradia');
+    expect(service.calculate(budget: housingBudget, transactions: [expense(value: 40, category: 'Moradia'), expense(value: 25, category: 'Casa')]).spentAmount, 65);
+  });
+  test('mantém filtros de categoria, período, tipo e carteira', () {
+    final housingBudget = budget.copyWith(category: 'Moradia');
+    final income = TransactionModel(id: 'housing-income', description: 'Reembolso', value: 50, type: 'income', date: DateTime(2026, 8, 10), walletId: 'wallet', category: 'Moradia', subcategory: 'Aluguel/Financiamento');
+    expect(service.calculate(budget: housingBudget, transactions: [expense(value: 20, category: 'Transporte'), expense(value: 30, category: 'Casa', date: DateTime(2026, 9, 1)), income]).spentAmount, 0);
+  });
+
+  test('separa escopos compartilhados e deduplica por transaction id', () {
+    final sharedExpense = TransactionModel(
+      id: 'shared',
+      description: 'Aluguel',
+      value: 40,
+      type: 'expense',
+      date: DateTime(2026, 8, 10),
+      walletId: 'wallet',
+      category: 'Moradia',
+      subcategory: 'Aluguel/Financiamento',
+      splitType: 'equal',
+      memberShares: const {'user': 20, 'partner': 20},
+      purchaseFor: 'both',
+    );
+    final housingBudget = budget.copyWith(category: 'Moradia');
+    expect(
+      service
+          .calculate(budget: housingBudget, transactions: [sharedExpense])
+          .spentAmount,
+      0,
+    );
+    expect(
+      service
+          .calculate(
+            budget: housingBudget,
+            transactions: [sharedExpense],
+            walletIsShared: true,
+          )
+          .spentAmount,
+      40,
+    );
+    expect(
+      service
+          .calculate(
+            budget: housingBudget,
+            transactions: [sharedExpense, sharedExpense],
+            walletIsShared: true,
+          )
+          .spentAmount,
+      40,
+    );
+  });
 }

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/notifications/local_reminder_notification_service.dart';
 import '../../domain/models/household_task_reminder.dart';
+import '../../domain/models/household_task.dart';
 import '../../domain/repositories/household_task_repository.dart';
 import '../../domain/repositories/household_task_reminder_repository.dart';
 
@@ -12,6 +13,8 @@ class HybridHouseholdTaskReminderRepository
     implements HouseholdTaskReminderRepository {
   static const _defaultEndpoint = String.fromEnvironment(
     'HOUSEHOLD_REMINDER_ENDPOINT',
+    defaultValue:
+        'https://duospend-household-reminders.saturnlabstech.workers.dev/household/reminders',
   );
 
   final HouseholdTaskRepository taskRepository;
@@ -26,11 +29,11 @@ class HybridHouseholdTaskReminderRepository
     FirebaseAuth? auth,
     http.Client? client,
     String partnerReminderEndpoint = _defaultEndpoint,
-  })  : localNotifications =
-            localNotifications ?? LocalReminderNotificationService(),
-        auth = auth ?? FirebaseAuth.instance,
-        client = client ?? http.Client(),
-        partnerReminderEndpoint = partnerReminderEndpoint.trim();
+  }) : localNotifications =
+           localNotifications ?? LocalReminderNotificationService(),
+       auth = auth ?? FirebaseAuth.instance,
+       client = client ?? http.Client(),
+       partnerReminderEndpoint = partnerReminderEndpoint.trim();
 
   @override
   Future<void> saveReminder(HouseholdTaskReminder reminder) async {
@@ -41,6 +44,28 @@ class HybridHouseholdTaskReminderRepository
 
     await _sendPartnerReminder(reminder);
   }
+
+  @override
+  Future<void> scheduleTaskReminder({
+    required HouseholdTask task,
+    required DateTime remindAt,
+  }) async {
+    final currentUserId = auth.currentUser?.uid;
+    if (task.scope != HouseholdTaskScope.personal &&
+        task.assigneeId != currentUserId) {
+      return;
+    }
+    await localNotifications.schedule(
+      reminderId: 'task-due:${task.id}',
+      taskId: task.id,
+      taskTitle: task.title,
+      remindAt: remindAt,
+    );
+  }
+
+  @override
+  Future<void> cancelTaskReminder(String taskId) =>
+      localNotifications.cancel('task-due:$taskId');
 
   Future<void> _scheduleLocalReminder(HouseholdTaskReminder reminder) async {
     final task = await taskRepository.getTaskById(reminder.taskId);
@@ -74,27 +99,33 @@ class HybridHouseholdTaskReminderRepository
         'Authorization': 'Bearer $idToken',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
-        'reminderId': reminder.id,
-        'taskId': reminder.taskId,
-      }),
+      body: jsonEncode({'reminderId': reminder.id, 'taskId': reminder.taskId}),
     );
 
     if (response.statusCode == 429) {
       final data = _decodeJson(response.body);
       final seconds = _readPositiveInt(data['retryAfterSeconds']);
-      throw HouseholdReminderCooldownException(
-        Duration(seconds: seconds ?? 1),
-      );
+      throw HouseholdReminderCooldownException(Duration(seconds: seconds ?? 1));
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final data = _decodeJson(response.body);
       final message = data['error']?.toString().trim();
-      throw StateError(
+      throw HouseholdReminderDeliveryException(
+        response.statusCode,
         message == null || message.isEmpty
             ? 'Não foi possível enviar o lembrete ao responsável.'
             : message,
+      );
+    }
+
+    final data = _decodeJson(response.body);
+    if (data['ok'] != true ||
+        data['messageId'] is! String ||
+        (data['messageId'] as String).trim().isEmpty) {
+      throw const HouseholdReminderDeliveryException(
+        502,
+        'O servidor não confirmou o envio do lembrete.',
       );
     }
   }

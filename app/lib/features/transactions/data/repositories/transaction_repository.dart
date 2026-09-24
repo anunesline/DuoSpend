@@ -8,11 +8,9 @@ class TransactionRepository {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
 
-  TransactionRepository({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  TransactionRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   Future<void> addTransaction(
     TransactionModel transaction, {
@@ -21,17 +19,14 @@ class TransactionRepository {
     final user = _requireAuthenticatedUser();
 
     if (wallet == null || !wallet.isShared) {
-      await _individualTransactionsReference(user.uid)
-          .doc(transaction.id)
-          .set(transaction.toMap());
+      await _individualTransactionsReference(
+        user.uid,
+      ).doc(transaction.id).set(transaction.toMap());
 
       return;
     }
 
-    _validateSharedWalletAccess(
-      wallet: wallet,
-      userId: user.uid,
-    );
+    _validateSharedWalletAccess(wallet: wallet, userId: user.uid);
 
     if (transaction.walletId.trim() != wallet.id.trim()) {
       throw Exception(
@@ -39,9 +34,9 @@ class TransactionRepository {
       );
     }
 
-    await _sharedTransactionsReference(wallet.id)
-        .doc(transaction.id)
-        .set(transaction.toMap());
+    await _sharedTransactionsReference(
+      wallet.id,
+    ).doc(transaction.id).set(transaction.toMap());
   }
 
   Future<void> addTransactions(
@@ -56,10 +51,7 @@ class TransactionRepository {
     final batch = _firestore.batch();
 
     if (wallet != null && wallet.isShared) {
-      _validateSharedWalletAccess(
-        wallet: wallet,
-        userId: user.uid,
-      );
+      _validateSharedWalletAccess(wallet: wallet, userId: user.uid);
     }
 
     for (final transaction in transactions) {
@@ -89,33 +81,30 @@ class TransactionRepository {
   }) async {
     final user = _requireAuthenticatedUser();
 
-    if (!financialWallet.isIndividual ||
-        !financialWallet.isOwner(user.uid)) {
+    if (!financialWallet.isIndividual || !financialWallet.isOwner(user.uid)) {
       throw StateError(
         'A movimentação precisa usar uma carteira individual do usuário.',
       );
     }
 
     final transactionReference = transactionWallet.isShared
-        ? _sharedTransactionsReference(transactionWallet.id)
-            .doc(obligation.id)
-        : _individualTransactionsReference(user.uid)
-            .doc(obligation.id);
-    final financialWalletReference =
-        _financialWalletReference(
+        ? _sharedTransactionsReference(transactionWallet.id).doc(obligation.id)
+        : _individualTransactionsReference(user.uid).doc(obligation.id);
+    final financialWalletReference = _financialWalletReference(
       userId: user.uid,
       walletId: financialWallet.id,
     );
     final settlementDate = settledAt ?? DateTime.now();
 
     return _firestore.runTransaction((firestoreTransaction) async {
-      final obligationDocument =
-          await firestoreTransaction.get(transactionReference);
-      final walletDocument =
-          await firestoreTransaction.get(financialWalletReference);
+      final obligationDocument = await firestoreTransaction.get(
+        transactionReference,
+      );
+      final walletDocument = await firestoreTransaction.get(
+        financialWalletReference,
+      );
 
-      if (!obligationDocument.exists ||
-          obligationDocument.data() == null) {
+      if (!obligationDocument.exists || obligationDocument.data() == null) {
         throw StateError('Obrigação financeira não encontrada.');
       }
 
@@ -146,8 +135,7 @@ class TransactionRepository {
         );
       }
 
-      final persistedSourceId =
-          persistedObligation.paymentSourceId?.trim();
+      final persistedSourceId = persistedObligation.paymentSourceId?.trim();
 
       if (persistedSourceId != null &&
           persistedSourceId.isNotEmpty &&
@@ -175,7 +163,8 @@ class TransactionRepository {
       final walletData = walletDocument.data()!;
       final ownerId = walletData['ownerId']?.toString().trim();
       final walletType = walletData['type']?.toString().trim();
-      final isLegacyWallet = financialWalletReference.path ==
+      final isLegacyWallet =
+          financialWalletReference.path ==
           'users/${user.uid}/wallets/principal';
 
       if ((ownerId ?? (isLegacyWallet ? user.uid : '')) != user.uid ||
@@ -206,6 +195,133 @@ class TransactionRepository {
     });
   }
 
+  /// Materializa e liquida uma única ocorrência futura de uma recorrência.
+  /// O [occurrenceId] é a chave determinística já exibida pelo Calendário.
+  Future<TransactionModel> settleRecurringOccurrence({
+    required TransactionModel recurringTemplate,
+    required String occurrenceId,
+    required DateTime occurrenceDate,
+    required WalletModel transactionWallet,
+    required WalletModel financialWallet,
+    DateTime? settledAt,
+  }) async {
+    final user = _requireAuthenticatedUser();
+    final normalizedOccurrenceId = occurrenceId.trim();
+
+    if (!recurringTemplate.isRecurring || normalizedOccurrenceId.isEmpty) {
+      throw ArgumentError('Ocorrência recorrente inválida.');
+    }
+    if (!financialWallet.isIndividual || !financialWallet.isOwner(user.uid)) {
+      throw StateError(
+        'A movimentação precisa usar uma carteira individual do usuário.',
+      );
+    }
+    _validateTransactionWalletForSettlement(
+      wallet: transactionWallet,
+      userId: user.uid,
+      obligation: recurringTemplate,
+    );
+    if (recurringTemplate.paidByMemberId?.trim() != user.uid) {
+      throw StateError(
+        'Somente o responsável financeiro pode liquidar esta obrigação.',
+      );
+    }
+    if (recurringTemplate.isSettledByInvoice ||
+        recurringTemplate.paymentMethod == 'creditCard') {
+      throw StateError(
+        'Compras no crédito são liquidadas pelo pagamento da fatura.',
+      );
+    }
+    final sourceWalletId = recurringTemplate.paymentSourceId?.trim();
+    if (sourceWalletId != null &&
+        sourceWalletId.isNotEmpty &&
+        sourceWalletId != financialWallet.id.trim()) {
+      throw StateError(
+        'A carteira escolhida não corresponde à origem da obrigação.',
+      );
+    }
+
+    final transactionReference = transactionWallet.isShared
+        ? _sharedTransactionsReference(
+            transactionWallet.id,
+          ).doc(normalizedOccurrenceId)
+        : _individualTransactionsReference(
+            user.uid,
+          ).doc(normalizedOccurrenceId);
+    final templateReference = transactionWallet.isShared
+        ? _sharedTransactionsReference(
+            transactionWallet.id,
+          ).doc(recurringTemplate.id)
+        : _individualTransactionsReference(user.uid).doc(recurringTemplate.id);
+    final financialWalletReference = _financialWalletReference(
+      userId: user.uid,
+      walletId: financialWallet.id,
+    );
+    final settlementDate = settledAt ?? DateTime.now();
+
+    return _firestore.runTransaction((firestoreTransaction) async {
+      final occurrenceDocument = await firestoreTransaction.get(
+        transactionReference,
+      );
+      final templateDocument = await firestoreTransaction.get(
+        templateReference,
+      );
+      final walletDocument = await firestoreTransaction.get(
+        financialWalletReference,
+      );
+      if (!templateDocument.exists || templateDocument.data() == null) {
+        throw StateError('Recorrência financeira não encontrada.');
+      }
+      final persistedTemplate = TransactionModel.fromMap(
+        templateDocument.data()!,
+      );
+      if (!persistedTemplate.isRecurring ||
+          persistedTemplate.recurringId?.trim() !=
+              recurringTemplate.recurringId?.trim()) {
+        throw StateError('Recorrência financeira inválida.');
+      }
+      if (!walletDocument.exists || walletDocument.data() == null) {
+        throw StateError('Carteira financeira não encontrada.');
+      }
+      if (occurrenceDocument.exists && occurrenceDocument.data() != null) {
+        final persisted = TransactionModel.fromMap(occurrenceDocument.data()!);
+        if (persisted.isFinanciallySettled) {
+          return persisted;
+        }
+        throw StateError('Esta ocorrência já possui um estado financeiro.');
+      }
+
+      final walletData = walletDocument.data()!;
+      final ownerId = walletData['ownerId']?.toString().trim();
+      final walletType = walletData['type']?.toString().trim();
+      final isLegacyWallet =
+          financialWalletReference.path ==
+          'users/${user.uid}/wallets/principal';
+      if ((ownerId ?? (isLegacyWallet ? user.uid : '')) != user.uid ||
+          (walletType ?? (isLegacyWallet ? 'individual' : '')) !=
+              'individual') {
+        throw StateError('Usuário sem acesso à carteira financeira.');
+      }
+
+      final materialized = persistedTemplate.copyWith(
+        id: normalizedOccurrenceId,
+        date: occurrenceDate,
+        isRecurring: false,
+        financialStatus: 'settled',
+        financialSettledAt: settlementDate,
+      );
+      final balanceDelta = materialized.type == 'income'
+          ? materialized.value
+          : -materialized.value;
+      firestoreTransaction.update(financialWalletReference, {
+        'balance': FieldValue.increment(balanceDelta),
+        'updatedAt': settlementDate.toIso8601String(),
+      });
+      firestoreTransaction.set(transactionReference, materialized.toMap());
+      return materialized;
+    });
+  }
+
   Future<void> updateTransaction(
     TransactionModel transaction, {
     WalletModel? wallet,
@@ -213,17 +329,14 @@ class TransactionRepository {
     final user = _requireAuthenticatedUser();
 
     if (wallet == null || !wallet.isShared) {
-      await _individualTransactionsReference(user.uid)
-          .doc(transaction.id)
-          .update(transaction.toMap());
+      await _individualTransactionsReference(
+        user.uid,
+      ).doc(transaction.id).update(transaction.toMap());
 
       return;
     }
 
-    _validateSharedWalletAccess(
-      wallet: wallet,
-      userId: user.uid,
-    );
+    _validateSharedWalletAccess(wallet: wallet, userId: user.uid);
 
     if (transaction.walletId.trim() != wallet.id.trim()) {
       throw Exception(
@@ -231,9 +344,9 @@ class TransactionRepository {
       );
     }
 
-    await _sharedTransactionsReference(wallet.id)
-        .doc(transaction.id)
-        .update(transaction.toMap());
+    await _sharedTransactionsReference(
+      wallet.id,
+    ).doc(transaction.id).update(transaction.toMap());
   }
 
   Future<List<TransactionModel>> getTransactions() async {
@@ -265,10 +378,7 @@ class TransactionRepository {
     }
 
     if (wallet != null && wallet.isShared) {
-      _validateSharedWalletAccess(
-        wallet: wallet,
-        userId: user.uid,
-      );
+      _validateSharedWalletAccess(wallet: wallet, userId: user.uid);
 
       if (wallet.id.trim() != normalizedWalletId) {
         throw Exception(
@@ -285,8 +395,7 @@ class TransactionRepository {
 
     return List<TransactionModel>.unmodifiable(
       transactions.where(
-        (transaction) =>
-            transaction.walletId.trim() == normalizedWalletId,
+        (transaction) => transaction.walletId.trim() == normalizedWalletId,
       ),
     );
   }
@@ -296,9 +405,7 @@ class TransactionRepository {
     final transactions = await getTransactions();
 
     return List<TransactionModel>.unmodifiable(
-      transactions.where(
-        (transaction) => transaction.isRecurring,
-      ),
+      transactions.where((transaction) => transaction.isRecurring),
     );
   }
 
@@ -313,9 +420,7 @@ class TransactionRepository {
     );
 
     return List<TransactionModel>.unmodifiable(
-      transactions.where(
-        (transaction) => transaction.isRecurring,
-      ),
+      transactions.where((transaction) => transaction.isRecurring),
     );
   }
 
@@ -337,16 +442,12 @@ class TransactionRepository {
 
     final transactions = walletId == null
         ? await getTransactions()
-        : await getTransactionsByWallet(
-            walletId,
-            wallet: wallet,
-          );
+        : await getTransactionsByWallet(walletId, wallet: wallet);
 
     return List<TransactionModel>.unmodifiable(
       transactions.where(
         (transaction) =>
-            transaction.recurringId?.trim() ==
-            normalizedRecurringId,
+            transaction.recurringId?.trim() == normalizedRecurringId,
       ),
     );
   }
@@ -370,10 +471,7 @@ class TransactionRepository {
       );
     }
 
-    await updateTransaction(
-      transaction,
-      wallet: wallet,
-    );
+    await updateTransaction(transaction, wallet: wallet);
   }
 
   /// Exclui todas as transações pertencentes a uma série recorrente.
@@ -405,10 +503,7 @@ class TransactionRepository {
     late CollectionReference<Map<String, dynamic>> reference;
 
     if (wallet != null && wallet.isShared) {
-      _validateSharedWalletAccess(
-        wallet: wallet,
-        userId: user.uid,
-      );
+      _validateSharedWalletAccess(wallet: wallet, userId: user.uid);
 
       if (wallet.id.trim() != normalizedWalletId) {
         throw Exception(
@@ -416,18 +511,13 @@ class TransactionRepository {
         );
       }
 
-      reference = _sharedTransactionsReference(
-        normalizedWalletId,
-      );
+      reference = _sharedTransactionsReference(normalizedWalletId);
     } else {
       reference = _individualTransactionsReference(user.uid);
     }
 
     final snapshot = await reference
-        .where(
-          'recurringId',
-          isEqualTo: normalizedRecurringId,
-        )
+        .where('recurringId', isEqualTo: normalizedRecurringId)
         .get();
 
     if (snapshot.docs.isEmpty) {
@@ -482,8 +572,7 @@ class TransactionRepository {
         continue;
       }
 
-      if (transaction.settlementId?.trim() ==
-          normalizedSettlementId) {
+      if (transaction.settlementId?.trim() == normalizedSettlementId) {
         return transaction;
       }
     }
@@ -510,24 +599,16 @@ class TransactionRepository {
   Future<List<TransactionModel>> _getTransactionsFromReference(
     CollectionReference<Map<String, dynamic>> reference,
   ) async {
-    final snapshot = await reference
-        .orderBy(
-          'date',
-          descending: true,
-        )
-        .get();
+    final snapshot = await reference.orderBy('date', descending: true).get();
 
     return List<TransactionModel>.unmodifiable(
       snapshot.docs.map(
-        (document) => TransactionModel.fromMap(
-          document.data(),
-        ),
+        (document) => TransactionModel.fromMap(document.data()),
       ),
     );
   }
 
-  DocumentReference<Map<String, dynamic>>
-      _financialWalletReference({
+  DocumentReference<Map<String, dynamic>> _financialWalletReference({
     required String userId,
     required String walletId,
   }) {
@@ -548,26 +629,19 @@ class TransactionRepository {
     required TransactionModel obligation,
   }) {
     if (wallet.id.trim() != obligation.walletId.trim()) {
-      throw StateError(
-        'A obrigação não pertence à carteira informada.',
-      );
+      throw StateError('A obrigação não pertence à carteira informada.');
     }
 
     if (wallet.isShared && !wallet.hasMember(userId)) {
-      throw StateError(
-        'O usuário não participa da carteira compartilhada.',
-      );
+      throw StateError('O usuário não participa da carteira compartilhada.');
     }
 
     if (wallet.isIndividual && !wallet.isOwner(userId)) {
-      throw StateError(
-        'O usuário não é titular da carteira da transação.',
-      );
+      throw StateError('O usuário não é titular da carteira da transação.');
     }
   }
 
-  CollectionReference<Map<String, dynamic>>
-      _individualTransactionsReference(
+  CollectionReference<Map<String, dynamic>> _individualTransactionsReference(
     String userId,
   ) {
     return _firestore
@@ -576,8 +650,7 @@ class TransactionRepository {
         .collection('transactions');
   }
 
-  CollectionReference<Map<String, dynamic>>
-      _sharedTransactionsReference(
+  CollectionReference<Map<String, dynamic>> _sharedTransactionsReference(
     String walletId,
   ) {
     return _firestore
@@ -591,15 +664,11 @@ class TransactionRepository {
     required String userId,
   }) {
     if (!wallet.isShared) {
-      throw Exception(
-        'A carteira informada não é compartilhada.',
-      );
+      throw Exception('A carteira informada não é compartilhada.');
     }
 
     if (!wallet.memberIds.contains(userId)) {
-      throw Exception(
-        'O usuário não pertence à carteira compartilhada.',
-      );
+      throw Exception('O usuário não pertence à carteira compartilhada.');
     }
   }
 

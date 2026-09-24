@@ -4,26 +4,35 @@ import 'package:app/features/receipt_scanner/domain/models/receipt_transaction_d
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('cria rascunho editável sem transformar OCR em transação persistida', () {
-    final result = ReceiptScanResult(
-      rawText: 'LOJA DUO',
-      merchant: 'LOJA DUO',
-      date: DateTime(2026, 8, 25),
-      totalAmount: 42.50,
-      paymentMethodSuggestion: 'pix',
-      items: const [
-        ReceiptScanItem(description: 'Produto', totalPrice: 42.50),
-      ],
-    );
+  test(
+    'cria rascunho editável sem transformar OCR em transação persistida',
+    () {
+      final result = ReceiptScanResult(
+        rawText: 'LOJA DUO',
+        merchant: 'LOJA DUO',
+        date: DateTime(2026, 8, 25),
+        totalAmount: 42.50,
+        paymentMethodSuggestion: 'pix',
+        items: const [
+          ReceiptScanItem(
+            description: 'Produto',
+            quantity: 1,
+            unit: 'UN',
+            unitPrice: 42.50,
+            totalPrice: 42.50,
+          ),
+        ],
+      );
 
-    final draft = ReceiptTransactionDraft.fromScanResult(result);
+      final draft = ReceiptTransactionDraft.fromScanResult(result);
 
-    expect(draft.description, 'LOJA DUO');
-    expect(draft.purchaseDate, DateTime(2026, 8, 25));
-    expect(draft.amount, 42.50);
-    expect(draft.items, hasLength(1));
-    expect(draft.canContinueToTransaction, isTrue);
-  });
+      expect(draft.description, 'LOJA DUO');
+      expect(draft.purchaseDate, DateTime(2026, 8, 25));
+      expect(draft.amount, 42.50);
+      expect(draft.items, hasLength(1));
+      expect(draft.canContinueToTransaction, isTrue);
+    },
+  );
 
   test('permite correção e bloqueia avanço sem descrição ou valor válido', () {
     const draft = ReceiptTransactionDraft(description: '', amount: null);
@@ -33,6 +42,16 @@ void main() {
     final corrected = draft.copyWith(
       description: 'Mercado corrigido',
       amount: 10,
+      purchaseDate: DateTime(2026, 8, 25),
+      items: const [
+        ReceiptScanItem(
+          description: 'Produto',
+          quantity: 1,
+          unit: 'UN',
+          unitPrice: 10,
+          totalPrice: 10,
+        ),
+      ],
     );
 
     expect(corrected.canContinueToTransaction, isTrue);
@@ -41,12 +60,25 @@ void main() {
   });
 
   test('bloqueia handoff enquanto itens e total divergirem', () {
-    const draft = ReceiptTransactionDraft(
+    final draft = ReceiptTransactionDraft(
       description: 'Mercado',
+      purchaseDate: DateTime(2026, 8, 25),
       amount: 20,
       items: [
-        ReceiptScanItem(description: 'Item A', totalPrice: 12),
-        ReceiptScanItem(description: 'Item B', totalPrice: 7),
+        ReceiptScanItem(
+          description: 'Item A',
+          quantity: 1,
+          unit: 'UN',
+          unitPrice: 12,
+          totalPrice: 12,
+        ),
+        ReceiptScanItem(
+          description: 'Item B',
+          quantity: 1,
+          unit: 'UN',
+          unitPrice: 7,
+          totalPrice: 7,
+        ),
       ],
     );
 
@@ -57,5 +89,28 @@ void main() {
     final corrected = draft.copyWith(amount: 19);
     expect(corrected.hasTotalDivergence, isFalse);
     expect(corrected.canContinueToTransaction, isTrue);
+  });
+
+  test('desconto concilia bruto e líquido sem trocar data fiscal', () {
+    final draft = ReceiptTransactionDraft(
+      description: 'Mercado',
+      purchaseDate: DateTime(2026, 9, 18),
+      amount: 28,
+      subtotal: 30,
+      discount: 2,
+      items: const [
+        ReceiptScanItem(
+          description: 'Produto',
+          quantity: 2,
+          unit: 'UN',
+          unitPrice: 15,
+          totalPrice: 30,
+        ),
+      ],
+    );
+    expect(draft.canContinueToTransaction, isTrue);
+    expect(draft.hasTotalDivergence, isFalse);
+    expect(draft.purchaseDate, DateTime(2026, 9, 18));
+    expect(draft.copyWith(amount: 30).canContinueToTransaction, isFalse);
   });
 }

@@ -1,4 +1,5 @@
 class CreditCardModel {
+  static const _unset = Object();
   final String id;
 
   /// Identificador do membro proprietário/responsável pelo cartão.
@@ -8,7 +9,7 @@ class CreditCardModel {
   ///
   /// Serve como vínculo com a instituição financeira, mas NÃO significa
   /// que compras no crédito devam movimentar o saldo desta conta.
-  final String walletId;
+  final String? walletId;
 
   /// Nome exibido para o usuário.
   ///
@@ -36,7 +37,7 @@ class CreditCardModel {
   const CreditCardModel({
     required this.id,
     required this.ownerMemberId,
-    required this.walletId,
+    this.walletId,
     required this.name,
     this.lastFourDigits,
     required this.creditLimit,
@@ -79,31 +80,25 @@ class CreditCardModel {
     };
   }
 
-  factory CreditCardModel.fromMap(
-    Map<String, dynamic> map,
-  ) {
+  factory CreditCardModel.fromMap(Map<String, dynamic> map) {
     return CreditCardModel(
       id: map['id']?.toString() ?? '',
-      ownerMemberId:
-          map['ownerMemberId']?.toString() ?? '',
-      walletId: map['walletId']?.toString() ?? '',
+      ownerMemberId: map['ownerMemberId']?.toString() ?? '',
+      walletId: _parseNullableString(map['walletId']),
       name: map['name']?.toString() ?? 'Cartão',
-      lastFourDigits:
-          _parseNullableString(map['lastFourDigits']),
+      lastFourDigits: _parseNullableString(map['lastFourDigits']),
       creditLimit: _parseDouble(map['creditLimit']),
       usedLimit: _parseDouble(map['usedLimit']),
       closingDay: _parseInt(map['closingDay']),
       dueDay: _parseInt(map['dueDay']),
-      isActive: map['isActive'] == null
-          ? true
-          : _parseBool(map['isActive']),
+      isActive: map['isActive'] == null ? true : _parseBool(map['isActive']),
     );
   }
 
   CreditCardModel copyWith({
     String? id,
     String? ownerMemberId,
-    String? walletId,
+    Object? walletId = _unset,
     String? name,
     String? lastFourDigits,
     bool clearLastFourDigits = false,
@@ -115,9 +110,10 @@ class CreditCardModel {
   }) {
     return CreditCardModel(
       id: id ?? this.id,
-      ownerMemberId:
-          ownerMemberId ?? this.ownerMemberId,
-      walletId: walletId ?? this.walletId,
+      ownerMemberId: ownerMemberId ?? this.ownerMemberId,
+      walletId: identical(walletId, _unset)
+          ? this.walletId
+          : walletId as String?,
       name: name ?? this.name,
       lastFourDigits: clearLastFourDigits
           ? null
@@ -133,8 +129,7 @@ class CreditCardModel {
   static String? _parseNullableString(dynamic value) {
     final normalizedValue = value?.toString().trim();
 
-    if (normalizedValue == null ||
-        normalizedValue.isEmpty) {
+    if (normalizedValue == null || normalizedValue.isEmpty) {
       return null;
     }
 

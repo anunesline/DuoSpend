@@ -27,93 +27,60 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   late final List<TransactionModel> _transactions;
-
   String? _processingTransactionId;
 
   @override
   void initState() {
     super.initState();
-
-    _transactions = List<TransactionModel>.from(
-      widget.transactions,
-    );
-
+    _transactions = List<TransactionModel>.from(widget.transactions);
     _sortTransactions();
   }
 
   bool get _canRespondToConfirmations {
     final currentUserId = widget.currentUserId?.trim();
-
     return widget.transactionController != null &&
         currentUserId != null &&
         currentUserId.isNotEmpty;
   }
 
   void _sortTransactions() {
-    _transactions.sort((firstTransaction, secondTransaction) {
-      final firstCanRespond = _canCurrentUserRespond(
-        firstTransaction,
-      );
-
-      final secondCanRespond = _canCurrentUserRespond(
-        secondTransaction,
-      );
-
-      if (firstCanRespond != secondCanRespond) {
-        return firstCanRespond ? -1 : 1;
+    _transactions.sort((first, second) {
+      final firstCanRespond = _canCurrentUserRespond(first);
+      final secondCanRespond = _canCurrentUserRespond(second);
+      if (firstCanRespond != secondCanRespond) return firstCanRespond ? -1 : 1;
+      if (first.isAwaitingConfirmation != second.isAwaitingConfirmation) {
+        return first.isAwaitingConfirmation ? -1 : 1;
       }
-
-      final firstIsPending =
-          firstTransaction.isAwaitingConfirmation;
-
-      final secondIsPending =
-          secondTransaction.isAwaitingConfirmation;
-
-      if (firstIsPending != secondIsPending) {
-        return firstIsPending ? -1 : 1;
-      }
-
-      return secondTransaction.date.compareTo(
-        firstTransaction.date,
-      );
+      return second.date.compareTo(first.date);
     });
   }
 
   String _formatValue(TransactionModel transaction) {
     final prefix = transaction.type == 'income' ? '+' : '-';
-    final formattedValue = transaction.value
-        .toStringAsFixed(2)
-        .replaceAll('.', ',');
-
-    return '$prefix R\$ $formattedValue';
+    return '$prefix R\$ ${transaction.value.toStringAsFixed(2).replaceAll('.', ',')}';
   }
 
   String _formatDate(DateTime date) {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
-    final year = date.year.toString();
-
-    return '$day/$month/$year';
+    return '$day/$month/${date.year}';
   }
 
   String _formatTime(DateTime date) {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
-
     return '$hour:$minute';
   }
 
   bool _isTransactionAuthor(TransactionModel transaction) {
     final currentUserId = widget.currentUserId?.trim();
     final paidByMemberId = transaction.paidByMemberId?.trim();
-
     if (currentUserId == null ||
         currentUserId.isEmpty ||
         paidByMemberId == null ||
         paidByMemberId.isEmpty) {
       return false;
     }
-
     return paidByMemberId == currentUserId;
   }
 
@@ -127,72 +94,55 @@ class _HistoryPageState extends State<HistoryPage> {
     return _processingTransactionId == transaction.id;
   }
 
-  Future<void> _openTransactionDetail(
-    TransactionModel transaction,
-  ) async {
-    await Navigator.push(
+  Future<void> _openTransactionDetail(TransactionModel transaction) async {
+    final result = await Navigator.push<TransactionDetailResult>(
       context,
       MaterialPageRoute(
-        builder: (_) => TransactionDetailPage(
-          transaction: transaction,
-        ),
+        builder: (_) => TransactionDetailPage(transaction: transaction),
       ),
     );
+    if (result == null || !mounted) return;
+
+    final index = _transactions.indexWhere((item) => item.id == transaction.id);
+    if (index == -1) return;
+
+    setState(() {
+      if (result.deleted) {
+        _transactions.removeAt(index);
+      } else if (result.transaction != null) {
+        _transactions[index] = result.transaction!;
+      }
+      _sortTransactions();
+    });
   }
 
-  Future<void> _acceptTransaction(
-    TransactionModel transaction,
-  ) async {
-    await _resolveTransaction(
-      transaction: transaction,
-      accept: true,
-    );
+  Future<void> _acceptTransaction(TransactionModel transaction) async {
+    await _resolveTransaction(transaction: transaction, accept: true);
   }
 
-  Future<void> _rejectTransaction(
-    TransactionModel transaction,
-  ) async {
+  Future<void> _rejectTransaction(TransactionModel transaction) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Recusar despesa?',
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Recusar despesa?'),
+        content: Text(
+          'A despesa "${transaction.description}" não impactará '
+          'a divisão financeira compartilhada.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
           ),
-          content: Text(
-            'A despesa "${transaction.description}" não impactará '
-            'a divisão financeira compartilhada.',
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Recusar'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text(
-                'Cancelar',
-              ),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: const Text(
-                'Recusar',
-              ),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
-
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
-    await _resolveTransaction(
-      transaction: transaction,
-      accept: false,
-    );
+    if (confirmed != true || !mounted) return;
+    await _resolveTransaction(transaction: transaction, accept: false);
   }
 
   Future<void> _resolveTransaction({
@@ -201,7 +151,6 @@ class _HistoryPageState extends State<HistoryPage> {
   }) async {
     final transactionController = widget.transactionController;
     final currentUserId = widget.currentUserId?.trim();
-
     if (transactionController == null ||
         currentUserId == null ||
         currentUserId.isEmpty ||
@@ -209,12 +158,9 @@ class _HistoryPageState extends State<HistoryPage> {
       return;
     }
 
-    setState(() {
-      _processingTransactionId = transaction.id;
-    });
-
+    setState(() => _processingTransactionId = transaction.id);
     try {
-      final updatedTransaction = accept
+      final updated = accept
           ? await transactionController.acceptSharedTransaction(
               transaction: transaction,
               wallet: widget.wallet,
@@ -225,24 +171,14 @@ class _HistoryPageState extends State<HistoryPage> {
               wallet: widget.wallet,
               respondingMemberId: currentUserId,
             );
-
-      if (!mounted) {
-        return;
-      }
-
-      final transactionIndex = _transactions.indexWhere(
-        (currentTransaction) {
-          return currentTransaction.id == updatedTransaction.id;
-        },
-      );
-
-      if (transactionIndex != -1) {
+      if (!mounted) return;
+      final index = _transactions.indexWhere((item) => item.id == updated.id);
+      if (index != -1) {
         setState(() {
-          _transactions[transactionIndex] = updatedTransaction;
+          _transactions[index] = updated;
           _sortTransactions();
         });
       }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -253,36 +189,24 @@ class _HistoryPageState extends State<HistoryPage> {
         ),
       );
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      final errorMessage = transactionController.errorMessage ??
-          'Não foi possível responder à confirmação.';
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(errorMessage),
+          content: Text(
+            transactionController.errorMessage ??
+                'Não foi possível responder à confirmação.',
+          ),
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          _processingTransactionId = null;
-        });
-      }
+      if (mounted) setState(() => _processingTransactionId = null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Histórico',
-        ),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Histórico'), centerTitle: true),
       body: Column(
         children: [
           _WalletHeader(
@@ -300,32 +224,21 @@ class _HistoryPageState extends State<HistoryPage> {
                       AppSpacing.lg,
                     ),
                     itemCount: _transactions.length,
-                    separatorBuilder: (_, __) {
-                      return const SizedBox(
-                        height: AppSpacing.sm,
-                      );
-                    },
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, index) {
                       final transaction = _transactions[index];
-
                       return _TransactionHistoryCard(
                         transaction: transaction,
                         formattedValue: _formatValue(transaction),
                         formattedDate: _formatDate(transaction.date),
                         formattedTime: _formatTime(transaction.date),
                         isAuthor: _isTransactionAuthor(transaction),
-                        canRespond:
-                            _canCurrentUserRespond(transaction),
+                        canRespond: _canCurrentUserRespond(transaction),
                         isProcessing: _isProcessing(transaction),
-                        onTap: () {
-                          _openTransactionDetail(transaction);
-                        },
-                        onAccept: () {
-                          _acceptTransaction(transaction);
-                        },
-                        onReject: () {
-                          _rejectTransaction(transaction);
-                        },
+                        onTap: () => _openTransactionDetail(transaction),
+                        onAccept: () => _acceptTransaction(transaction),
+                        onReject: () => _rejectTransaction(transaction),
                       );
                     },
                   ),
@@ -350,7 +263,6 @@ class _WalletHeader extends StatelessWidget {
     final transactionLabel = transactionCount == 1
         ? '1 movimentação'
         : '$transactionCount movimentações';
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(
@@ -359,11 +271,7 @@ class _WalletHeader extends StatelessWidget {
         AppSpacing.lg,
         AppSpacing.md,
       ),
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest,
-      ),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Row(
         children: [
           CircleAvatar(
@@ -373,9 +281,7 @@ class _WalletHeader extends StatelessWidget {
                   : Icons.account_balance_wallet_outlined,
             ),
           ),
-          const SizedBox(
-            width: AppSpacing.md,
-          ),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,16 +290,11 @@ class _WalletHeader extends StatelessWidget {
                   wallet.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                 ),
-                const SizedBox(
-                  height: 2,
-                ),
+                const SizedBox(height: 2),
                 Text(
                   transactionLabel,
                   style: Theme.of(context).textTheme.bodySmall,
@@ -435,18 +336,13 @@ class _TransactionHistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIncome = transaction.type == 'income';
-    final transactionColor = isIncome
-        ? Colors.green
-        : Colors.red;
-
+    final transactionColor = isIncome ? Colors.green : Colors.red;
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: isProcessing ? null : onTap,
         child: Padding(
-          padding: const EdgeInsets.all(
-            AppSpacing.md,
-          ),
+          padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -454,9 +350,7 @@ class _TransactionHistoryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CircleAvatar(
-                    backgroundColor: transactionColor.withValues(
-                      alpha: 0.12,
-                    ),
+                    backgroundColor: transactionColor.withValues(alpha: 0.12),
                     child: Icon(
                       isIncome
                           ? Icons.arrow_downward_rounded
@@ -464,40 +358,28 @@ class _TransactionHistoryCard extends StatelessWidget {
                       color: transactionColor,
                     ),
                   ),
-                  const SizedBox(
-                    width: AppSpacing.md,
-                  ),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           transaction.description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
                         ),
-                        const SizedBox(
-                          height: AppSpacing.xs,
-                        ),
+                        const SizedBox(height: AppSpacing.xs),
                         Text(
                           '$formattedDate às $formattedTime',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall,
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(
-                    width: AppSpacing.sm,
-                  ),
+                  const SizedBox(width: AppSpacing.sm),
                   Text(
                     formattedValue,
                     style: TextStyle(
@@ -508,57 +390,35 @@ class _TransactionHistoryCard extends StatelessWidget {
                 ],
               ),
               if (transaction.isSharedExpense) ...[
-                const SizedBox(
-                  height: AppSpacing.md,
-                ),
+                const SizedBox(height: AppSpacing.md),
                 _ConfirmationStatusChip(
                   transaction: transaction,
                   isAuthor: isAuthor,
                 ),
               ],
               if (canRespond) ...[
-                const SizedBox(
-                  height: AppSpacing.md,
-                ),
+                const SizedBox(height: AppSpacing.md),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: isProcessing
-                            ? null
-                            : onReject,
-                        icon: const Icon(
-                          Icons.close_rounded,
-                        ),
-                        label: const Text(
-                          'Recusar',
-                        ),
+                        onPressed: isProcessing ? null : onReject,
+                        icon: const Icon(Icons.close_rounded),
+                        label: const Text('Recusar'),
                       ),
                     ),
-                    const SizedBox(
-                      width: AppSpacing.sm,
-                    ),
+                    const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: isProcessing
-                            ? null
-                            : onAccept,
+                        onPressed: isProcessing ? null : onAccept,
                         icon: isProcessing
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Icon(
-                                Icons.check_rounded,
-                              ),
-                        label: Text(
-                          isProcessing
-                              ? 'Salvando...'
-                              : 'Aceitar',
-                        ),
+                            : const Icon(Icons.check_rounded),
+                        label: Text(isProcessing ? 'Salvando...' : 'Aceitar'),
                       ),
                     ),
                   ],
@@ -584,7 +444,6 @@ class _ConfirmationStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = transaction.confirmationStatus;
-
     late final String label;
     late final IconData icon;
     late final Color foregroundColor;
@@ -597,25 +456,17 @@ class _ConfirmationStatusChip extends StatelessWidget {
             : 'Aguardando sua resposta';
         icon = Icons.schedule_rounded;
         foregroundColor = Colors.orange.shade800;
-        backgroundColor = Colors.orange.withValues(
-          alpha: 0.12,
-        );
-
+        backgroundColor = Colors.orange.withValues(alpha: 0.12);
       case SharedTransactionConfirmationStatus.accepted:
         label = 'Confirmada';
         icon = Icons.check_circle_outline_rounded;
         foregroundColor = Colors.green.shade700;
-        backgroundColor = Colors.green.withValues(
-          alpha: 0.12,
-        );
-
+        backgroundColor = Colors.green.withValues(alpha: 0.12);
       case SharedTransactionConfirmationStatus.rejected:
         label = 'Recusada';
         icon = Icons.cancel_outlined;
         foregroundColor = Colors.red.shade700;
-        backgroundColor = Colors.red.withValues(
-          alpha: 0.12,
-        );
+        backgroundColor = Colors.red.withValues(alpha: 0.12);
     }
 
     return Align(
@@ -632,21 +483,12 @@ class _ConfirmationStatusChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: foregroundColor,
-            ),
-            const SizedBox(
-              width: AppSpacing.xs,
-            ),
+            Icon(icon, size: 16, color: foregroundColor),
+            const SizedBox(width: AppSpacing.xs),
             Flexible(
               child: Text(
                 label,
-                style: Theme.of(context)
-                    .textTheme
-                    .labelMedium
-                    ?.copyWith(
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: foregroundColor,
                       fontWeight: FontWeight.w600,
                     ),
@@ -666,30 +508,22 @@ class _EmptyHistory extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(
-          AppSpacing.xl,
-        ),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.receipt_long_outlined,
               size: 52,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(
-              height: AppSpacing.md,
-            ),
+            const SizedBox(height: AppSpacing.md),
             Text(
               'Nenhuma movimentação encontrada.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(
-              height: AppSpacing.xs,
-            ),
+            const SizedBox(height: AppSpacing.xs),
             Text(
               'As transações desta carteira aparecerão aqui.',
               textAlign: TextAlign.center,

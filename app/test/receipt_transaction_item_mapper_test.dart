@@ -9,6 +9,7 @@ void main() {
         ReceiptScanItem(
           description: 'Arroz',
           quantity: 2,
+          unit: 'UN',
           unitPrice: 10,
           totalPrice: 20,
         ),
@@ -36,5 +37,28 @@ void main() {
     );
 
     expect(result, isEmpty);
+  });
+
+  test('leva identidade confirmada e preserva marca e unidade', () {
+    final mapped = const ReceiptTransactionItemMapper().map(
+      items: const [
+        ReceiptScanItem(
+          description: 'Arroz Buriti 5 kg',
+          brand: 'Buriti',
+          productId: 'buriti-5kg',
+          quantity: 2,
+          unit: 'UN',
+          unitPrice: 12.5,
+          totalPrice: 25,
+        ),
+      ],
+      category: 'Alimentação',
+      subcategory: 'Mercado',
+      taxonomyId: 'mercado',
+      createdAt: DateTime(2026, 9, 23),
+    );
+    expect(mapped.single.productId, 'buriti-5kg');
+    expect(mapped.single.brand, 'Buriti');
+    expect(mapped.single.quantity, 2);
   });
 }
